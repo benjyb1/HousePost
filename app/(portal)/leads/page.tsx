@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { createClient } from '@/lib/supabase/server'
 import { LeadsTable } from '@/components/leads/LeadsTable'
 import { currentMonthKey, formatMonthKey } from '@/lib/utils/date'

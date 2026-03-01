@@ -4,8 +4,8 @@
     {
       "name": "PropertyLeads Dev",
       "runtimeExecutable": "/opt/homebrew/bin/node",
-      "runtimeArgs": ["node_modules/next/dist/bin/next", "dev", "--no-turbopack"],
-      "port": 3000
+      "runtimeArgs": ["node_modules/next/dist/bin/next", "dev", "-p", "3001"],
+      "port": 3001
     }
   ]
 }
