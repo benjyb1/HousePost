@@ -5,7 +5,7 @@ CREATE TABLE property_transactions (
   transaction_id TEXT NOT NULL,
   price INTEGER NOT NULL,              -- in pence (price_pounds * 100)
   date_of_transfer DATE NOT NULL,
-  postcode TEXT NOT NULL, 
+  postcode TEXT NOT NULL,
   property_type CHAR(1) NOT NULL
     CHECK (property_type IN ('D','S','T','F','O')),
   is_new_build BOOLEAN NOT NULL DEFAULT FALSE,
