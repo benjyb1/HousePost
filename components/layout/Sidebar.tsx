@@ -29,13 +29,13 @@ export function Sidebar() {
 
   return (
     <aside className="flex w-60 flex-col border-r bg-white">
-      <div className="flex h-16 items-center border-b px-6">
+      <div className="flex h-16 items-center border-b px-5">
         <Image
           src="/logo-wordmark.png"
-          alt="Lead Sweeper"
-          width={140}
-          height={70}
-          className="h-7 w-auto"
+          alt="LeadSweeper"
+          width={200}
+          height={100}
+          className="h-10 w-auto"
         />
       </div>
       <nav className="flex flex-1 flex-col gap-1 p-3">
@@ -55,7 +55,11 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
-      <div className="border-t p-3">
+      <div className="border-t p-3 space-y-1">
+        <div className="flex items-center gap-2 px-3 py-2">
+          <Image src="/logo-icon.png" alt="" width={16} height={16} className="h-4 w-4 opacity-30" />
+          <span className="text-xs text-slate-400">LeadSweeper</span>
+        </div>
         <button
           onClick={handleLogout}
           className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"

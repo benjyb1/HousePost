@@ -18,7 +18,7 @@ export async function POST() {
   const customerId = await getOrCreateStripeCustomer(
     user.id,
     profile.email as string ?? user.email!,
-    profile.full_name as string ?? 'PropertyLeads User'
+    profile.full_name as string ?? 'LeadSweeper User'
   )
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!

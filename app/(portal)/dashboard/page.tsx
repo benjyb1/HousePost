@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import Image from 'next/image'
 import { MapPin, Mail, CreditCard, Building } from 'lucide-react'
 import { currentMonthKey, formatMonthKey } from '@/lib/utils/date'
 
@@ -90,7 +91,7 @@ export default async function DashboardPage() {
       {(leadCount ?? 0) === 0 && (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center">
-            <MapPin className="mx-auto h-10 w-10 text-slate-300 mb-3" />
+            <Image src="/logo-icon.png" alt="" width={40} height={40} className="mx-auto h-10 w-10 opacity-20 mb-3" />
             <p className="font-medium text-slate-600">No leads yet for {formatMonthKey(monthKey)}</p>
             <p className="text-sm text-slate-400 mt-1">
               Leads are generated on the 22nd of each month from Land Registry data.
