@@ -29,13 +29,13 @@ export function Sidebar() {
 
   return (
     <aside className="flex w-60 flex-col border-r bg-white">
-      <div className="flex h-16 items-center border-b px-5">
+      <div className="flex h-24 items-center border-b px-5">
         <Image
           src="/logo-wordmark.png"
           alt="LeadSweeper"
           width={200}
           height={100}
-          className="h-10 w-auto"
+          className="h-20 w-auto"
         />
       </div>
       <nav className="flex flex-1 flex-col gap-1 p-3">
