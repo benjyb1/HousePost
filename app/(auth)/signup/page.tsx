@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { toast } from 'sonner'
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState('')
@@ -16,12 +15,14 @@ export default function SignupPage() {
   const [password, setPassword] = useState('')
   const [officePostcode, setOfficePostcode] = useState('')
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   async function handleSignup(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
+    setError(null)
     if (password.length < 8) {
-      toast.error('Password must be at least 8 characters')
+      setError('Password must be at least 8 characters')
       return
     }
 
@@ -36,7 +37,7 @@ export default function SignupPage() {
     })
 
     if (error) {
-      toast.error(error.message)
+      setError(error.message)
       setLoading(false)
       return
     }
@@ -107,6 +108,11 @@ export default function SignupPage() {
               minLength={8}
             />
           </div>
+          {error && (
+            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 border border-red-200">
+              {error}
+            </p>
+          )}
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
           <Button type="submit" className="w-full" disabled={loading}>
