@@ -1,0 +1,33 @@
+name: Generate Leads
+
+on:
+  schedule:
+    # Runs on 22nd, 23rd, 24th at 8am UTC.
+    # The script's isScheduledRunDay(22) handles weekend deferral logic
+    # so only the correct day will actually execute the generation.
+    - cron: '0 8 22,23,24 * *'
+  workflow_dispatch: # Allow manual trigger from GitHub Actions UI
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate leads for all active subscribers
+        run: npx tsx scripts/run-generate-leads.ts
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
