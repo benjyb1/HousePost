@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, MapPin, Mail, CreditCard, Settings, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -29,7 +30,13 @@ export function Sidebar() {
   return (
     <aside className="flex w-60 flex-col border-r bg-white">
       <div className="flex h-16 items-center border-b px-6">
-        <span className="text-lg font-bold text-slate-900">PropertyLeads</span>
+        <Image
+          src="/logo-wordmark.png"
+          alt="Lead Sweeper"
+          width={140}
+          height={70}
+          className="h-7 w-auto"
+        />
       </div>
       <nav className="flex flex-1 flex-col gap-1 p-3">
         {navItems.map(({ href, label, icon: Icon }) => (
@@ -39,7 +46,7 @@ export function Sidebar() {
             className={cn(
               'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
               pathname === href || pathname.startsWith(href + '/')
-                ? 'bg-slate-100 text-slate-900'
+                ? 'bg-brand-light text-brand font-semibold'
                 : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
             )}
           >

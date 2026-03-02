@@ -48,8 +48,8 @@ async function postGridRequest<T>(
 
 function getSenderContact(): PostGridContact {
   return {
-    companyName: process.env.POSTGRID_SENDER_NAME ?? 'PropertyLeads',
-    firstName: process.env.POSTGRID_SENDER_NAME ?? 'PropertyLeads',
+    companyName: process.env.POSTGRID_SENDER_NAME ?? 'LeadSweeper',
+    firstName: process.env.POSTGRID_SENDER_NAME ?? 'LeadSweeper',
     addressLine1: process.env.POSTGRID_SENDER_ADDRESS_LINE1 ?? '1 Example Street',
     city: process.env.POSTGRID_SENDER_CITY ?? 'London',
     postalOrZip: process.env.POSTGRID_SENDER_POSTAL_CODE ?? 'EC1A 1BB',
@@ -146,9 +146,9 @@ export function generateLetterHtml(params: {
   <meta charset="utf-8"/>
   <style>
     body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-    .header { background: #1a365d; color: white; padding: 20px; border-radius: 8px; margin-bottom: 24px; }
-    .highlight { color: #2b6cb0; font-weight: bold; }
-    .address { background: #f7fafc; border-left: 4px solid #2b6cb0; padding: 12px 16px; margin: 16px 0; }
+    .header { background: #F97060; color: white; padding: 20px; border-radius: 8px; margin-bottom: 24px; }
+    .highlight { color: #e85f4e; font-weight: bold; }
+    .address { background: #fff0ee; border-left: 4px solid #F97060; padding: 12px 16px; margin: 16px 0; }
     .footer { margin-top: 32px; font-size: 12px; color: #666; border-top: 1px solid #e2e8f0; padding-top: 16px; }
   </style>
 </head>

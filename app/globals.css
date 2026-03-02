@@ -4,6 +4,13 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@theme {
+  --color-brand: #F97060;
+  --color-brand-dark: #e85f4e;
+  --color-brand-light: #fff0ee;
+  --color-brand-border: #fdd9d4;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

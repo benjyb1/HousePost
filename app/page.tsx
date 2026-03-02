@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Image from 'next/image'
 import {
   MapPin,
   Mail,
@@ -7,7 +8,6 @@ import {
   Clock,
   CheckCircle,
   ArrowRight,
-  Building2,
 } from 'lucide-react'
 
 // Fully static marketing page — no Supabase calls needed
@@ -19,10 +19,16 @@ export default function HomePage() {
       {/* ── Nav ── */}
       <nav className="sticky top-0 z-50 border-b bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-6 w-6 text-blue-700" />
-            <span className="text-lg font-bold text-slate-900">PropertyLeads</span>
-          </div>
+          <Link href="/">
+            <Image
+              src="/logo-wordmark.png"
+              alt="LeadSweeper"
+              width={160}
+              height={80}
+              className="h-8 w-auto"
+              priority
+            />
+          </Link>
           <div className="flex items-center gap-4">
             <Link
               href="/login"
@@ -32,7 +38,7 @@ export default function HomePage() {
             </Link>
             <Link
               href="/signup"
-              className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 transition-colors"
+              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark transition-colors"
             >
               Get started
             </Link>
@@ -42,26 +48,26 @@ export default function HomePage() {
 
       {/* ── Hero ── */}
       <section className="mx-auto max-w-6xl px-6 pt-20 pb-24 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-1.5 text-sm text-blue-700 mb-6">
+        <div className="inline-flex items-center gap-2 rounded-full border border-brand-border bg-brand-light px-4 py-1.5 text-sm text-brand mb-6">
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-600"></span>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-75"></span>
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-brand"></span>
           </span>
           Monthly leads, automated
         </div>
         <h1 className="mx-auto max-w-3xl text-5xl font-extrabold leading-tight tracking-tight text-slate-900">
           Turn Land Registry data into{' '}
-          <span className="text-blue-700">postcard campaigns</span>
+          <span className="text-brand">postcard campaigns</span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-xl text-slate-500 leading-relaxed">
-          PropertyLeads automatically finds recent high-value property sales near your
+          LeadSweeper automatically finds recent high-value property sales near your
           office every month and sends beautifully printed postcards to those addresses
           — with zero manual work.
         </p>
         <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
           <Link
             href="/signup"
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-8 py-3.5 text-base font-semibold text-white shadow-lg hover:bg-blue-800 transition-all hover:shadow-blue-200"
+            className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-base font-semibold text-white shadow-lg hover:bg-brand-dark transition-all"
           >
             Start free — £10/month
             <ArrowRight className="h-4 w-4" />
@@ -109,9 +115,9 @@ export default function HomePage() {
             ].map(({ icon: Icon, step, title, body }) => (
               <div key={step} className="rounded-2xl bg-white p-8 shadow-sm border border-slate-100">
                 <div className="flex items-center gap-3 mb-4">
-                  <span className="text-xs font-bold text-blue-500 tracking-widest">{step}</span>
-                  <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                    <Icon className="h-5 w-5 text-blue-700" />
+                  <span className="text-xs font-bold text-brand tracking-widest">{step}</span>
+                  <div className="h-10 w-10 rounded-xl bg-brand-light flex items-center justify-center">
+                    <Icon className="h-5 w-5 text-brand" />
                   </div>
                 </div>
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">{title}</h3>
@@ -137,9 +143,9 @@ export default function HomePage() {
               { icon: Shield, title: 'Land Registry data', body: 'Sourced directly from HM Land Registry — the official UK property transaction register.' },
               { icon: CheckCircle, title: 'Filter your way', body: 'Sort by price, distance, or property type. Only send to the leads that matter to you.' },
             ].map(({ icon: Icon, title, body }) => (
-              <div key={title} className="flex gap-4 p-6 rounded-xl border border-slate-100 hover:border-blue-100 hover:bg-blue-50/30 transition-colors">
-                <div className="h-9 w-9 shrink-0 rounded-lg bg-blue-50 flex items-center justify-center mt-0.5">
-                  <Icon className="h-4 w-4 text-blue-700" />
+              <div key={title} className="flex gap-4 p-6 rounded-xl border border-slate-100 hover:border-brand-border hover:bg-brand-light/30 transition-colors">
+                <div className="h-9 w-9 shrink-0 rounded-lg bg-brand-light flex items-center justify-center mt-0.5">
+                  <Icon className="h-4 w-4 text-brand" />
                 </div>
                 <div>
                   <p className="font-semibold text-slate-800 mb-1">{title}</p>
@@ -157,7 +163,7 @@ export default function HomePage() {
           <h2 className="text-3xl font-bold text-slate-900 mb-4">Simple pricing</h2>
           <p className="text-slate-500 mb-10">One plan. Everything included.</p>
           <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-            <div className="bg-blue-700 px-8 py-8 text-white">
+            <div className="bg-brand px-8 py-8 text-white">
               <p className="text-sm font-medium opacity-80 mb-1">Monthly subscription</p>
               <div className="flex items-end justify-center gap-1">
                 <span className="text-5xl font-extrabold">£10</span>
@@ -175,14 +181,14 @@ export default function HomePage() {
                 'No setup fee · Cancel any time',
               ].map((item) => (
                 <div key={item} className="flex items-start gap-3 text-sm text-slate-700">
-                  <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                  <CheckCircle className="h-4 w-4 text-brand shrink-0 mt-0.5" />
                   {item}
                 </div>
               ))}
               <div className="pt-4">
                 <Link
                   href="/signup"
-                  className="block w-full rounded-xl bg-blue-700 py-3 text-center text-sm font-semibold text-white hover:bg-blue-800 transition-colors"
+                  className="block w-full rounded-xl bg-brand py-3 text-center text-sm font-semibold text-white hover:bg-brand-dark transition-colors"
                 >
                   Get started
                 </Link>
@@ -199,12 +205,12 @@ export default function HomePage() {
             Ready to grow your property pipeline?
           </h2>
           <p className="text-slate-500 mb-8">
-            Join estate agents and solicitors already using PropertyLeads to reach
+            Join estate agents and solicitors already using LeadSweeper to reach
             motivated homeowners every month.
           </p>
           <Link
             href="/signup"
-            className="inline-flex items-center gap-2 rounded-xl bg-blue-700 px-8 py-3.5 text-base font-semibold text-white shadow-lg hover:bg-blue-800 transition-all"
+            className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-base font-semibold text-white shadow-lg hover:bg-brand-dark transition-all"
           >
             Start for £10/month
             <ArrowRight className="h-4 w-4" />
@@ -215,10 +221,13 @@ export default function HomePage() {
       {/* ── Footer ── */}
       <footer className="border-t py-8">
         <div className="mx-auto max-w-6xl px-6 flex flex-col items-center justify-between gap-4 text-sm text-slate-400 sm:flex-row">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
-            <span className="font-medium text-slate-600">PropertyLeads</span>
-          </div>
+          <Image
+            src="/logo-wordmark.png"
+            alt="LeadSweeper"
+            width={120}
+            height={60}
+            className="h-6 w-auto"
+          />
           <div className="flex gap-6">
             <Link href="/login" className="hover:text-slate-600 transition-colors">Sign in</Link>
             <Link href="/signup" className="hover:text-slate-600 transition-colors">Sign up</Link>
