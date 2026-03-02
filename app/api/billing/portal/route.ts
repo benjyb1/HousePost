@@ -18,10 +18,15 @@ export async function POST() {
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL!
-  const portalUrl = await createPortalSession(
-    profile.stripe_customer_id as string,
-    appUrl
-  )
-
-  return NextResponse.json({ url: portalUrl })
+  try {
+    const portalUrl = await createPortalSession(
+      profile.stripe_customer_id as string,
+      appUrl
+    )
+    return NextResponse.json({ url: portalUrl })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to open billing portal'
+    console.error('Billing portal error:', message)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }

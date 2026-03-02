@@ -30,19 +30,27 @@ export default function BillingPage() {
 
   async function openPortal() {
     setPortalLoading(true)
-    const res = await fetch('/api/billing/portal', { method: 'POST' })
-    const data = await res.json()
-    if (data.url) window.location.href = data.url
-    else toast.error('Could not open billing portal')
+    try {
+      const res = await fetch('/api/billing/portal', { method: 'POST' })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+      else toast.error(data.error ?? 'Could not open billing portal')
+    } catch {
+      toast.error('Could not open billing portal')
+    }
     setPortalLoading(false)
   }
 
   async function openCheckout() {
     setCheckoutLoading(true)
-    const res = await fetch('/api/billing/create-checkout', { method: 'POST' })
-    const data = await res.json()
-    if (data.url) window.location.href = data.url
-    else toast.error('Could not start checkout')
+    try {
+      const res = await fetch('/api/billing/create-checkout', { method: 'POST' })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+      else toast.error(data.error ?? 'Could not start checkout')
+    } catch {
+      toast.error('Could not start checkout')
+    }
     setCheckoutLoading(false)
   }
 
