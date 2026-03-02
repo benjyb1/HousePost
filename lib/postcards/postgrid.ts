@@ -1,7 +1,7 @@
 const POSTGRID_BASE = 'https://api.postgrid.com/print-mail/v1'
 
 export interface PostGridAddress {
-  line1: string
+  addressLine1: string
   city: string
   postalOrZip: string
   countryCode: 'GB'
@@ -54,7 +54,7 @@ function getSenderContact(): PostGridContact {
     companyName: process.env.POSTGRID_SENDER_NAME ?? 'PropertyLeads',
     firstName: process.env.POSTGRID_SENDER_NAME ?? 'PropertyLeads',
     address: {
-      line1: process.env.POSTGRID_SENDER_ADDRESS_LINE1 ?? '1 Example Street',
+      addressLine1: process.env.POSTGRID_SENDER_ADDRESS_LINE1 ?? '1 Example Street',
       city: process.env.POSTGRID_SENDER_CITY ?? 'London',
       postalOrZip: process.env.POSTGRID_SENDER_POSTAL_CODE ?? 'EC1A 1BB',
       countryCode: 'GB',
@@ -77,8 +77,8 @@ export function buildRecipientContact(
     firstName,
     lastName: rest.join(' ') || undefined,
     address: {
-      line1: addressLine,
-      city: '', // PostGrid uses line1 + postalOrZip for UK
+      addressLine1: addressLine,
+      city: 'London', // Required by PostGrid even for UK addresses
       postalOrZip: postcode,
       countryCode: 'GB',
     },
