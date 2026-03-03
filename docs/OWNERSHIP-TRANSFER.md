@@ -15,7 +15,7 @@ The source code lives here. The new owner needs their own GitHub account.
 3. Add the new owner's GitHub username with **Owner** role
 4. New owner accepts the invite
 5. Current owner transfers the repository: **Settings → General → scroll to Danger Zone → Transfer repository**
-
+Status: Invitation Sent
 ---
 
 ### 2. Vercel (website hosting)
@@ -32,7 +32,7 @@ This is where the website runs.
    - Go to **Project → Settings → Domains**
    - Add the domain
    - Update DNS records at the domain registrar to point to the new Vercel project
-
+Status: Waiting on Github
 ---
 
 ### 3. Supabase (database)
@@ -43,7 +43,7 @@ This stores all client data, leads, and postcard history.
 2. Current owner goes to [supabase.com/dashboard/org](https://supabase.com/dashboard/org) → **Members → Invite**
 3. Invite the new owner's email as **Owner**
 4. Once accepted, current owner can remove themselves
-
+Status: Invitation Sent
 ---
 
 ### 4. Stripe (payments)
@@ -86,7 +86,7 @@ The website's web address.
 1. Log in to the domain registrar (GoDaddy/Namecheap/etc.) where the domain was purchased
 2. Go to **Account → Domain Transfer** and follow the transfer process to the new owner's registrar account
 3. The DNS settings (pointing to Vercel) will need to be re-added after transfer
-
+Status: Obsolete
 ---
 
 ## Environment variables to add in Vercel after deployment
