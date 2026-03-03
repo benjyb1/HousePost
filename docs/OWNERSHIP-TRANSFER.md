@@ -23,10 +23,15 @@ This is where the website runs.
 
 **Steps:**
 1. New owner creates a Vercel account at [vercel.com](https://vercel.com) using their GitHub account
-2. Current owner goes to the Vercel project → **Settings → General → Transfer Project**
-3. Enter the new owner's Vercel username or email
-4. New owner accepts the transfer
-5. Re-add all environment variables (passwords/keys) under the new account — see the list below
+2. After the GitHub repository has been transferred (see Section 1), new owner logs into Vercel
+3. Click **Add New → Project**
+4. Import the transferred GitHub repository
+5. Vercel will auto-detect Next.js — click **Deploy**
+6. After deployment completes, add all environment variables under **Project → Settings → Environment Variables** (see list below)
+7. If using a custom domain:
+   - Go to **Project → Settings → Domains**
+   - Add the domain
+   - Update DNS records at the domain registrar to point to the new Vercel project
 
 ---
 
@@ -122,7 +127,7 @@ After transferring GitHub, add the same secrets at:
 ## Checklist
 
 - [ ] GitHub repository transferred
-- [ ] Vercel project transferred and environment variables updated
+- [ ] Vercel project deployed from transferred GitHub repo and environment variables added
 - [ ] Supabase ownership transferred
 - [ ] Stripe account set up and keys updated
 - [ ] PostGrid account set up and keys updated
