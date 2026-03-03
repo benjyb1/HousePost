@@ -87,9 +87,9 @@ The website's web address.
 
 ---
 
-## Environment variables to update in Vercel after transfer
+## Environment variables to add in Vercel after deployment
 
-Once all accounts are transferred, update these in **Vercel → Settings → Environment Variables**:
+Once all accounts are set up, add these in **Project → Settings → Environment Variables**:
 
 | Variable | Where to get the new value |
 |---|---|
