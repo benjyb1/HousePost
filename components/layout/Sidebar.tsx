@@ -32,7 +32,7 @@ export function Sidebar() {
       <div className="flex h-24 items-center border-b px-5">
         <Image
           src="/logo-wordmark.png"
-          alt="LeadSweeper"
+          alt="Housepost"
           width={200}
           height={100}
           className="h-20 w-auto"
@@ -58,7 +58,7 @@ export function Sidebar() {
       <div className="border-t p-3 space-y-1">
         <div className="flex items-center gap-2 px-3 py-2">
           <Image src="/logo-icon.png" alt="" width={16} height={16} className="h-4 w-4 opacity-30" />
-          <span className="text-xs text-slate-400">LeadSweeper</span>
+          <span className="text-xs text-slate-400">Housepost</span>
         </div>
         <button
           onClick={handleLogout}

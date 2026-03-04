@@ -9,7 +9,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="mb-8 flex flex-col items-center gap-2">
           <Image
             src="/logo-wordmark.png"
-            alt="LeadSweeper"
+            alt="Housepost"
             width={200}
             height={100}
             className="h-20 w-auto"

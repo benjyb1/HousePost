@@ -22,7 +22,7 @@ export default function HomePage() {
           <Link href="/">
             <Image
               src="/logo-wordmark.png"
-              alt="LeadSweeper"
+              alt="Housepost"
               width={160}
               height={80}
               className="h-8 w-auto"
@@ -60,7 +60,7 @@ export default function HomePage() {
           <span className="text-brand">postcard campaigns</span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-xl text-slate-500 leading-relaxed">
-          LeadSweeper automatically finds recent high-value property sales near your
+          Housepost automatically finds recent high-value property sales near your
           office every month and sends beautifully printed postcards to those addresses
           — with zero manual work.
         </p>
@@ -205,7 +205,7 @@ export default function HomePage() {
             Ready to grow your property pipeline?
           </h2>
           <p className="text-slate-500 mb-8">
-            Join estate agents and solicitors already using LeadSweeper to reach
+            Join estate agents and solicitors already using Housepost to reach
             motivated homeowners every month.
           </p>
           <Link
@@ -223,7 +223,7 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-6 flex flex-col items-center justify-between gap-4 text-sm text-slate-400 sm:flex-row">
           <Image
             src="/logo-wordmark.png"
-            alt="LeadSweeper"
+            alt="Housepost"
             width={120}
             height={60}
             className="h-6 w-auto"

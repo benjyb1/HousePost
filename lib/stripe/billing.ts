@@ -120,7 +120,7 @@ export async function chargeOveragePostcards(
       currency: 'gbp',
       confirm: true,
       off_session: true,
-      description: `LeadSweeper: ${quantity} additional postcard${quantity === 1 ? '' : 's'}`,
+      description: `Housepost: ${quantity} additional postcard${quantity === 1 ? '' : 's'}`,
     },
     { idempotencyKey }
   )
