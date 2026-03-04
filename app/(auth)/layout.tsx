@@ -10,9 +10,9 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <Image
             src="/logo-wordmark.png"
             alt="HousePost"
-            width={200}
-            height={100}
-            className="h-20 w-auto"
+            width={400}
+            height={200}
+            className="h-40 w-auto"
             priority
           />
           <p className="text-sm text-slate-500">UK property lead generation</p>

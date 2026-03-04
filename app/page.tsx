@@ -23,9 +23,9 @@ export default function HomePage() {
             <Image
               src="/logo-wordmark.png"
               alt="HousePost"
-              width={160}
-              height={80}
-              className="h-8 w-auto"
+              width={320}
+              height={160}
+              className="h-16 w-auto"
               priority
             />
           </Link>

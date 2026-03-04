@@ -5,10 +5,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-brand: #F97060;
-  --color-brand-dark: #e85f4e;
-  --color-brand-light: #fff0ee;
-  --color-brand-border: #fdd9d4;
+  --color-brand: #3B82F6;
+  --color-brand-dark: #1E40AF;
+  --color-brand-light: #EFF6FF;
+  --color-brand-border: #DBEAFE;
 }
 
 @theme inline {
