@@ -9,8 +9,8 @@ import { toast } from 'sonner'
 import { Upload, Trash2, ImageIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-// A5 portrait aspect ratio
-const A5_ASPECT = 148 / 210
+// A5 landscape aspect ratio
+const A5_ASPECT = 210 / 148
 
 async function getCroppedImg(imageSrc: string, cropArea: Area): Promise<Blob> {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -183,7 +183,7 @@ export default function PostcardDesignPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Postcard Design</h1>
         <p className="text-sm text-slate-500">
-          Upload your custom postcard design as a PDF. It will be printed A5 (148×210mm).
+          Upload your custom postcard design as a PDF. It will be printed A5 (210×148mm).
         </p>
       </div>
 
@@ -195,7 +195,7 @@ export default function PostcardDesignPage() {
             <CardDescription>This design is used when dispatching postcards</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="overflow-hidden rounded-md border border-slate-200" style={{ aspectRatio: '148/210', maxWidth: 300 }}>
+            <div className="overflow-hidden rounded-md border border-slate-200" style={{ aspectRatio: '210/148', maxWidth: 420 }}>
               <img src={currentDesignUrl} alt="Current postcard design" className="w-full h-full object-cover" />
             </div>
             <Button variant="outline" size="sm" onClick={handleRemove} disabled={loading}>
@@ -306,7 +306,7 @@ export default function PostcardDesignPage() {
       <Card className="border-slate-100 bg-slate-50">
         <CardContent className="pt-4">
           <p className="text-sm text-slate-600">
-            <strong>Tip:</strong> Design your postcard at exactly A5 (148×210mm) at 300 DPI for the sharpest print quality. Only the first page of the PDF is used.
+            <strong>Tip:</strong> Design your postcard at exactly A5 (210×148mm) at 300 DPI for the sharpest print quality. Only the first page of the PDF is used.
           </p>
         </CardContent>
       </Card>
