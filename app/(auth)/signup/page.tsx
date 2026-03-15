@@ -19,6 +19,8 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
+  const [submitted, setSubmitted] = useState(false)
+
   async function handleSignup(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
@@ -29,11 +31,15 @@ export default function SignupPage() {
 
     setLoading(true)
     const supabase = createClient()
-    const { error } = await supabase.auth.signUp({
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin
+
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { full_name: fullName, office_postcode: officePostcode.toUpperCase().trim() },
+        emailRedirectTo: `${appUrl}/auth/callback?redirect_to=/billing`,
       },
     })
 
@@ -43,20 +49,54 @@ export default function SignupPage() {
       return
     }
 
-    // Update profile with postcode (trigger creates the row, then we update it)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
+    // If email confirmation is required, Supabase returns a user but no session.
+    // Show a "check your email" message instead of redirecting.
+    if (data.user && !data.session) {
+      setSubmitted(true)
+      setLoading(false)
+      return
+    }
+
+    // If auto-confirm is on (no email verification), update profile and redirect
+    if (data.user && data.session) {
       await supabase.from('profiles').update({
         full_name: fullName,
         email,
         office_postcode: officePostcode.toUpperCase().trim(),
-      }).eq('id', user.id)
+      }).eq('id', data.user.id)
+
+      toast.success('Account created! Redirecting to billing setup…')
+      router.push('/billing')
+      router.refresh()
     }
 
-    toast.success('Account created! Redirecting to billing setup…')
-    router.push('/billing')
-    router.refresh()
     setLoading(false)
+  }
+
+  if (submitted) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Check your email</CardTitle>
+          <CardDescription>
+            We&apos;ve sent a confirmation link to <strong>{email}</strong>.
+            Click the link in the email to activate your account.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-slate-500">
+            Didn&apos;t receive the email? Check your spam folder or{' '}
+            <button
+              type="button"
+              className="text-primary hover:underline"
+              onClick={() => setSubmitted(false)}
+            >
+              try again
+            </button>
+          </p>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
