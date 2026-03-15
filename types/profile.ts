@@ -30,5 +30,5 @@ export interface Profile {
   updatedAt: string
 }
 
-export const INCLUDED_POSTCARDS_PER_MONTH = 10
+export const INCLUDED_POSTCARDS_PER_MONTH = 5
 export const POSTCARD_OVERAGE_PENCE = 100 // £1.00

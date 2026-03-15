@@ -48,8 +48,8 @@ async function postGridRequest<T>(
 
 function getSenderContact(): PostGridContact {
   return {
-    companyName: process.env.POSTGRID_SENDER_NAME ?? 'LeadSweeper',
-    firstName: process.env.POSTGRID_SENDER_NAME ?? 'LeadSweeper',
+    companyName: process.env.POSTGRID_SENDER_NAME ?? 'Housepost',
+    firstName: process.env.POSTGRID_SENDER_NAME ?? 'Housepost',
     addressLine1: process.env.POSTGRID_SENDER_ADDRESS_LINE1 ?? '1 Example Street',
     city: process.env.POSTGRID_SENDER_CITY ?? 'London',
     postalOrZip: process.env.POSTGRID_SENDER_POSTAL_CODE ?? 'EC1A 1BB',

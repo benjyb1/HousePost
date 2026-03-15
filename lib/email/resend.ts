@@ -10,8 +10,8 @@ function getResend(): Resend {
   return _resend
 }
 
-const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@propertyleads.co.uk'
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://propertyleads.co.uk'
+const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@housepost.co.uk'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://housepost.co.uk'
 
 /**
  * Send the monthly "your leads are ready" notification email.
@@ -42,7 +42,7 @@ export async function sendLeadsReadyEmail(params: {
     subject: `Your ${leadCount} new property leads are ready — ${monthLabel}`,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333;">
-        <div style="background:#1a365d;color:white;padding:24px;border-radius:8px 8px 0 0;">
+        <div style="background:#152452;color:white;padding:24px;border-radius:8px 8px 0 0;">
           <h1 style="margin:0;font-size:24px;">Your leads are ready</h1>
           <p style="margin:8px 0 0;opacity:0.9;">${monthLabel}</p>
         </div>
@@ -53,17 +53,17 @@ export async function sendLeadsReadyEmail(params: {
           <p>Log in to your portal to view, sort, and select which properties to send postcards to.</p>
           <div style="text-align:center;margin:32px 0;">
             <a href="${APP_URL}/leads"
-               style="background:#2b6cb0;color:white;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block;">
+               style="background:#152452;color:white;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block;">
               View My Leads
             </a>
           </div>
           <p style="color:#666;font-size:13px;">
-            Remember: your plan includes 10 free postcards per month.
+            Remember: your plan includes 5 free postcards per month.
             Additional postcards are charged at £1 each.
           </p>
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"/>
           <p style="color:#999;font-size:12px;">
-            PropertyLeads · <a href="${APP_URL}/settings" style="color:#999;">Manage preferences</a>
+            Housepost · <a href="${APP_URL}/settings" style="color:#999;">Manage preferences</a>
           </p>
         </div>
       </div>
@@ -84,7 +84,7 @@ export async function sendAdminImportFailureAlert(
   await resend.emails.send({
     from: FROM,
     to: adminEmail,
-    subject: `[PropertyLeads] Land Registry import failed — ${importMonth}`,
+    subject: `[Housepost] Land Registry import failed — ${importMonth}`,
     html: `<p>The Land Registry import for <strong>${importMonth}</strong> failed.</p>
            <pre>${error}</pre>
            <p>Please retry manually via the admin panel or re-trigger the cron.</p>`,

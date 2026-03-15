@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { calculatePostcardCost, chargeOveragePostcards } from '@/lib/stripe/billing'
+import { calculatePostcardCost, reportOverageUsage } from '@/lib/stripe/billing'
 import { sendLetter, buildRecipientContact, generateLetterHtml } from '@/lib/postcards/postgrid'
 import { currentMonthKey, formatDate } from '@/lib/utils/date'
 import { PROPERTY_TYPE_LABELS } from '@/types/land-registry'
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   // Fetch profile for billing and design info
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('stripe_customer_id, postcards_used_this_period, postcard_design_url, full_name, subscription_status')
+    .select('stripe_customer_id, stripe_subscription_id, postcards_used_this_period, postcard_design_url, full_name, subscription_status')
     .eq('id', user.id)
     .single()
 
@@ -70,18 +70,22 @@ export async function POST(request: Request) {
   const used = profile.postcards_used_this_period as number
   const { included, overage, overageCostPence } = calculatePostcardCost(leads.length, used)
 
-  // Charge overage if needed
-  let stripePaymentIntentId: string | null = null
-  if (overage > 0 && profile.stripe_customer_id) {
+  // Report overage usage to Stripe's metered billing (boss's product handles the £1/postcard charge)
+  let stripeUsageRecordId: string | null = null
+  if (overage > 0) {
+    const subscriptionId = profile.stripe_subscription_id as string | null
+    if (!subscriptionId) {
+      return NextResponse.json({ error: 'No active subscription found' }, { status: 403 })
+    }
     try {
-      stripePaymentIntentId = await chargeOveragePostcards(
-        profile.stripe_customer_id as string,
+      stripeUsageRecordId = await reportOverageUsage(
+        subscriptionId,
         overage,
-        `${user.id}-${month}-overage` // idempotency key
+        `${user.id}-${month}-overage-${Date.now()}` // idempotency key
       )
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Payment failed'
-      return NextResponse.json({ error: `Payment failed: ${msg}` }, { status: 402 })
+      const msg = err instanceof Error ? err.message : 'Usage reporting failed'
+      return NextResponse.json({ error: `Billing error: ${msg}` }, { status: 402 })
     }
   }
 
@@ -123,7 +127,7 @@ export async function POST(request: Request) {
         postgrid_status: status,
         recipient_address_line: lead.address_line,
         recipient_postcode: lead.postcode,
-        stripe_payment_intent_id: isIncluded ? null : stripePaymentIntentId,
+        stripe_payment_intent_id: isIncluded ? null : stripeUsageRecordId,
         was_included_in_subscription: isIncluded,
         charge_amount_pence: isIncluded ? 0 : 100,
         status: 'dispatched',
@@ -157,6 +161,6 @@ export async function POST(request: Request) {
     included,
     overage,
     overageCostPence,
-    stripePaymentIntentId,
+    stripeUsageRecordId,
   })
 }

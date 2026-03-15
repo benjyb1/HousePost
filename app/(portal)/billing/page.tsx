@@ -82,7 +82,7 @@ export default function BillingPage() {
               {profile?.subscription_status ?? 'Inactive'}
             </Badge>
           </CardTitle>
-          <CardDescription>£10/month · 10 postcards included · £1 per additional</CardDescription>
+          <CardDescription>£15/month · 5 postcards included · £1 per additional</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {profile?.subscription_period_end && (
@@ -99,7 +99,7 @@ export default function BillingPage() {
           <div className="flex items-center gap-2">
             <p className="text-sm text-slate-600">
               Postcards used this period:{' '}
-              <strong>{profile?.postcards_used_this_period ?? 0} / 10</strong>
+              <strong>{profile?.postcards_used_this_period ?? 0} / 5</strong>
             </p>
           </div>
 
@@ -110,7 +110,7 @@ export default function BillingPage() {
             </Button>
           ) : (
             <Button onClick={openCheckout} disabled={checkoutLoading}>
-              {checkoutLoading ? 'Redirecting…' : 'Subscribe — £10/month'}
+              {checkoutLoading ? 'Redirecting…' : 'Subscribe — £15/month'}
             </Button>
           )}
         </CardContent>
@@ -124,7 +124,7 @@ export default function BillingPage() {
           {[
             'Monthly UK Land Registry property leads',
             'Automatic radius expansion to ensure 15+ leads',
-            '10 postcards included per month',
+            '5 postcards included per month',
             'PostGrid printing & Royal Mail delivery',
             'Lead sorting by price and distance',
             'Postcard tracking (printing → mailed → delivered)',

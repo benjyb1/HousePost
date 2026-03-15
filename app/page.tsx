@@ -22,10 +22,10 @@ export default function HomePage() {
           <Link href="/">
             <Image
               src="/logo-wordmark.png"
-              alt="HousePost"
-              width={640}
-              height={320}
-              className="h-32 w-auto"
+              alt="Housepost"
+              width={600}
+              height={150}
+              className="h-10 w-auto"
               priority
             />
           </Link>
@@ -60,7 +60,7 @@ export default function HomePage() {
           <span className="text-brand">postcard campaigns</span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-xl text-slate-500 leading-relaxed">
-          HousePost automatically finds recent high-value property sales near your
+          Housepost automatically finds recent high-value property sales near your
           office every month and sends beautifully printed postcards to those addresses
           — with zero manual work.
         </p>
@@ -69,7 +69,7 @@ export default function HomePage() {
             href="/signup"
             className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-base font-semibold text-white shadow-lg hover:bg-brand-dark transition-all"
           >
-            Start free — £10/month
+            Start free — £15/month
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
@@ -79,7 +79,6 @@ export default function HomePage() {
             Sign in
           </Link>
         </div>
-        <p className="mt-4 text-sm text-slate-400">No contracts. Cancel any time.</p>
       </section>
 
       {/* ── How it works ── */}
@@ -166,14 +165,14 @@ export default function HomePage() {
             <div className="bg-brand px-8 py-8 text-white">
               <p className="text-sm font-medium opacity-80 mb-1">Monthly subscription</p>
               <div className="flex items-end justify-center gap-1">
-                <span className="text-5xl font-extrabold">£10</span>
+                <span className="text-5xl font-extrabold">£15</span>
                 <span className="text-xl opacity-70 mb-1">/month</span>
               </div>
             </div>
             <div className="px-8 py-8 space-y-3">
               {[
                 'Unlimited monthly lead generation',
-                '10 postcards included per month',
+                '5 postcards included per month',
                 'Additional postcards £1 each',
                 'Real-time postcard tracking',
                 'Automatic radius expansion',
@@ -205,14 +204,14 @@ export default function HomePage() {
             Ready to grow your property pipeline?
           </h2>
           <p className="text-slate-500 mb-8">
-            Join estate agents and solicitors already using HousePost to reach
+            Join estate agents and solicitors already using Housepost to reach
             motivated homeowners every month.
           </p>
           <Link
             href="/signup"
             className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-base font-semibold text-white shadow-lg hover:bg-brand-dark transition-all"
           >
-            Start for £10/month
+            Start for £15/month
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
@@ -223,8 +222,8 @@ export default function HomePage() {
         <div className="mx-auto max-w-6xl px-6 flex flex-col items-center justify-between gap-4 text-sm text-slate-400 sm:flex-row">
           <Image
             src="/logo-wordmark.png"
-            alt="HousePost"
-            width={120}
+            alt="Housepost"
+            width={240}
             height={60}
             className="h-6 w-auto"
           />

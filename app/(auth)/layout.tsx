@@ -9,10 +9,10 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         <div className="mb-8 flex flex-col items-center gap-2">
           <Image
             src="/logo-wordmark.png"
-            alt="HousePost"
-            width={400}
-            height={200}
-            className="h-40 w-auto"
+            alt="Housepost"
+            width={600}
+            height={150}
+            className="h-14 w-auto"
             priority
           />
           <p className="text-sm text-slate-500">UK property lead generation</p>

@@ -35,7 +35,7 @@ export async function getOrCreateStripeCustomer(
 }
 
 /**
- * Create a Stripe Checkout Session for the £10/month subscription.
+ * Create a Stripe Checkout Session for the £15/month subscription.
  */
 export async function createCheckoutSession(
   customerId: string,
@@ -103,33 +103,45 @@ export function calculatePostcardCost(
 }
 
 /**
- * Charge the customer for overage postcards (£1 each) as a one-off payment.
- * Uses idempotency key to allow safe retries.
+ * Report overage postcard usage to Stripe's metered billing.
+ * The boss's Stripe product includes a built-in £1/postcard metered component,
+ * so we just report how many extra postcards were used and Stripe bills automatically.
  */
-export async function chargeOveragePostcards(
-  customerId: string,
+export async function reportOverageUsage(
+  subscriptionId: string,
   quantity: number,
   idempotencyKey: string
 ): Promise<string> {
   const stripe = getStripe()
 
-  const paymentIntent = await stripe.paymentIntents.create(
+  // Fetch the subscription to find the metered price item.
+  // The subscription has two items: the flat-rate £15/month and the metered per-postcard price.
+  // The metered item uses `usage_type: 'metered'` (pay-per-use) pricing.
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
+    expand: ['items.data.price'],
+  })
+
+  const meteredItem = subscription.items.data.find((item) => {
+    const price = item.price
+    // Metered prices have recurring.usage_type === 'metered'
+    return price.recurring?.usage_type === 'metered'
+  })
+
+  if (!meteredItem) {
+    throw new Error(
+      'No metered price found on the subscription. Check Stripe product configuration.'
+    )
+  }
+
+  const usageRecord = await stripe.subscriptionItems.createUsageRecord(
+    meteredItem.id,
     {
-      customer: customerId,
-      amount: quantity * POSTCARD_OVERAGE_PENCE,
-      currency: 'gbp',
-      confirm: true,
-      off_session: true,
-      description: `LeadSweeper: ${quantity} additional postcard${quantity === 1 ? '' : 's'}`,
+      quantity,
+      timestamp: Math.floor(Date.now() / 1000),
+      action: 'increment',
     },
     { idempotencyKey }
   )
 
-  if (paymentIntent.status !== 'succeeded') {
-    throw new Error(
-      `Overage payment failed with status: ${paymentIntent.status}`
-    )
-  }
-
-  return paymentIntent.id
+  return usageRecord.id
 }

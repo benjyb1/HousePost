@@ -15,14 +15,29 @@ export async function POST() {
 
   if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
-  const customerId = await getOrCreateStripeCustomer(
-    user.id,
-    profile.email as string ?? user.email!,
-    profile.full_name as string ?? 'LeadSweeper User'
-  )
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (!appUrl) {
+    console.error('NEXT_PUBLIC_APP_URL is not set')
+    return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+  }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL!
-  const checkoutUrl = await createCheckoutSession(customerId, user.id, appUrl)
+  if (!process.env.STRIPE_PRICE_ID) {
+    console.error('STRIPE_PRICE_ID is not set')
+    return NextResponse.json({ error: 'Stripe is not configured yet' }, { status: 500 })
+  }
 
-  return NextResponse.json({ url: checkoutUrl })
+  try {
+    const customerId = await getOrCreateStripeCustomer(
+      user.id,
+      profile.email as string ?? user.email!,
+      profile.full_name as string ?? 'Housepost User'
+    )
+
+    const checkoutUrl = await createCheckoutSession(customerId, user.id, appUrl)
+    return NextResponse.json({ url: checkoutUrl })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to create checkout session'
+    console.error('Checkout error:', message)
+    return NextResponse.json({ error: message }, { status: 500 })
+  }
 }

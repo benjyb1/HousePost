@@ -63,7 +63,7 @@ export default function SignupPage() {
     <Card>
       <CardHeader>
         <CardTitle>Create account</CardTitle>
-        <CardDescription>Start your 30-day free trial — £10/month after</CardDescription>
+        <CardDescription>Start your 30-day free trial — £15/month after</CardDescription>
       </CardHeader>
       <form onSubmit={handleSignup}>
         <CardContent className="space-y-4">
