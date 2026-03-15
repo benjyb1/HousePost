@@ -104,10 +104,20 @@ export default function BillingPage() {
           </div>
 
           {isActive ? (
-            <Button variant="outline" onClick={openPortal} disabled={portalLoading}>
-              <ExternalLink className="h-4 w-4 mr-1.5" />
-              {portalLoading ? 'Opening…' : 'Manage subscription'}
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" onClick={openPortal} disabled={portalLoading}>
+                <ExternalLink className="h-4 w-4 mr-1.5" />
+                {portalLoading ? 'Opening…' : 'Manage subscription'}
+              </Button>
+              <Button
+                variant="ghost"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={openPortal}
+                disabled={portalLoading}
+              >
+                Cancel subscription
+              </Button>
+            </div>
           ) : (
             <Button onClick={openCheckout} disabled={checkoutLoading}>
               {checkoutLoading ? 'Redirecting…' : 'Subscribe — £15/month'}
