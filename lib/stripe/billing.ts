@@ -104,44 +104,38 @@ export function calculatePostcardCost(
 
 /**
  * Report overage postcard usage to Stripe's metered billing.
- * The boss's Stripe product includes a built-in £1/postcard metered component,
- * so we just report how many extra postcards were used and Stripe bills automatically.
+ * The boss's Stripe product includes a built-in £1/postcard metered component.
+ * Uses Stripe Billing Meters (v2 API) to report usage events.
+ *
+ * Requires STRIPE_METER_EVENT_NAME env var (the event_name from the Stripe Billing Meter).
  */
 export async function reportOverageUsage(
-  subscriptionId: string,
+  customerId: string,
   quantity: number,
   idempotencyKey: string
 ): Promise<string> {
   const stripe = getStripe()
 
-  // Fetch the subscription to find the metered price item.
-  // The subscription has two items: the flat-rate £15/month and the metered per-postcard price.
-  // The metered item uses `usage_type: 'metered'` (pay-per-use) pricing.
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId, {
-    expand: ['items.data.price'],
-  })
-
-  const meteredItem = subscription.items.data.find((item) => {
-    const price = item.price
-    // Metered prices have recurring.usage_type === 'metered'
-    return price.recurring?.usage_type === 'metered'
-  })
-
-  if (!meteredItem) {
+  const eventName = process.env.STRIPE_METER_EVENT_NAME
+  if (!eventName) {
     throw new Error(
-      'No metered price found on the subscription. Check Stripe product configuration.'
+      'STRIPE_METER_EVENT_NAME is not set. Ask your Stripe admin for the meter event name.'
     )
   }
 
-  const usageRecord = await stripe.subscriptionItems.createUsageRecord(
-    meteredItem.id,
+  // Report one meter event per overage postcard batch.
+  // The meter's value_settings.event_payload_key defaults to "value".
+  const meterEvent = await stripe.billing.meterEvents.create(
     {
-      quantity,
+      event_name: eventName,
+      payload: {
+        stripe_customer_id: customerId,
+        value: String(quantity),
+      },
+      identifier: idempotencyKey,
       timestamp: Math.floor(Date.now() / 1000),
-      action: 'increment',
-    },
-    { idempotencyKey }
+    }
   )
 
-  return usageRecord.id
+  return meterEvent.identifier ?? idempotencyKey
 }

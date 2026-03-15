@@ -73,13 +73,13 @@ export async function POST(request: Request) {
   // Report overage usage to Stripe's metered billing (boss's product handles the £1/postcard charge)
   let stripeUsageRecordId: string | null = null
   if (overage > 0) {
-    const subscriptionId = profile.stripe_subscription_id as string | null
-    if (!subscriptionId) {
-      return NextResponse.json({ error: 'No active subscription found' }, { status: 403 })
+    const customerId = profile.stripe_customer_id as string | null
+    if (!customerId) {
+      return NextResponse.json({ error: 'No Stripe customer found' }, { status: 403 })
     }
     try {
       stripeUsageRecordId = await reportOverageUsage(
-        subscriptionId,
+        customerId,
         overage,
         `${user.id}-${month}-overage-${Date.now()}` // idempotency key
       )
