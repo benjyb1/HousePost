@@ -14,9 +14,10 @@ async function main() {
   const now = new Date()
   const leadMonth = toMonthKey(now)
 
-  console.log(`🗓  Today: ${now.toISOString().slice(0, 10)}`)
+  const forceRun = process.env.FORCE_RUN === 'true'
+  console.log(`🗓  Today: ${now.toISOString().slice(0, 10)}${forceRun ? ' (forced)' : ''}`)
 
-  if (!isScheduledRunDay(22, now)) {
+  if (!forceRun && !isScheduledRunDay(22, now)) {
     console.log('⏭  Not the scheduled run day — skipping.')
     process.exit(0)
   }

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatPricePence, formatDate } from '@/lib/utils/date'
 import { PROPERTY_TYPE_LABELS } from '@/types/land-registry'
-import { ArrowUpDown, ArrowUp, ArrowDown, SendHorizonal } from 'lucide-react'
+import { ArrowUpDown, ArrowUp, ArrowDown, SendHorizonal, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 type Lead = {
@@ -33,6 +33,7 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
   const [leads, setLeads] = useState(initialLeads)
   const [sortKey, setSortKey] = useState<SortKey>('distance_miles')
   const [dispatching, setDispatching] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [tab, setTab] = useState<Tab>('active')
 
   const activeLeads = leads.filter((l) => !l.postcard_job_id)
@@ -80,6 +81,23 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
         })
       )
     )
+  }
+
+  async function deleteLeads(ids: string[]) {
+    if (ids.length === 0) return
+    setDeleting(true)
+    const res = await fetch('/api/leads/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
+    if (res.ok) {
+      setLeads((prev) => prev.filter((l) => !ids.includes(l.id)))
+      toast.success(`${ids.length} lead${ids.length === 1 ? '' : 's'} deleted`)
+    } else {
+      toast.error('Failed to delete leads')
+    }
+    setDeleting(false)
   }
 
   async function handleDispatch() {
@@ -172,9 +190,21 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
               )}
             </span>
             {selected.length > 0 && (
-              <Button size="sm" variant="outline" onClick={deselectAll}>
-                Deselect All
-              </Button>
+              <>
+                <Button size="sm" variant="outline" onClick={deselectAll}>
+                  Deselect All
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  onClick={() => deleteLeads(selected.map((l) => l.id))}
+                  disabled={deleting}
+                >
+                  <Trash2 className="h-3.5 w-3.5 mr-1" />
+                  {deleting ? 'Deleting…' : 'Delete Selected'}
+                </Button>
+              </>
             )}
             <Button
               size="sm"
@@ -188,13 +218,27 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
         </div>
       )}
 
-      {/* Sort controls for past tab */}
+      {/* Controls for past tab */}
       {tab === 'past' && (
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">Sort by:</span>
-          <SortButton label="Distance" value="distance_miles" />
-          <SortButton label="Price ↑" value="price_asc" />
-          <SortButton label="Price ↓" value="price_desc" />
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">Sort by:</span>
+            <SortButton label="Distance" value="distance_miles" />
+            <SortButton label="Price ↑" value="price_asc" />
+            <SortButton label="Price ↓" value="price_desc" />
+          </div>
+          {pastLeads.length > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={() => deleteLeads(pastLeads.map((l) => l.id))}
+              disabled={deleting}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-1" />
+              {deleting ? 'Deleting…' : 'Clear All'}
+            </Button>
+          )}
         </div>
       )}
 

@@ -32,3 +32,4 @@ jobs:
           LAND_REGISTRY_CSV_URL: ${{ secrets.LAND_REGISTRY_CSV_URL }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && 'true' || 'false' }}
