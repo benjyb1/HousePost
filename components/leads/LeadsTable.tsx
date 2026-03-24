@@ -22,6 +22,7 @@ type Lead = {
 }
 
 type SortKey = 'distance_miles' | 'price_asc' | 'price_desc'
+type Tab = 'active' | 'past'
 
 interface LeadsTableProps {
   leads: Lead[]
@@ -32,17 +33,22 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
   const [leads, setLeads] = useState(initialLeads)
   const [sortKey, setSortKey] = useState<SortKey>('distance_miles')
   const [dispatching, setDispatching] = useState(false)
+  const [tab, setTab] = useState<Tab>('active')
 
-  const sorted = [...leads].sort((a, b) => {
+  const activeLeads = leads.filter((l) => !l.postcard_job_id)
+  const pastLeads = leads.filter((l) => !!l.postcard_job_id)
+
+  const currentLeads = tab === 'active' ? activeLeads : pastLeads
+
+  const sorted = [...currentLeads].sort((a, b) => {
     if (sortKey === 'distance_miles') return a.distance_miles - b.distance_miles
     if (sortKey === 'price_asc') return a.price - b.price
     return b.price - a.price
   })
 
-  const selected = leads.filter((l) => l.selected_for_dispatch && !l.postcard_job_id)
+  const selected = activeLeads.filter((l) => l.selected_for_dispatch)
   const includedCount = Math.min(selected.length, 10)
   const overageCount = Math.max(0, selected.length - 10)
-  const totalCost = overageCount * 100
 
   async function toggleLead(id: string, checked: boolean) {
     setLeads((prev) =>
@@ -53,6 +59,27 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ selected: checked }),
     })
+  }
+
+  async function deselectAll() {
+    const selectedIds = selected.map((l) => l.id)
+    if (selectedIds.length === 0) return
+
+    setLeads((prev) =>
+      prev.map((l) =>
+        selectedIds.includes(l.id) ? { ...l, selected_for_dispatch: false } : l
+      )
+    )
+
+    await Promise.all(
+      selectedIds.map((id) =>
+        fetch(`/api/leads/${id}/select`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ selected: false }),
+        })
+      )
+    )
   }
 
   async function handleDispatch() {
@@ -71,11 +98,10 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
       toast.error(data.error ?? 'Dispatch failed')
     } else {
       toast.success(`${data.dispatched} postcard${data.dispatched === 1 ? '' : 's'} queued for dispatch!`)
-      // Mark dispatched leads
       setLeads((prev) =>
         prev.map((l) =>
           selected.find((s) => s.id === l.id)
-            ? { ...l, postcard_job_id: 'dispatched' }
+            ? { ...l, postcard_job_id: 'dispatched', selected_for_dispatch: false }
             : l
         )
       )
@@ -102,59 +128,100 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
 
   return (
     <div className="space-y-4">
-      {/* Controls */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      {/* Tabs */}
+      <div className="flex gap-1 border-b">
+        <button
+          onClick={() => setTab('active')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'active'
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Active ({activeLeads.length})
+        </button>
+        <button
+          onClick={() => setTab('past')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            tab === 'past'
+              ? 'border-slate-900 text-slate-900'
+              : 'border-transparent text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          Past Addresses ({pastLeads.length})
+        </button>
+      </div>
+
+      {/* Controls — only show for active tab */}
+      {tab === 'active' && (
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">Sort by:</span>
+            <SortButton label="Distance" value="distance_miles" />
+            <SortButton label="Price ↑" value="price_asc" />
+            <SortButton label="Price ↓" value="price_desc" />
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-600">
+              {selected.length} selected
+              {selected.length > 0 && (
+                <span className="text-slate-400">
+                  {' '}· {includedCount} free
+                  {overageCount > 0 && `, ${overageCount} @ £1 each = £${overageCount}`}
+                </span>
+              )}
+            </span>
+            {selected.length > 0 && (
+              <Button size="sm" variant="outline" onClick={deselectAll}>
+                Deselect All
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={handleDispatch}
+              disabled={dispatching || selected.length === 0}
+            >
+              <SendHorizonal className="h-4 w-4 mr-1.5" />
+              {dispatching ? 'Sending…' : `Send ${selected.length > 0 ? selected.length : ''} Postcard${selected.length === 1 ? '' : 's'}`}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Sort controls for past tab */}
+      {tab === 'past' && (
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500">Sort by:</span>
           <SortButton label="Distance" value="distance_miles" />
           <SortButton label="Price ↑" value="price_asc" />
           <SortButton label="Price ↓" value="price_desc" />
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-600">
-            {selected.length} selected
-            {selected.length > 0 && (
-              <span className="text-slate-400">
-                {' '}· {includedCount} free
-                {overageCount > 0 && `, ${overageCount} @ £1 each = £${overageCount}`}
-              </span>
-            )}
-          </span>
-          <Button
-            size="sm"
-            onClick={handleDispatch}
-            disabled={dispatching || selected.length === 0}
-          >
-            <SendHorizonal className="h-4 w-4 mr-1.5" />
-            {dispatching ? 'Sending…' : `Send ${selected.length > 0 ? selected.length : ''} Postcard${selected.length === 1 ? '' : 's'}`}
-          </Button>
-        </div>
-      </div>
+      )}
 
       {/* Table */}
       <div className="rounded-lg border bg-white overflow-hidden">
         <table className="w-full text-sm">
           <thead className="border-b bg-slate-50">
             <tr>
-              <th className="px-4 py-3 text-left w-10"></th>
+              {tab === 'active' && <th className="px-4 py-3 text-left w-10"></th>}
               <th className="px-4 py-3 text-left font-medium text-slate-600">Address</th>
               <th className="px-4 py-3 text-right font-medium text-slate-600">Price</th>
               <th className="px-4 py-3 text-center font-medium text-slate-600">Type</th>
               <th className="px-4 py-3 text-right font-medium text-slate-600">Distance</th>
               <th className="px-4 py-3 text-left font-medium text-slate-600">Date</th>
-              <th className="px-4 py-3 text-center font-medium text-slate-600">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {sorted.map((lead) => (
               <tr key={lead.id} className="hover:bg-slate-50 transition-colors">
-                <td className="px-4 py-3">
-                  <Checkbox
-                    checked={lead.selected_for_dispatch}
-                    onCheckedChange={(checked) => toggleLead(lead.id, !!checked)}
-                    disabled={!!lead.postcard_job_id}
-                  />
-                </td>
+                {tab === 'active' && (
+                  <td className="px-4 py-3">
+                    <Checkbox
+                      checked={lead.selected_for_dispatch}
+                      onCheckedChange={(checked) => toggleLead(lead.id, !!checked)}
+                    />
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   <p className="font-medium text-slate-800">{lead.address_line}</p>
                   <p className="text-xs text-slate-400">{lead.postcode}</p>
@@ -173,20 +240,13 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
                 <td className="px-4 py-3 text-slate-500 text-xs">
                   {formatDate(lead.date_of_transfer)}
                 </td>
-                <td className="px-4 py-3 text-center">
-                  {lead.postcard_job_id ? (
-                    <Badge className="bg-green-100 text-green-800 text-xs">Dispatched</Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-xs">Pending</Badge>
-                  )}
-                </td>
               </tr>
             ))}
           </tbody>
         </table>
         {sorted.length === 0 && (
           <div className="py-12 text-center text-slate-400">
-            No leads found for this month.
+            {tab === 'active' ? 'No active leads for this month.' : 'No past addresses yet.'}
           </div>
         )}
       </div>
