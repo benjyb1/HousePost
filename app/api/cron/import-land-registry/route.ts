@@ -37,6 +37,7 @@ export async function POST(request: Request) {
     .eq('run_type', 'land_registry_import')
     .eq('import_month', importMonth)
     .eq('status', 'completed')
+    .limit(1)
     .maybeSingle()
 
   if (existingRun) {
