@@ -13,6 +13,7 @@ const ALL_TYPES = Object.entries(PROPERTY_TYPE_LABELS) as [string, string][]
 
 interface Profile {
   full_name: string
+  company_name: string | null
   office_postcode: string
   search_radius_miles: number
   min_price: number | null
@@ -27,7 +28,11 @@ export default function SettingsPage() {
   useEffect(() => {
     fetch('/api/settings')
       .then((r) => r.json())
-      .then(({ profile }) => setProfile(profile))
+      .then(({ profile }) => setProfile({
+        ...profile,
+        min_price: profile.min_price ? profile.min_price / 100 : null,
+        max_price: profile.max_price ? profile.max_price / 100 : null,
+      }))
   }, [])
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
@@ -39,6 +44,7 @@ export default function SettingsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         full_name: profile.full_name,
+        company_name: profile.company_name,
         office_postcode: profile.office_postcode,
         search_radius_miles: profile.search_radius_miles,
         min_price: profile.min_price ? profile.min_price * 100 : null,
@@ -48,7 +54,7 @@ export default function SettingsPage() {
     })
     const data = await res.json()
     if (!res.ok) toast.error(data.error ?? 'Failed to save')
-    else toast.success('Settings saved')
+    else toast.success('Preferences saved')
     setSaving(false)
   }
 
@@ -70,8 +76,8 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
-        <p className="text-sm text-slate-500">Configure your lead search preferences</p>
+        <h1 className="text-2xl font-bold text-slate-900">Preferences</h1>
+        <p className="text-sm text-slate-500">Configure your lead search settings</p>
       </div>
 
       <form onSubmit={handleSave} className="space-y-6">
@@ -81,10 +87,18 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">
-              <Label>Full name / Company name</Label>
+              <Label>Full name</Label>
               <Input
                 value={profile.full_name}
                 onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Company name</Label>
+              <Input
+                value={profile.company_name ?? ''}
+                onChange={(e) => setProfile({ ...profile, company_name: e.target.value || null })}
+                placeholder="Optional"
               />
             </div>
           </CardContent>
@@ -107,11 +121,18 @@ export default function SettingsPage() {
             <div className="space-y-1.5">
               <Label>Search radius (miles)</Label>
               <Input
-                type="number"
-                min={1}
-                max={50}
+                type="text"
+                inputMode="numeric"
                 value={profile.search_radius_miles}
-                onChange={(e) => setProfile({ ...profile, search_radius_miles: parseInt(e.target.value) || 10 })}
+                onChange={(e) => setProfile({ ...profile, search_radius_miles: e.target.value as unknown as number })}
+                onBlur={() => {
+                  const parsed = parseInt(String(profile.search_radius_miles))
+                  if (isNaN(parsed)) {
+                    setProfile({ ...profile, search_radius_miles: 10 })
+                  } else {
+                    setProfile({ ...profile, search_radius_miles: Math.min(50, Math.max(5, parsed)) })
+                  }
+                }}
               />
               <p className="text-xs text-slate-400">We&apos;ll auto-expand up to 50 miles if fewer than 15 leads are found.</p>
             </div>
@@ -164,7 +185,7 @@ export default function SettingsPage() {
         </Card>
 
         <Button type="submit" disabled={saving}>
-          {saving ? 'Saving…' : 'Save settings'}
+          {saving ? 'Saving…' : 'Save preferences'}
         </Button>
       </form>
     </div>

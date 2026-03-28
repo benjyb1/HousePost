@@ -11,12 +11,21 @@ export default async function LeadsPage() {
 
   const monthKey = currentMonthKey()
 
-  const { data: leads } = await supabase
-    .from('leads')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('lead_month', monthKey)
-    .order('distance_miles', { ascending: true })
+  const [{ data: leads }, { data: profile }] = await Promise.all([
+    supabase
+      .from('leads')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('lead_month', monthKey)
+      .order('distance_miles', { ascending: true }),
+    supabase
+      .from('profiles')
+      .select('subscription_status')
+      .eq('id', user.id)
+      .single(),
+  ])
+
+  const subscriptionStatus = profile?.subscription_status ?? 'incomplete'
 
   return (
     <div className="space-y-4">
@@ -24,7 +33,7 @@ export default async function LeadsPage() {
         <h1 className="text-2xl font-bold text-slate-900">Leads</h1>
         <p className="text-sm text-slate-500">{formatMonthKey(monthKey)} — {leads?.length ?? 0} properties</p>
       </div>
-      <LeadsTable leads={leads ?? []} monthKey={monthKey} />
+      <LeadsTable leads={leads ?? []} monthKey={monthKey} subscriptionStatus={subscriptionStatus} />
     </div>
   )
 }

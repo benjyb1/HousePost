@@ -1,12 +1,15 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { formatPricePence, formatDate } from '@/lib/utils/date'
 import { PROPERTY_TYPE_LABELS } from '@/types/land-registry'
-import { ArrowUpDown, ArrowUp, ArrowDown, SendHorizonal, Trash2 } from 'lucide-react'
+import { INCLUDED_POSTCARDS_PER_MONTH } from '@/types/profile'
+import type { SubscriptionStatus } from '@/types/profile'
+import { ArrowUpDown, ArrowUp, ArrowDown, SendHorizonal, Trash2, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 
 type Lead = {
@@ -21,20 +24,25 @@ type Lead = {
   postcard_job_id: string | null
 }
 
-type SortKey = 'distance_miles' | 'price_asc' | 'price_desc'
+type SortField = 'distance' | 'price'
+type SortState = 0 | 1 | 2 // 0 = neutral, 1 = primary direction, 2 = reverse direction
 type Tab = 'active' | 'past'
 
 interface LeadsTableProps {
   leads: Lead[]
   monthKey: string
+  subscriptionStatus: SubscriptionStatus
 }
 
-export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
+export function LeadsTable({ leads: initialLeads, monthKey, subscriptionStatus }: LeadsTableProps) {
   const [leads, setLeads] = useState(initialLeads)
-  const [sortKey, setSortKey] = useState<SortKey>('distance_miles')
+  const [distanceSort, setDistanceSort] = useState<SortState>(0)
+  const [priceSort, setPriceSort] = useState<SortState>(0)
   const [dispatching, setDispatching] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [tab, setTab] = useState<Tab>('active')
+
+  const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'trialing'
 
   const activeLeads = leads.filter((l) => !l.postcard_job_id)
   const pastLeads = leads.filter((l) => !!l.postcard_job_id)
@@ -42,14 +50,29 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
   const currentLeads = tab === 'active' ? activeLeads : pastLeads
 
   const sorted = [...currentLeads].sort((a, b) => {
-    if (sortKey === 'distance_miles') return a.distance_miles - b.distance_miles
-    if (sortKey === 'price_asc') return a.price - b.price
-    return b.price - a.price
+    // Distance sort
+    if (distanceSort === 1) return a.distance_miles - b.distance_miles
+    if (distanceSort === 2) return b.distance_miles - a.distance_miles
+    // Price sort
+    if (priceSort === 1) return b.price - a.price
+    if (priceSort === 2) return a.price - b.price
+    // Default: alphabetical by address
+    return a.address_line.localeCompare(b.address_line)
   })
 
   const selected = activeLeads.filter((l) => l.selected_for_dispatch)
-  const includedCount = Math.min(selected.length, 10)
-  const overageCount = Math.max(0, selected.length - 10)
+  const includedCount = Math.min(selected.length, INCLUDED_POSTCARDS_PER_MONTH)
+  const overageCount = Math.max(0, selected.length - INCLUDED_POSTCARDS_PER_MONTH)
+
+  function cycleDistance() {
+    setPriceSort(0)
+    setDistanceSort((prev) => ((prev + 1) % 3) as SortState)
+  }
+
+  function cyclePrice() {
+    setDistanceSort(0)
+    setPriceSort((prev) => ((prev + 1) % 3) as SortState)
+  }
 
   async function toggleLead(id: string, checked: boolean) {
     setLeads((prev) =>
@@ -127,19 +150,22 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
     setDispatching(false)
   }
 
-  function SortButton({ label, value }: { label: string; value: SortKey }) {
-    const active = sortKey === value
+  function SortToggle({ label, field }: { label: string; field: SortField }) {
+    const state = field === 'distance' ? distanceSort : priceSort
+    const cycle = field === 'distance' ? cycleDistance : cyclePrice
+    const active = state !== 0
+
+    let Icon = ArrowUpDown
+    if (state === 1) Icon = ArrowDown
+    if (state === 2) Icon = ArrowUp
+
     return (
       <button
-        onClick={() => setSortKey(value)}
-        className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded transition-colors ${active ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-100'}`}
+        onClick={cycle}
+        className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded transition-colours ${active ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-100'}`}
       >
         {label}
-        {active ? (
-          value === 'price_asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-        ) : (
-          <ArrowUpDown className="h-3 w-3" />
-        )}
+        <Icon className="h-3 w-3" />
       </button>
     )
   }
@@ -150,7 +176,7 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
       <div className="flex gap-1 border-b">
         <button
           onClick={() => setTab('active')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colours ${
             tab === 'active'
               ? 'border-slate-900 text-slate-900'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -160,7 +186,7 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
         </button>
         <button
           onClick={() => setTab('past')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colours ${
             tab === 'past'
               ? 'border-slate-900 text-slate-900'
               : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -175,9 +201,8 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500">Sort by:</span>
-            <SortButton label="Distance" value="distance_miles" />
-            <SortButton label="Price ↑" value="price_asc" />
-            <SortButton label="Price ↓" value="price_desc" />
+            <SortToggle label="Distance" field="distance" />
+            <SortToggle label="Price" field="price" />
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-slate-600">
@@ -223,9 +248,8 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500">Sort by:</span>
-            <SortButton label="Distance" value="distance_miles" />
-            <SortButton label="Price ↑" value="price_asc" />
-            <SortButton label="Price ↓" value="price_desc" />
+            <SortToggle label="Distance" field="distance" />
+            <SortToggle label="Price" field="price" />
           </div>
           {pastLeads.length > 0 && (
             <Button
@@ -243,7 +267,7 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
       )}
 
       {/* Table */}
-      <div className="rounded-lg border bg-white overflow-hidden">
+      <div className="relative rounded-lg border bg-white overflow-hidden">
         <table className="w-full text-sm">
           <thead className="border-b bg-slate-50">
             <tr>
@@ -256,38 +280,61 @@ export function LeadsTable({ leads: initialLeads, monthKey }: LeadsTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {sorted.map((lead) => (
-              <tr key={lead.id} className="hover:bg-slate-50 transition-colors">
-                {tab === 'active' && (
+            {sorted.map((lead, index) => {
+              const isBlurred = !isSubscribed && index >= 5
+              return (
+                <tr
+                  key={lead.id}
+                  className={`hover:bg-slate-50 transition-colours ${isBlurred ? 'blur-sm pointer-events-none select-none' : ''}`}
+                >
+                  {tab === 'active' && (
+                    <td className="px-4 py-3">
+                      <Checkbox
+                        checked={lead.selected_for_dispatch}
+                        onCheckedChange={(checked) => toggleLead(lead.id, !!checked)}
+                      />
+                    </td>
+                  )}
                   <td className="px-4 py-3">
-                    <Checkbox
-                      checked={lead.selected_for_dispatch}
-                      onCheckedChange={(checked) => toggleLead(lead.id, !!checked)}
-                    />
+                    <p className="font-medium text-slate-800">{lead.address_line}</p>
+                    <p className="text-xs text-slate-400">{lead.postcode}</p>
                   </td>
-                )}
-                <td className="px-4 py-3">
-                  <p className="font-medium text-slate-800">{lead.address_line}</p>
-                  <p className="text-xs text-slate-400">{lead.postcode}</p>
-                </td>
-                <td className="px-4 py-3 text-right font-semibold text-slate-800">
-                  {formatPricePence(lead.price)}
-                </td>
-                <td className="px-4 py-3 text-center">
-                  <Badge variant="secondary" className="text-xs">
-                    {PROPERTY_TYPE_LABELS[lead.property_type as keyof typeof PROPERTY_TYPE_LABELS] ?? lead.property_type}
-                  </Badge>
-                </td>
-                <td className="px-4 py-3 text-right text-slate-600">
-                  {lead.distance_miles.toFixed(1)} mi
-                </td>
-                <td className="px-4 py-3 text-slate-500 text-xs">
-                  {formatDate(lead.date_of_transfer)}
-                </td>
-              </tr>
-            ))}
+                  <td className="px-4 py-3 text-right font-semibold text-slate-800">
+                    {formatPricePence(lead.price)}
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <Badge variant="secondary" className="text-xs">
+                      {PROPERTY_TYPE_LABELS[lead.property_type as keyof typeof PROPERTY_TYPE_LABELS] ?? lead.property_type}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-right text-slate-600">
+                    {lead.distance_miles.toFixed(1)} mi
+                  </td>
+                  <td className="px-4 py-3 text-slate-500 text-xs">
+                    {formatDate(lead.date_of_transfer)}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
+
+        {/* Subscription overlay for blurred leads */}
+        {!isSubscribed && sorted.length > 5 && (
+          <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-white via-white/90 to-transparent flex items-end justify-center pb-8">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <Lock className="h-5 w-5 text-slate-400" />
+              <p className="text-sm font-medium text-slate-700">Subscribe to view all leads</p>
+              <Link
+                href="/billing"
+                className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colours"
+              >
+                View plans
+              </Link>
+            </div>
+          </div>
+        )}
+
         {sorted.length === 0 && (
           <div className="py-12 text-center text-slate-400">
             {tab === 'active' ? 'No active leads for this month.' : 'No past addresses yet.'}

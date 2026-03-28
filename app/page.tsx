@@ -8,6 +8,7 @@ import {
   Clock,
   CheckCircle,
   ArrowRight,
+  Search,
 } from 'lucide-react'
 
 // Fully static marketing page — no Supabase calls needed
@@ -47,37 +48,71 @@ export default function HomePage() {
       </nav>
 
       {/* ── Hero ── */}
-      <section className="mx-auto max-w-6xl px-6 pt-20 pb-24 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-brand-border bg-brand-light px-4 py-1.5 text-sm text-brand mb-6">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand opacity-75"></span>
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-brand"></span>
-          </span>
-          Monthly leads, automated
+      <section className="relative bg-brand overflow-hidden">
+        {/* SVG dot pattern overlay */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{ opacity: 0.06 }}
+        >
+          <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <pattern
+                id="hero-dots"
+                x="0"
+                y="0"
+                width="24"
+                height="24"
+                patternUnits="userSpaceOnUse"
+              >
+                <circle cx="2" cy="2" r="1.2" fill="white" />
+              </pattern>
+            </defs>
+            <rect width="100%" height="100%" fill="url(#hero-dots)" />
+          </svg>
         </div>
-        <h1 className="mx-auto max-w-3xl text-5xl font-extrabold leading-tight tracking-tight text-slate-900">
-          Turn Land Registry data into{' '}
-          <span className="text-brand">postcard campaigns</span>
-        </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-xl text-slate-500 leading-relaxed">
-          Housepost automatically finds recent high-value property sales near your
-          office every month and sends beautifully printed postcards to those addresses
-          — with zero manual work.
-        </p>
-        <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-          <Link
-            href="/signup"
-            className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-base font-semibold text-white shadow-lg hover:bg-brand-dark transition-all"
-          >
-            Start free — £15/month
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-8 py-3.5 text-base font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-          >
-            Sign in
-          </Link>
+
+        <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-24 text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-sm text-white mb-6">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"></span>
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-white"></span>
+            </span>
+            Monthly leads, automated
+          </div>
+          <h1 className="mx-auto max-w-3xl text-5xl font-extrabold leading-tight tracking-tight text-white">
+            Turning local property sales data into{' '}
+            <span
+              className="bg-clip-text text-transparent"
+              style={{
+                backgroundImage: 'linear-gradient(135deg, #C0C0C0, #E8E8E8, #A0A0A0)',
+                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.25))',
+              }}
+            >
+              postcard campaigns
+            </span>
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-xl text-white/80 leading-relaxed">
+            Every month, Housepost scans the recently sold homes in your local area
+            and delivers your postcard through their letterbox - without you lifting a finger.
+          </p>
+          <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+            <Link
+              href="/signup"
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3.5 text-base font-semibold text-brand shadow-lg hover:bg-white/90 transition-all"
+            >
+              Start free — £15/month
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/30 px-8 py-3.5 text-base font-semibold text-white hover:bg-white/10 transition-colors"
+            >
+              Sign in
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -88,7 +123,7 @@ export default function HomePage() {
             Three steps. Fully automatic.
           </h2>
           <p className="text-center text-slate-500 mb-14 max-w-xl mx-auto">
-            Every month, we do the heavy lifting — you just choose which properties to
+            We do the heavy lifting — you just choose which properties to
             target.
           </p>
           <div className="grid gap-8 md:grid-cols-3">
@@ -97,19 +132,19 @@ export default function HomePage() {
                 icon: TrendingUp,
                 step: '01',
                 title: 'We find the sales',
-                body: 'On the 21st of each month we download the latest HM Land Registry data and filter it to properties within your chosen radius.',
+                body: 'Every month we scan recent house sales in your area to assemble a list of all the newly-owned homes near you.',
               },
               {
                 icon: MapPin,
                 step: '02',
                 title: 'You pick your targets',
-                body: 'Log in to review your leads table — sorted by proximity, price, or type. Tick the addresses you want to reach.',
+                body: 'Log in, review the list, select the ones you want to contact. Filter by distance, price, or property type.',
               },
               {
                 icon: Mail,
                 step: '03',
                 title: 'We send the postcards',
-                body: 'Confirm and we dispatch via PostGrid. Royal Mail delivers your postcard to each address and you track status in real time.',
+                body: 'We print and deliver your postcard via Royal Mail. Track each one in real time.',
               },
             ].map(({ icon: Icon, step, title, body }) => (
               <div key={step} className="rounded-2xl bg-white p-8 shadow-sm border border-slate-100">
@@ -135,12 +170,12 @@ export default function HomePage() {
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              { icon: Clock, title: 'Auto-scheduled', body: 'Runs on the 21st & 22nd of every month without any action from you.' },
-              { icon: MapPin, title: 'Smart radius expansion', body: 'If fewer than 15 leads are found, we automatically expand your search radius up to 50 miles.' },
-              { icon: Mail, title: 'Printed & posted', body: 'PostGrid handles professional printing and Royal Mail delivery to every selected address.' },
-              { icon: TrendingUp, title: 'Real-time tracking', body: 'See each postcard move from printing → mailed → delivered in your portal.' },
-              { icon: Shield, title: 'Land Registry data', body: 'Sourced directly from HM Land Registry — the official UK property transaction register.' },
-              { icon: CheckCircle, title: 'Filter your way', body: 'Sort by price, distance, or property type. Only send to the leads that matter to you.' },
+              { icon: Clock, title: 'Runs by itself', body: 'Fires automatically every month, you just select and send.' },
+              { icon: Shield, title: 'Fresh data, every month', body: 'We use the official UK house sales register, updated monthly.' },
+              { icon: CheckCircle, title: 'Filter your way', body: 'Sort leads by distance, price, or property type.' },
+              { icon: Search, title: 'Always enough leads', body: "Can't find 15 properties nearby? We widen the search automatically, up to a 50 mile radius." },
+              { icon: Mail, title: 'Printed and posted', body: 'Professionally printed by PostGrid and delivered by Royal Mail.' },
+              { icon: TrendingUp, title: 'Live tracking', body: 'Keep an eye on every postcard, from printer to postbox.' },
             ].map(({ icon: Icon, title, body }) => (
               <div key={title} className="flex gap-4 p-6 rounded-xl border border-slate-100 hover:border-brand-border hover:bg-brand-light/30 transition-colors">
                 <div className="h-9 w-9 shrink-0 rounded-lg bg-brand-light flex items-center justify-center mt-0.5">
@@ -160,7 +195,7 @@ export default function HomePage() {
       <section className="bg-slate-50 py-20">
         <div className="mx-auto max-w-md px-6 text-center">
           <h2 className="text-3xl font-bold text-slate-900 mb-4">Simple pricing</h2>
-          <p className="text-slate-500 mb-10">One plan. Everything included.</p>
+          <p className="text-slate-500 mb-10">One plan. All the features.</p>
           <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
             <div className="bg-brand px-8 py-8 text-white">
               <p className="text-sm font-medium opacity-80 mb-1">Monthly subscription</p>
@@ -171,13 +206,13 @@ export default function HomePage() {
             </div>
             <div className="px-8 py-8 space-y-3">
               {[
-                'Unlimited monthly lead generation',
-                '5 postcards included per month',
-                'Additional postcards £1 each',
-                'Real-time postcard tracking',
+                '5 postcards included',
+                'Each additional postcard just £1',
+                'Email alerts when your leads are ready',
                 'Automatic radius expansion',
-                'Email notifications when leads are ready',
-                'No setup fee · Cancel any time',
+                'Live tracking',
+                'No setup fee',
+                'Cancel anytime',
               ].map((item) => (
                 <div key={item} className="flex items-start gap-3 text-sm text-slate-700">
                   <CheckCircle className="h-4 w-4 text-brand shrink-0 mt-0.5" />
@@ -201,11 +236,10 @@ export default function HomePage() {
       <section className="py-20 text-center">
         <div className="mx-auto max-w-2xl px-6">
           <h2 className="text-3xl font-bold text-slate-900 mb-4">
-            Ready to grow your property pipeline?
+            Ready to reach new homeowners in your area?
           </h2>
           <p className="text-slate-500 mb-8">
-            Join estate agents and solicitors already using Housepost to reach
-            motivated homeowners every month.
+            Local leads, automated. Direct marketing couldn&apos;t be easier with Housepost.
           </p>
           <Link
             href="/signup"
@@ -218,20 +252,34 @@ export default function HomePage() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t py-8">
-        <div className="mx-auto max-w-6xl px-6 flex flex-col items-center justify-between gap-4 text-sm text-slate-400 sm:flex-row">
-          <Image
-            src="/logo-wordmark.png"
-            alt="Housepost"
-            width={240}
-            height={60}
-            className="h-6 w-auto"
-          />
-          <div className="flex gap-6">
-            <Link href="/login" className="hover:text-slate-600 transition-colors">Sign in</Link>
-            <Link href="/signup" className="hover:text-slate-600 transition-colors">Sign up</Link>
+      <footer className="border-t py-12">
+        <div className="mx-auto max-w-6xl px-6 flex flex-col gap-8 sm:flex-row sm:justify-between">
+          {/* Left side */}
+          <div className="flex flex-col gap-3">
+            <Image
+              src="/logo-wordmark.png"
+              alt="Housepost"
+              width={600}
+              height={150}
+              className="h-10 w-auto"
+            />
+            <p className="text-xs text-slate-400">Copyright &copy; 2026 | Housepost</p>
+            <div className="flex flex-col gap-1 text-sm text-slate-500">
+              <Link href="/login" className="hover:text-slate-700 transition-colors">Login</Link>
+              <Link href="/signup" className="hover:text-slate-700 transition-colors">Sign up</Link>
+            </div>
           </div>
-          <p>Data sourced from HM Land Registry · Printed by PostGrid</p>
+
+          {/* Right side */}
+          <div className="flex flex-col gap-3 sm:items-end sm:text-right">
+            <p className="text-sm text-slate-400">
+              Data sourced from HM Land Registry &middot; Printed by PostGrid
+            </p>
+            <div className="flex flex-col gap-1 text-sm text-slate-500 sm:items-end">
+              <Link href="/privacy" className="hover:text-slate-700 transition-colors">Privacy policy</Link>
+              <Link href="/terms" className="hover:text-slate-700 transition-colors">Terms and conditions</Link>
+            </div>
+          </div>
         </div>
       </footer>
     </div>

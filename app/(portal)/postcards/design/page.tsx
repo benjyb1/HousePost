@@ -12,6 +12,21 @@ import { createClient } from '@/lib/supabase/client'
 // A5 landscape aspect ratio
 const A5_ASPECT = 210 / 148
 
+type Side = 'front' | 'back'
+
+const SIDE_CONFIG = {
+  front: {
+    storagePath: (userId: string) => `${userId}/design.png`,
+    settingsKey: 'postcard_design_url',
+    label: 'Front',
+  },
+  back: {
+    storagePath: (userId: string) => `${userId}/design-back.png`,
+    settingsKey: 'postcard_design_back_url',
+    label: 'Back',
+  },
+} as const
+
 async function getCroppedImg(imageSrc: string, cropArea: Area): Promise<Blob> {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image()
@@ -47,16 +62,43 @@ async function getCroppedImg(imageSrc: string, cropArea: Area): Promise<Blob> {
 
 export default function PostcardDesignPage() {
   const supabase = createClient()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const frontFileInputRef = useRef<HTMLInputElement>(null)
+  const backFileInputRef = useRef<HTMLInputElement>(null)
 
+  const [activeSide, setActiveSide] = useState<Side>('front')
   const [userId, setUserId] = useState<string | null>(null)
-  const [currentDesignUrl, setCurrentDesignUrl] = useState<string | null>(null)
-  const [imageSrc, setImageSrc] = useState<string | null>(null)
-  const [crop, setCrop] = useState({ x: 0, y: 0 })
-  const [zoom, setZoom] = useState(1)
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
+
+  // Front side state
+  const [frontDesignUrl, setFrontDesignUrl] = useState<string | null>(null)
+  const [frontImageSrc, setFrontImageSrc] = useState<string | null>(null)
+  const [frontCrop, setFrontCrop] = useState({ x: 0, y: 0 })
+  const [frontZoom, setFrontZoom] = useState(1)
+  const [frontCroppedAreaPixels, setFrontCroppedAreaPixels] = useState<Area | null>(null)
+
+  // Back side state
+  const [backDesignUrl, setBackDesignUrl] = useState<string | null>(null)
+  const [backImageSrc, setBackImageSrc] = useState<string | null>(null)
+  const [backCrop, setBackCrop] = useState({ x: 0, y: 0 })
+  const [backZoom, setBackZoom] = useState(1)
+  const [backCroppedAreaPixels, setBackCroppedAreaPixels] = useState<Area | null>(null)
+
   const [loading, setLoading] = useState(false)
   const [rendering, setRendering] = useState(false)
+
+  // Derived state for whichever side is active
+  const isFront = activeSide === 'front'
+  const currentDesignUrl = isFront ? frontDesignUrl : backDesignUrl
+  const setCurrentDesignUrl = isFront ? setFrontDesignUrl : setBackDesignUrl
+  const imageSrc = isFront ? frontImageSrc : backImageSrc
+  const setImageSrc = isFront ? setFrontImageSrc : setBackImageSrc
+  const crop = isFront ? frontCrop : backCrop
+  const setCrop = isFront ? setFrontCrop : setBackCrop
+  const zoom = isFront ? frontZoom : backZoom
+  const setZoom = isFront ? setFrontZoom : setBackZoom
+  const croppedAreaPixels = isFront ? frontCroppedAreaPixels : backCroppedAreaPixels
+  const setCroppedAreaPixels = isFront ? setFrontCroppedAreaPixels : setBackCroppedAreaPixels
+  const fileInputRef = isFront ? frontFileInputRef : backFileInputRef
+  const config = SIDE_CONFIG[activeSide]
 
   useEffect(() => {
     async function load() {
@@ -66,14 +108,15 @@ export default function PostcardDesignPage() {
 
       const res = await fetch('/api/settings')
       const { profile } = await res.json()
-      setCurrentDesignUrl(profile?.postcard_design_url ?? null)
+      setFrontDesignUrl(profile?.postcard_design_url ?? null)
+      setBackDesignUrl(profile?.postcard_design_back_url ?? null)
     }
     load()
   }, [])
 
   const onCropComplete = useCallback((_: Area, croppedPixels: Area) => {
     setCroppedAreaPixels(croppedPixels)
-  }, [])
+  }, [setCroppedAreaPixels])
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -121,7 +164,7 @@ export default function PostcardDesignPage() {
     try {
       const blob = await getCroppedImg(imageSrc, croppedAreaPixels)
 
-      const path = `${userId}/design.png`
+      const path = config.storagePath(userId)
       const { error: uploadError } = await supabase.storage
         .from('postcard-designs')
         .upload(path, blob, { upsert: true, contentType: 'image/png' })
@@ -135,7 +178,7 @@ export default function PostcardDesignPage() {
       const res = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postcard_design_url: publicUrl }),
+        body: JSON.stringify({ [config.settingsKey]: publicUrl }),
       })
 
       if (!res.ok) {
@@ -145,7 +188,7 @@ export default function PostcardDesignPage() {
 
       setCurrentDesignUrl(publicUrl)
       setImageSrc(null)
-      toast.success('Postcard design saved')
+      toast.success(`${config.label} design saved`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save design')
     } finally {
@@ -160,17 +203,17 @@ export default function PostcardDesignPage() {
     try {
       await supabase.storage
         .from('postcard-designs')
-        .remove([`${userId}/design.png`])
+        .remove([config.storagePath(userId)])
 
       await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postcard_design_url: null }),
+        body: JSON.stringify({ [config.settingsKey]: null }),
       })
 
       setCurrentDesignUrl(null)
       setImageSrc(null)
-      toast.success('Design removed')
+      toast.success(`${config.label} design removed`)
     } catch {
       toast.error('Failed to remove design')
     } finally {
@@ -183,20 +226,38 @@ export default function PostcardDesignPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Postcard Design</h1>
         <p className="text-sm text-slate-500">
-          Upload your custom postcard design as a PDF. It will be printed A5 (210×148mm).
+          Upload your custom postcard designs as PDFs. They will be printed A5 (210x148mm).
         </p>
+      </div>
+
+      {/* Front / Back tab toggle */}
+      <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+        {(['front', 'back'] as const).map((side) => (
+          <button
+            key={side}
+            type="button"
+            onClick={() => setActiveSide(side)}
+            className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition ${
+              activeSide === side
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {SIDE_CONFIG[side].label}
+          </button>
+        ))}
       </div>
 
       {/* Current design preview */}
       {currentDesignUrl && !imageSrc && (
         <Card>
           <CardHeader>
-            <CardTitle>Current Design</CardTitle>
+            <CardTitle>Current {config.label} Design</CardTitle>
             <CardDescription>This design is used when dispatching postcards</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="overflow-hidden rounded-md border border-slate-200" style={{ aspectRatio: '210/148', maxWidth: 420 }}>
-              <img src={currentDesignUrl} alt="Current postcard design" className="w-full h-full object-cover" />
+              <img src={currentDesignUrl} alt={`Current postcard ${activeSide} design`} className="w-full h-full object-cover" />
             </div>
             <Button variant="outline" size="sm" onClick={handleRemove} disabled={loading}>
               <Trash2 className="h-4 w-4 mr-2" />
@@ -209,14 +270,22 @@ export default function PostcardDesignPage() {
       {/* Upload card */}
       <Card>
         <CardHeader>
-          <CardTitle>{currentDesignUrl ? 'Replace Design' : 'Upload Design'}</CardTitle>
+          <CardTitle>{currentDesignUrl ? `Replace ${config.label} Design` : `Upload ${config.label} Design`}</CardTitle>
           <CardDescription>
             Upload a PDF, crop and scale it to fit the A5 frame, then save.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Separate hidden file inputs per side so they don't interfere */}
           <input
-            ref={fileInputRef}
+            ref={frontFileInputRef}
+            type="file"
+            accept="application/pdf"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+          <input
+            ref={backFileInputRef}
             type="file"
             accept="application/pdf"
             className="hidden"
@@ -233,13 +302,13 @@ export default function PostcardDesignPage() {
               {rendering ? (
                 <>
                   <ImageIcon className="h-8 w-8 animate-pulse" />
-                  <span className="text-sm">Rendering PDF…</span>
+                  <span className="text-sm">Rendering PDF...</span>
                 </>
               ) : (
                 <>
                   <Upload className="h-8 w-8" />
                   <span className="text-sm font-medium">Click to upload PDF</span>
-                  <span className="text-xs">First page will be used as the design</span>
+                  <span className="text-xs">First page will be used as the {activeSide} design</span>
                 </>
               )}
             </button>
@@ -276,7 +345,7 @@ export default function PostcardDesignPage() {
 
               <div className="flex gap-3">
                 <Button onClick={handleSave} disabled={loading}>
-                  {loading ? 'Saving…' : 'Save Design'}
+                  {loading ? 'Saving...' : 'Save Design'}
                 </Button>
                 <Button
                   variant="outline"
@@ -306,7 +375,7 @@ export default function PostcardDesignPage() {
       <Card className="border-slate-100 bg-slate-50">
         <CardContent className="pt-4">
           <p className="text-sm text-slate-600">
-            <strong>Tip:</strong> Design your postcard at exactly A5 (210×148mm) at 300 DPI for the sharpest print quality. Only the first page of the PDF is used.
+            <strong>Tip:</strong> Design your postcard at exactly A5 (210x148mm) at 300 DPI for the sharpest print quality. Only the first page of the PDF is used.
           </p>
         </CardContent>
       </Card>
