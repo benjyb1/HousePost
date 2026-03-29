@@ -11,7 +11,9 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from 'sonner'
 
 export default function SignupPage() {
-  const [fullName, setFullName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [officePostcode, setOfficePostcode] = useState('')
@@ -38,7 +40,7 @@ export default function SignupPage() {
       email,
       password,
       options: {
-        data: { full_name: fullName, office_postcode: officePostcode.toUpperCase().trim() },
+        data: { full_name: firstName + ' ' + lastName, company_name: companyName || null, office_postcode: officePostcode.toUpperCase().trim() },
         emailRedirectTo: `${appUrl}/auth/callback?redirect_to=/billing`,
       },
     })
@@ -60,7 +62,8 @@ export default function SignupPage() {
     // If auto-confirm is on (no email verification), update profile and redirect
     if (data.user && data.session) {
       await supabase.from('profiles').update({
-        full_name: fullName,
+        full_name: firstName + ' ' + lastName,
+        company_name: companyName || null,
         email,
         office_postcode: officePostcode.toUpperCase().trim(),
       }).eq('id', data.user.id)
@@ -107,13 +110,33 @@ export default function SignupPage() {
       </CardHeader>
       <form onSubmit={handleSignup}>
         <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="firstName">First name</Label>
+              <Input
+                id="firstName"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="lastName">Last name</Label>
+              <Input
+                id="lastName"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                required
+              />
+            </div>
+          </div>
           <div className="space-y-1.5">
-            <Label htmlFor="name">Full name / Company name</Label>
+            <Label htmlFor="companyName">Company name</Label>
             <Input
-              id="name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
+              id="companyName"
+              placeholder="Optional"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
             />
           </div>
           <div className="space-y-1.5">

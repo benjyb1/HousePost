@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, MapPin, Mail, Palette, CreditCard, Settings, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, MapPin, Mail, Palette, CreditCard, Settings, UserCog, LogOut, Menu, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -15,7 +15,8 @@ const navItems = [
   { href: '/postcards', label: 'Postcards', icon: Mail },
   { href: '/postcards/design', label: 'Postcard Design', icon: Palette },
   { href: '/billing', label: 'Billing', icon: CreditCard },
-  { href: '/settings', label: 'Settings', icon: Settings },
+  { href: '/settings', label: 'Preferences', icon: Settings },
+  { href: '/account', label: 'Account', icon: UserCog },
 ]
 
 export function Sidebar() {
@@ -32,17 +33,19 @@ export function Sidebar() {
 
   const sidebarContent = (
     <>
-      <div className="flex h-16 items-center border-b px-5 justify-between">
-        <Image
-          src="/logo-wordmark.png"
-          alt="Housepost"
-          width={400}
-          height={100}
-          className="h-8 w-auto"
-        />
+      <div className="flex h-16 items-center border-b border-white/10 px-5 justify-between">
+        <Link href="/dashboard">
+          <Image
+            src="/logo-wordmark.png"
+            alt="Housepost"
+            width={400}
+            height={100}
+            className="h-8 w-auto brightness-0 invert"
+          />
+        </Link>
         <button
           onClick={() => setOpen(false)}
-          className="md:hidden p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+          className="md:hidden p-1 rounded-md text-white/70 hover:text-white hover:bg-white/10"
         >
           <X className="h-5 w-5" />
         </button>
@@ -56,8 +59,8 @@ export function Sidebar() {
             className={cn(
               'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
               pathname === href
-                ? 'bg-brand-light text-brand font-semibold'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                ? 'bg-white/15 text-white font-semibold'
+                : 'text-white/70 hover:bg-white/10 hover:text-white'
             )}
           >
             <Icon className="h-4 w-4" />
@@ -65,14 +68,14 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
-      <div className="border-t p-3 space-y-1">
+      <div className="border-t border-white/10 p-3 space-y-1">
         <div className="flex items-center gap-2 px-3 py-2">
-          <Image src="/logo-icon.png" alt="" width={20} height={20} className="h-4 w-4 opacity-40" />
-          <span className="text-xs text-slate-400">Housepost</span>
+          <Image src="/logo-icon.png" alt="" width={20} height={20} className="h-4 w-4 opacity-40 brightness-0 invert" />
+          <span className="text-xs text-white/40">Housepost</span>
         </div>
         <button
           onClick={handleLogout}
-          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white transition-colors"
         >
           <LogOut className="h-4 w-4" />
           Sign out
@@ -102,7 +105,7 @@ export function Sidebar() {
       {/* Mobile sidebar (slide-in) */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex w-60 flex-col bg-white border-r transition-transform duration-200 md:hidden',
+          'fixed inset-y-0 left-0 z-50 flex w-60 flex-col bg-brand sidebar-pattern border-r border-white/10 transition-transform duration-200 md:hidden',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -110,7 +113,7 @@ export function Sidebar() {
       </aside>
 
       {/* Desktop sidebar (always visible) */}
-      <aside className="hidden md:flex w-60 flex-col border-r bg-white">
+      <aside className="hidden md:flex w-60 flex-col border-r border-white/10 bg-brand sidebar-pattern">
         {sidebarContent}
       </aside>
     </>

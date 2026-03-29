@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { createAdminClient } from '@/lib/supabase/admin'
+import { INCLUDED_POSTCARDS_PER_MONTH } from '@/types/profile'
 
 interface Client {
   id: string
@@ -79,12 +80,12 @@ export default async function AdminPage() {
                 <td className="px-4 py-3 text-slate-600">{client.office_postcode || '—'}</td>
                 <td className="px-4 py-3 text-center">
                   <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${statusColors[client.subscription_status] ?? 'bg-slate-100 text-slate-500'}`}>
-                    {client.subscription_status}
+                    {client.subscription_status === 'incomplete' ? 'Inactive' : client.subscription_status}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right text-slate-700">{client.totalLeads.toLocaleString()}</td>
                 <td className="px-4 py-3 text-right text-slate-700">{client.totalPostcards}</td>
-                <td className="px-4 py-3 text-right text-slate-700">{client.postcards_used_this_period}/10</td>
+                <td className="px-4 py-3 text-right text-slate-700">{client.postcards_used_this_period}/{INCLUDED_POSTCARDS_PER_MONTH}</td>
                 <td className="px-4 py-3 text-xs text-slate-500">
                   {new Date(client.created_at).toLocaleDateString('en-GB')}
                 </td>
