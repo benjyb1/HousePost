@@ -5,6 +5,7 @@ import { calculatePostcardCost, reportOverageUsage } from '@/lib/stripe/billing'
 import { sendPostcard, buildRecipientContact, generateFrontHtml, generateBackHtml } from '@/lib/postcards/postgrid'
 import { currentMonthKey, formatDate } from '@/lib/utils/date'
 import { PROPERTY_TYPE_LABELS } from '@/types/land-registry'
+import { POSTCARD_OVERAGE_PENCE } from '@/types/profile'
 
 // GET: list postcard jobs for the authenticated user
 export async function GET(request: Request) {
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
   const used = profile.postcards_used_this_period as number
   const { included, overage, overageCostPence } = calculatePostcardCost(leads.length, used)
 
-  // Report overage usage to Stripe's metered billing (boss's product handles the £1/postcard charge)
+  // Report overage usage to Stripe's metered billing (£1.50/postcard charge)
   let stripeUsageRecordId: string | null = null
   if (overage > 0) {
     const customerId = profile.stripe_customer_id as string | null
@@ -134,7 +135,7 @@ export async function POST(request: Request) {
         recipient_postcode: lead.postcode,
         stripe_payment_intent_id: isIncluded ? null : stripeUsageRecordId,
         was_included_in_subscription: isIncluded,
-        charge_amount_pence: isIncluded ? 0 : 100,
+        charge_amount_pence: isIncluded ? 0 : POSTCARD_OVERAGE_PENCE,
         status: 'dispatched',
         dispatched_at: new Date().toISOString(),
       }).select('id').single()

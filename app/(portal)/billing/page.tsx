@@ -82,7 +82,7 @@ export default function BillingPage() {
               {profile?.subscription_status ?? 'Inactive'}
             </Badge>
           </CardTitle>
-          <CardDescription>£15/month · 5 postcards included · £1 per additional</CardDescription>
+          <CardDescription>£15/month · 5 postcards included · £1.50 per additional</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {profile?.subscription_period_end && (

@@ -207,7 +207,7 @@ export default function HomePage() {
             <div className="px-8 py-8 space-y-3">
               {[
                 '5 postcards included',
-                'Each additional postcard just £1',
+                'Each additional postcard just £1.50',
                 'Email alerts when your leads are ready',
                 'Automatic radius expansion',
                 'Live tracking',
