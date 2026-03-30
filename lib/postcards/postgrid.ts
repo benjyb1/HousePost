@@ -11,13 +11,13 @@ export interface PostGridContact {
   countryCode: 'GB'
 }
 
-interface CreateLetterResponse {
+interface CreatePostcardResponse {
   id: string
   status: string
   object: string
 }
 
-interface GetLetterResponse {
+interface GetPostcardResponse {
   id: string
   status: string
 }
@@ -66,7 +66,6 @@ export function buildRecipientContact(
   postcode: string,
   recipientName = 'The Homeowner'
 ): PostGridContact {
-  // Use "The Homeowner" as the default recipient name for UK postcards
   const [firstName, ...rest] = recipientName.split(' ')
   return {
     firstName,
@@ -79,63 +78,103 @@ export function buildRecipientContact(
 }
 
 /**
- * Send a letter via PostGrid using raw HTML content.
- * Returns the PostGrid letter ID and status.
+ * Send a postcard via PostGrid using the postcards API with frontHTML and backHTML.
+ * Returns the PostGrid postcard ID and status.
  */
-export async function sendLetter(
+export async function sendPostcard(
   to: PostGridContact,
-  htmlContent: string
-): Promise<{ letterId: string; status: string }> {
+  frontHtml: string,
+  backHtml: string,
+  size: '6x4' | '4x6' | '6x9' | '6x11' = '6x4'
+): Promise<{ postcardId: string; status: string }> {
   const from = getSenderContact()
 
-  const result = await postGridRequest<CreateLetterResponse>('POST', '/letters', {
+  const result = await postGridRequest<CreatePostcardResponse>('POST', '/postcards', {
     to,
     from,
-    html: htmlContent,
-    color: true,
-    doubleSided: false,
-    addressPlacement: 'insert_blank_page',
+    frontHTML: frontHtml,
+    backHTML: backHtml,
+    size,
   })
 
-  return { letterId: result.id, status: result.status }
+  return { postcardId: result.id, status: result.status }
 }
 
 /**
- * Get the current status of a PostGrid letter.
+ * Get the current status of a PostGrid postcard.
  */
-export async function getLetterStatus(letterId: string): Promise<string> {
-  const result = await postGridRequest<GetLetterResponse>(
+export async function getPostcardStatus(postcardId: string): Promise<string> {
+  const result = await postGridRequest<GetPostcardResponse>(
     'GET',
-    `/letters/${letterId}`
+    `/postcards/${postcardId}`
   )
   return result.status
 }
 
 /**
- * Generate HTML content for a postcard letter.
- * If the client has uploaded a design URL, use it; otherwise use a default template.
+ * Generate HTML for the front of a postcard.
+ * If the user has a custom design, embed it as a full-bleed image.
+ * Otherwise use a default template.
  */
-export function generateLetterHtml(params: {
+export function generateFrontHtml(params: {
+  senderName: string
+  designUrl?: string | null
+}): string {
+  const { senderName, designUrl } = params
+
+  if (designUrl) {
+    return `<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;">
+  <img src="${designUrl}" style="width:100%;height:100%;display:block;object-fit:cover;" alt="Postcard design"/>
+</body>
+</html>`
+  }
+
+  // Default front when no custom design uploaded
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <style>
+    body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    .front { width: 100%; height: 100%; background: #152452; color: white; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px; box-sizing: border-box; }
+    .logo { font-size: 28px; font-weight: bold; margin-bottom: 8px; }
+    .tagline { font-size: 14px; opacity: 0.8; }
+    .sender { font-size: 12px; margin-top: 16px; opacity: 0.6; }
+  </style>
+</head>
+<body>
+  <div class="front">
+    <div class="logo">Housepost</div>
+    <div class="tagline">Your local property specialists</div>
+    <div class="sender">From ${senderName}</div>
+  </div>
+</body>
+</html>`
+}
+
+/**
+ * Generate HTML for the back of a postcard.
+ * Contains the marketing message with property sale details.
+ * If the user has a custom back design, use that instead.
+ */
+export function generateBackHtml(params: {
   recipientAddress: string
   price: number
   propertyType: string
   saleDate: string
   senderName: string
-  designUrl?: string | null
+  backDesignUrl?: string | null
 }): string {
-  const { recipientAddress, price, propertyType, saleDate, senderName, designUrl } =
-    params
+  const { recipientAddress, price, propertyType, saleDate, senderName, backDesignUrl } = params
   const formattedPrice = `£${(price / 100).toLocaleString('en-GB')}`
 
-  if (designUrl) {
-    // Embed their custom design with address variable injected
+  if (backDesignUrl) {
     return `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;">
-  <img src="${designUrl}" style="width:100%;display:block;" alt="Postcard design"/>
-  <div style="position:absolute;bottom:20px;right:20px;font-family:Arial;font-size:10px;color:#666;">
-    Sent by ${senderName}
-  </div>
+  <img src="${backDesignUrl}" style="width:100%;height:100%;display:block;object-fit:cover;" alt="Postcard back design"/>
 </body>
 </html>`
   }
@@ -145,41 +184,34 @@ export function generateLetterHtml(params: {
 <head>
   <meta charset="utf-8"/>
   <style>
-    body { font-family: Arial, sans-serif; margin: 40px; color: #333; }
-    .header { background: #F97060; color: white; padding: 20px; border-radius: 8px; margin-bottom: 24px; }
-    .highlight { color: #e85f4e; font-weight: bold; }
-    .address { background: #fff0ee; border-left: 4px solid #F97060; padding: 12px 16px; margin: 16px 0; }
-    .footer { margin-top: 32px; font-size: 12px; color: #666; border-top: 1px solid #e2e8f0; padding-top: 16px; }
+    body { font-family: Arial, sans-serif; margin: 24px; color: #333; font-size: 11px; }
+    .header { font-size: 16px; font-weight: bold; color: #152452; margin-bottom: 12px; }
+    .highlight { color: #152452; font-weight: bold; }
+    .sale-info { background: #f0f4fa; border-left: 3px solid #152452; padding: 8px 12px; margin: 12px 0; font-size: 10px; }
+    .cta { margin-top: 12px; font-weight: bold; }
+    .footer { margin-top: 16px; font-size: 9px; color: #999; border-top: 1px solid #e2e8f0; padding-top: 8px; }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1 style="margin:0;font-size:22px;">Your Home Recently Sold</h1>
-    <p style="margin:8px 0 0;opacity:0.9;">We're active in your area</p>
-  </div>
+  <div class="header">A property near you recently sold</div>
 
   <p>Dear Homeowner,</p>
 
   <p>A property on your street recently sold for <span class="highlight">${formattedPrice}</span>.
-  As local property specialists, we're currently working with buyers actively searching in your area.</p>
+  As local property specialists, we're working with buyers actively searching in your area.</p>
 
-  <div class="address">
+  <div class="sale-info">
     <strong>Recent sale nearby:</strong><br/>
     ${recipientAddress}<br/>
-    <strong>Sale price:</strong> ${formattedPrice}<br/>
-    <strong>Type:</strong> ${propertyType}<br/>
-    <strong>Date:</strong> ${saleDate}
+    <strong>Price:</strong> ${formattedPrice} · <strong>Type:</strong> ${propertyType} · <strong>Date:</strong> ${saleDate}
   </div>
 
-  <p>If you're considering selling, now could be an excellent time.
-  We'd love to provide you with a free, no-obligation market appraisal.</p>
+  <p class="cta">Thinking of selling? Get in touch for a free, no-obligation appraisal.</p>
 
-  <p>Please don't hesitate to get in touch.</p>
-
-  <p>Warm regards,<br/><strong>${senderName}</strong></p>
+  <p>Best regards,<br/><strong>${senderName}</strong></p>
 
   <div class="footer">
-    This letter was sent to you because a property near your address was recently sold.
+    Sent by Housepost on behalf of ${senderName}.
     To opt out of future mailings, please contact us.
   </div>
 </body>

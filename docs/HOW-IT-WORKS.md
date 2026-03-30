@@ -1,8 +1,8 @@
-# PropertyLeads — How It Works
+# Housepost — How It Works
 
-## What is PropertyLeads?
+## What is Housepost?
 
-PropertyLeads is a tool that automatically finds properties in your area that have recently sold, then lets you send personalised postcards to those addresses — reaching potential clients before anyone else does.
+Housepost is a tool that automatically finds properties in your area that have recently sold, then lets you send personalised postcards to those addresses — reaching potential clients before anyone else does.
 
 ---
 
