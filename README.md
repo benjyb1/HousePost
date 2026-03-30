@@ -1,4 +1,4 @@
-# PropertyLeads
+# Housepost
 
 Automated UK property lead generation from HM Land Registry data with PostGrid postcard dispatch. Built with Next.js 16, Supabase, Stripe, and PostGrid.
 
@@ -83,7 +83,7 @@ supabase db push
 
 ### 4. Stripe setup
 
-1. Create product: **PropertyLeads Monthly**, £10/month recurring → copy Price ID to `STRIPE_PRICE_ID`
+1. Create product: **Housepost Monthly**, £10/month recurring → copy Price ID to `STRIPE_PRICE_ID`
 2. Create webhook → `https://your-domain.com/api/webhooks/stripe`
 3. Subscribe to: `customer.subscription.created/updated/deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
 4. Local: `stripe listen --forward-to localhost:3000/api/webhooks/stripe`

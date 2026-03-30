@@ -1,6 +1,6 @@
-# PropertyLeads — Ownership Transfer Guide
+# Housepost — Ownership Transfer Guide
 
-This document covers everything needed to fully transfer ownership of PropertyLeads to a new owner.
+This document covers everything needed to fully transfer ownership of Housepost to a new owner.
 
 ---
 

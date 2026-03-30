@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { calculatePostcardCost, reportOverageUsage } from '@/lib/stripe/billing'
-import { sendLetter, buildRecipientContact, generateLetterHtml } from '@/lib/postcards/postgrid'
+import { sendPostcard, buildRecipientContact, generateFrontHtml, generateBackHtml } from '@/lib/postcards/postgrid'
 import { currentMonthKey, formatDate } from '@/lib/utils/date'
 import { PROPERTY_TYPE_LABELS } from '@/types/land-registry'
 
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
   // Fetch profile for billing and design info
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('stripe_customer_id, stripe_subscription_id, postcards_used_this_period, postcard_design_url, full_name, subscription_status')
+    .select('stripe_customer_id, stripe_subscription_id, postcards_used_this_period, postcard_design_url, postcard_design_back_url, full_name, subscription_status')
     .eq('id', user.id)
     .single()
 
@@ -103,13 +103,18 @@ export async function POST(request: Request) {
         PROPERTY_TYPE_LABELS[(lead.property_type as keyof typeof PROPERTY_TYPE_LABELS)] ??
         lead.property_type
 
-      const htmlContent = generateLetterHtml({
+      const frontHtml = generateFrontHtml({
+        senderName: profile.full_name as string,
+        designUrl: profile.postcard_design_url as string | null,
+      })
+
+      const backHtml = generateBackHtml({
         recipientAddress: lead.address_line as string,
         price: lead.price as number,
         propertyType: propertyLabel,
         saleDate: formatDate(lead.date_of_transfer as string),
         senderName: profile.full_name as string,
-        designUrl: profile.postcard_design_url as string | null,
+        backDesignUrl: profile.postcard_design_back_url as string | null,
       })
 
       const recipient = buildRecipientContact(
@@ -117,13 +122,13 @@ export async function POST(request: Request) {
         lead.postcode as string
       )
 
-      const { letterId, status } = await sendLetter(recipient, htmlContent)
+      const { postcardId, status } = await sendPostcard(recipient, frontHtml, backHtml, '6x4')
 
       const { data: jobData } = await adminSupabase.from('postcard_jobs').insert({
         user_id: user.id,
         lead_id: lead.id,
         lead_month: month,
-        postgrid_letter_id: letterId,
+        postgrid_letter_id: postcardId,
         postgrid_status: status,
         recipient_address_line: lead.address_line,
         recipient_postcode: lead.postcode,
