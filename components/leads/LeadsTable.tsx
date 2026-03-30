@@ -210,7 +210,7 @@ export function LeadsTable({ leads: initialLeads, monthKey, subscriptionStatus }
               {selected.length > 0 && (
                 <span className="text-slate-400">
                   {' '}· {includedCount} free
-                  {overageCount > 0 && `, ${overageCount} @ £1 each = £${overageCount}`}
+                  {overageCount > 0 && `, ${overageCount} @ £1.50 each = £${(overageCount * 1.5).toFixed(2)}`}
                 </span>
               )}
             </span>

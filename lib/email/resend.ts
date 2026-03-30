@@ -59,7 +59,7 @@ export async function sendLeadsReadyEmail(params: {
           </div>
           <p style="color:#666;font-size:13px;">
             Remember: your plan includes 5 free postcards per month.
-            Additional postcards are charged at £1 each.
+            Additional postcards are charged at £1.50 each.
           </p>
           <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"/>
           <p style="color:#999;font-size:12px;">
