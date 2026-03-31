@@ -44,6 +44,11 @@ export async function expandRadius(
   const supabase = createAdminClient()
   let radius = initialRadiusMiles
 
+  // Only include sales from the last 6 months
+  const sixMonthsAgo = new Date()
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+  const cutoffDate = sixMonthsAgo.toISOString().slice(0, 10)
+
   while (true) {
     const box = boundingBox(officeLat, officeLng, radius)
 
@@ -51,6 +56,7 @@ export async function expandRadius(
       .from('property_transactions')
       .select('id, address_line, postcode, price, property_type, is_new_build, tenure, date_of_transfer, lat, lng')
       .eq('import_month', importMonth)
+      .gte('date_of_transfer', cutoffDate)
       .not('lat', 'is', null)
       .not('lng', 'is', null)
       .gte('lat', box.minLat)

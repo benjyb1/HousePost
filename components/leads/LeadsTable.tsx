@@ -34,6 +34,8 @@ interface LeadsTableProps {
   subscriptionStatus: SubscriptionStatus
 }
 
+const PAGE_SIZE = 15
+
 export function LeadsTable({ leads: initialLeads, monthKey, subscriptionStatus }: LeadsTableProps) {
   const [leads, setLeads] = useState(initialLeads)
   const [distanceSort, setDistanceSort] = useState<SortState>(0)
@@ -41,6 +43,7 @@ export function LeadsTable({ leads: initialLeads, monthKey, subscriptionStatus }
   const [dispatching, setDispatching] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [tab, setTab] = useState<Tab>('active')
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'trialing'
 
@@ -48,6 +51,12 @@ export function LeadsTable({ leads: initialLeads, monthKey, subscriptionStatus }
   const pastLeads = leads.filter((l) => !!l.postcard_job_id)
 
   const currentLeads = tab === 'active' ? activeLeads : pastLeads
+
+  // Reset visible count when switching tabs
+  function switchTab(t: Tab) {
+    setTab(t)
+    setVisibleCount(PAGE_SIZE)
+  }
 
   const sorted = [...currentLeads].sort((a, b) => {
     // Distance sort
@@ -59,6 +68,9 @@ export function LeadsTable({ leads: initialLeads, monthKey, subscriptionStatus }
     // Default: alphabetical by address
     return a.address_line.localeCompare(b.address_line)
   })
+
+  const visible = sorted.slice(0, visibleCount)
+  const hasMore = sorted.length > visibleCount
 
   const selected = activeLeads.filter((l) => l.selected_for_dispatch)
   const includedCount = Math.min(selected.length, INCLUDED_POSTCARDS_PER_MONTH)
@@ -175,7 +187,7 @@ export function LeadsTable({ leads: initialLeads, monthKey, subscriptionStatus }
       {/* Tabs */}
       <div className="flex gap-1 border-b">
         <button
-          onClick={() => setTab('active')}
+          onClick={() => switchTab('active')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colours ${
             tab === 'active'
               ? 'border-slate-900 text-slate-900'
@@ -185,7 +197,7 @@ export function LeadsTable({ leads: initialLeads, monthKey, subscriptionStatus }
           Active ({activeLeads.length})
         </button>
         <button
-          onClick={() => setTab('past')}
+          onClick={() => switchTab('past')}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colours ${
             tab === 'past'
               ? 'border-slate-900 text-slate-900'
@@ -280,7 +292,7 @@ export function LeadsTable({ leads: initialLeads, monthKey, subscriptionStatus }
             </tr>
           </thead>
           <tbody className="divide-y">
-            {sorted.map((lead, index) => {
+            {visible.map((lead, index) => {
               const isBlurred = !isSubscribed && index >= 5
               return (
                 <tr
@@ -320,7 +332,7 @@ export function LeadsTable({ leads: initialLeads, monthKey, subscriptionStatus }
         </table>
 
         {/* Subscription overlay for blurred leads */}
-        {!isSubscribed && sorted.length > 5 && (
+        {!isSubscribed && visible.length > 5 && (
           <div className="absolute bottom-0 left-0 right-0 h-48 bg-gradient-to-t from-white via-white/90 to-transparent flex items-end justify-center pb-8">
             <div className="flex flex-col items-center gap-2 text-center">
               <Lock className="h-5 w-5 text-slate-400" />
@@ -341,6 +353,18 @@ export function LeadsTable({ leads: initialLeads, monthKey, subscriptionStatus }
           </div>
         )}
       </div>
+
+      {/* Load More */}
+      {hasMore && isSubscribed && (
+        <div className="flex justify-center pt-2">
+          <Button
+            variant="outline"
+            onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+          >
+            Load more ({sorted.length - visibleCount} remaining)
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
