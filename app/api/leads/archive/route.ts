@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
   const { error, count } = await supabase
     .from('leads')
-    .update({ archived_at: new Date().toISOString() })
+    .update({ archived_at: new Date().toISOString() }, { count: 'exact' })
     .in('id', ids)
     .eq('user_id', user.id)
 
