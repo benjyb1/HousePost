@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { currentMonthKey } from '@/lib/utils/date'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
@@ -8,14 +7,23 @@ export async function GET(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
-  const month = searchParams.get('month') ?? currentMonthKey()
+  const archived = searchParams.get('archived') === 'true'
 
-  const { data, error } = await supabase
+  let query = supabase
     .from('leads')
     .select('*')
     .eq('user_id', user.id)
-    .eq('lead_month', month)
-    .order('distance_miles', { ascending: true })
+
+  if (archived) {
+    query = query.not('archived_at', 'is', null)
+      .order('archived_at', { ascending: false })
+  } else {
+    query = query.is('archived_at', null)
+      .order('lead_month', { ascending: false })
+      .order('distance_miles', { ascending: true })
+  }
+
+  const { data, error } = await query
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
