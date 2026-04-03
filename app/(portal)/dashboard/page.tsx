@@ -23,9 +23,21 @@ export default async function DashboardPage() {
   const prevDate = new Date(year, month - 2, 1) // month-2 because Date months are 0-indexed
   const prevMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
 
+  // Find the most recent lead_month with data
+  const { data: latestLead } = await supabase
+    .from('leads')
+    .select('lead_month')
+    .eq('user_id', user.id)
+    .is('archived_at', null)
+    .order('lead_month', { ascending: false })
+    .limit(1)
+    .single()
+
+  const latestLeadMonth = latestLead?.lead_month ?? prevMonthKey
+
   const [{ data: profile }, { count: leadCount }, { count: postcardCount }, { count: prevPostcardCount }] = await Promise.all([
     supabase.from('profiles').select('full_name, subscription_status, postcards_used_this_period, search_radius_miles, office_postcode').eq('id', user.id).single(),
-    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', prevMonthKey).is('archived_at', null),
+    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', latestLeadMonth).is('archived_at', null),
     supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', monthKey),
     supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', prevMonthKey),
   ])
