@@ -29,7 +29,7 @@ type Lead = {
   archived_at: string | null
 }
 
-type SortField = 'distance' | 'price'
+type SortField = 'distance' | 'price' | 'type' | 'date'
 type SortState = 0 | 1 | 2
 type Tab = 'active' | 'past' | 'archived'
 
@@ -46,6 +46,8 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
   const [archivedLoaded, setArchivedLoaded] = useState(false)
   const [distanceSort, setDistanceSort] = useState<SortState>(0)
   const [priceSort, setPriceSort] = useState<SortState>(0)
+  const [typeSort, setTypeSort] = useState<SortState>(0)
+  const [dateSort, setDateSort] = useState<SortState>(0)
   const [dispatching, setDispatching] = useState(false)
   const [archiving, setArchiving] = useState(false)
   const [tab, setTab] = useState<Tab>('active')
@@ -69,6 +71,10 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
       if (distanceSort === 2) return b.distance_miles - a.distance_miles
       if (priceSort === 1) return b.price - a.price
       if (priceSort === 2) return a.price - b.price
+      if (typeSort === 1) return a.property_type.localeCompare(b.property_type)
+      if (typeSort === 2) return b.property_type.localeCompare(a.property_type)
+      if (dateSort === 1) return new Date(b.date_of_transfer).getTime() - new Date(a.date_of_transfer).getTime()
+      if (dateSort === 2) return new Date(a.date_of_transfer).getTime() - new Date(b.date_of_transfer).getTime()
       return a.address_line.localeCompare(b.address_line)
     })
   }
@@ -95,14 +101,31 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
   const includedCount = Math.min(selected.length, INCLUDED_POSTCARDS_PER_MONTH)
   const overageCount = Math.max(0, selected.length - INCLUDED_POSTCARDS_PER_MONTH)
 
-  function cycleDistance() {
+  function resetSorts() {
+    setDistanceSort(0)
     setPriceSort(0)
+    setTypeSort(0)
+    setDateSort(0)
+  }
+
+  function cycleDistance() {
+    resetSorts()
     setDistanceSort((prev) => ((prev + 1) % 3) as SortState)
   }
 
   function cyclePrice() {
-    setDistanceSort(0)
+    resetSorts()
     setPriceSort((prev) => ((prev + 1) % 3) as SortState)
+  }
+
+  function cycleType() {
+    resetSorts()
+    setTypeSort((prev) => ((prev + 1) % 3) as SortState)
+  }
+
+  function cycleDate() {
+    resetSorts()
+    setDateSort((prev) => ((prev + 1) % 3) as SortState)
   }
 
   async function switchTab(t: Tab) {
@@ -230,8 +253,10 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
   // --- Sub-components ---
 
   function SortToggle({ label, field }: { label: string; field: SortField }) {
-    const state = field === 'distance' ? distanceSort : priceSort
-    const cycle = field === 'distance' ? cycleDistance : cyclePrice
+    const stateMap = { distance: distanceSort, price: priceSort, type: typeSort, date: dateSort }
+    const cycleMap = { distance: cycleDistance, price: cyclePrice, type: cycleType, date: cycleDate }
+    const state = stateMap[field]
+    const cycle = cycleMap[field]
     const active = state !== 0
 
     let Icon = ArrowUpDown
@@ -317,8 +342,10 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500">Sort by:</span>
-            <SortToggle label="Distance" field="distance" />
             <SortToggle label="Price" field="price" />
+            <SortToggle label="Type" field="type" />
+            <SortToggle label="Distance" field="distance" />
+            <SortToggle label="Date" field="date" />
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-slate-600">
@@ -367,8 +394,10 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500">Sort by:</span>
-            <SortToggle label="Distance" field="distance" />
             <SortToggle label="Price" field="price" />
+            <SortToggle label="Type" field="type" />
+            <SortToggle label="Distance" field="distance" />
+            <SortToggle label="Date" field="date" />
           </div>
           {pastLeads.length > 0 && (
             <Button

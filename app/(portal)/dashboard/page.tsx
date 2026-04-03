@@ -25,7 +25,7 @@ export default async function DashboardPage() {
 
   const [{ data: profile }, { count: leadCount }, { count: postcardCount }, { count: prevPostcardCount }] = await Promise.all([
     supabase.from('profiles').select('full_name, subscription_status, postcards_used_this_period, search_radius_miles, office_postcode').eq('id', user.id).single(),
-    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', monthKey),
+    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', prevMonthKey).is('archived_at', null),
     supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', monthKey),
     supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', prevMonthKey),
   ])
@@ -83,7 +83,7 @@ export default async function DashboardPage() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Leads this month</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-500">Latest leads</CardTitle>
             <MapPin className="h-4 w-4 text-slate-400" />
           </CardHeader>
           <CardContent className="flex-1">
