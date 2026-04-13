@@ -95,7 +95,7 @@ export async function sendPostcard(
     frontHTML: frontHtml,
     backHTML: backHtml,
     size,
-    mailingClass: 'second_class',
+    mailingClass: 'royal_mail_second_class',
   })
 
   return { postcardId: result.id, status: result.status }
