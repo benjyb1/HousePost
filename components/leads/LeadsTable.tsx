@@ -233,6 +233,8 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
     const data = await res.json()
     if (!res.ok) {
       toast.error(data.error ?? 'Dispatch failed')
+    } else if (data.failed > 0) {
+      toast.error(`${data.failed} postcard${data.failed === 1 ? '' : 's'} failed, ${data.dispatched} sent`)
     } else {
       toast.success(`${data.dispatched} postcard${data.dispatched === 1 ? '' : 's'} queued for dispatch!`)
       setLeads((prev) =>

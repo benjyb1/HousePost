@@ -159,6 +159,14 @@ export async function POST(request: Request) {
     .update({ postcards_used_this_period: used + dispatched.length })
     .eq('id', user.id)
 
+  if (dispatched.length === 0 && failed.length > 0) {
+    return NextResponse.json({
+      error: `All ${failed.length} postcard${failed.length === 1 ? '' : 's'} failed to dispatch`,
+      dispatched: 0,
+      failed: failed.length,
+    }, { status: 502 })
+  }
+
   return NextResponse.json({
     success: true,
     dispatched: dispatched.length,
