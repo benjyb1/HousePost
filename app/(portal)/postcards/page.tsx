@@ -19,6 +19,19 @@ const statusColors: Record<string, string> = {
   delivered: 'bg-green-100 text-green-800',
 }
 
+/** Map PostGrid's internal status names to user-friendly labels */
+const statusLabels: Record<string, string> = {
+  ready: 'Processing',
+  printing: 'Printing',
+  mailed: 'Mailed',
+  in_transit: 'In Transit',
+  delivered: 'Delivered',
+  dispatched: 'Dispatched',
+  pending: 'Pending',
+  failed: 'Failed',
+  cancelled: 'Cancelled',
+}
+
 export default async function PostcardsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -101,8 +114,8 @@ export default async function PostcardsPage() {
                           {job.dispatched_at ? formatDate(job.dispatched_at as string) : '—'}
                         </td>
                         <td className="px-4 py-3 text-center">
-                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${colorClass}`}>
-                            {(displayStatus as string).replace('_', ' ')}
+                          <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${colorClass}`}>
+                            {statusLabels[displayStatus as string] ?? (displayStatus as string).replace('_', ' ')}
                           </span>
                         </td>
                       </tr>
