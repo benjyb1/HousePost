@@ -93,6 +93,7 @@ export async function POST(request: Request) {
   const adminSupabase = createAdminClient()
   const dispatched: string[] = []
   const failed: string[] = []
+  const failReasons: string[] = []
 
   for (let i = 0; i < leads.length; i++) {
     const lead = leads[i]
@@ -150,6 +151,7 @@ export async function POST(request: Request) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`PostGrid dispatch failed for lead ${lead.id}:`, msg)
       failed.push(lead.id as string)
+      failReasons.push(msg)
     }
   }
 
@@ -164,6 +166,7 @@ export async function POST(request: Request) {
       error: `All ${failed.length} postcard${failed.length === 1 ? '' : 's'} failed to dispatch`,
       dispatched: 0,
       failed: failed.length,
+      reasons: failReasons,
     }, { status: 502 })
   }
 
