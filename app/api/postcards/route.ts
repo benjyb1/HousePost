@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { leadIds, month } = body as { leadIds: string[]; month: string }
+  const { leadIds } = body as { leadIds: string[] }
 
   if (!Array.isArray(leadIds) || leadIds.length === 0) {
     return NextResponse.json({ error: 'No leads selected' }, { status: 400 })
@@ -60,7 +60,6 @@ export async function POST(request: Request) {
     .from('leads')
     .select('*')
     .eq('user_id', user.id)
-    .eq('lead_month', month)
     .in('id', leadIds)
 
   if (leadsError || !leads?.length) {
@@ -82,7 +81,7 @@ export async function POST(request: Request) {
       stripeUsageRecordId = await reportOverageUsage(
         customerId,
         overage,
-        `${user.id}-${month}-overage-${Date.now()}` // idempotency key
+        `${user.id}-${currentMonthKey()}-overage-${Date.now()}` // idempotency key
       )
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Usage reporting failed'
@@ -128,7 +127,7 @@ export async function POST(request: Request) {
       const { data: jobData } = await adminSupabase.from('postcard_jobs').insert({
         user_id: user.id,
         lead_id: lead.id,
-        lead_month: month,
+        lead_month: lead.lead_month,
         postgrid_letter_id: postcardId,
         postgrid_status: status,
         recipient_address_line: lead.address_line,
