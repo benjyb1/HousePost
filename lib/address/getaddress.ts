@@ -3,38 +3,49 @@ export interface AddressResult {
   postcode: string
 }
 
-interface GetAddressResponse {
+interface IdealPostcodesAddress {
+  line_1: string
+  line_2: string
+  line_3: string
+  post_town: string
   postcode: string
-  latitude: number
-  longitude: number
-  addresses: string[]
+}
+
+interface IdealPostcodesResponse {
+  result: IdealPostcodesAddress[]
+  code: number
+  message: string
+  total: number
 }
 
 /**
- * Look up addresses for a UK postcode via getAddress.io.
+ * Look up addresses for a UK postcode via Ideal Postcodes.
  * Returns empty array if postcode is invalid or API key is missing.
  */
 export async function lookupPostcode(postcode: string): Promise<AddressResult[]> {
-  const apiKey = process.env.GETADDRESS_API_KEY
+  const apiKey = process.env.IDEAL_POSTCODES_API_KEY
   if (!apiKey) return []
 
-  const normalised = postcode.trim().toUpperCase()
-  const url = `https://api.getaddress.io/find/${encodeURIComponent(normalised)}?api-key=${apiKey}&expand=false`
+  const normalised = postcode.trim().replace(/\s/g, '').toUpperCase()
+  const url = `https://api.ideal-postcodes.co.uk/v1/postcodes/${encodeURIComponent(normalised)}?api_key=${apiKey}`
 
   const res = await fetch(url)
   if (!res.ok) {
     if (res.status === 404) return [] // invalid postcode
-    if (res.status === 429) return [] // rate limited / quota exceeded
-    throw new Error(`getAddress.io error: ${res.status}`)
+    if (res.status === 429) return [] // rate limited
+    throw new Error(`Ideal Postcodes error: ${res.status}`)
   }
 
-  const data: GetAddressResponse = await res.json()
+  const data: IdealPostcodesResponse = await res.json()
 
-  return data.addresses.map((raw) => {
-    const parts = raw.split(',').map((p) => p.trim()).filter(Boolean)
+  if (data.code !== 2000) return []
+
+  return data.result.map((addr) => {
+    const parts = [addr.line_1, addr.line_2, addr.line_3, addr.post_town]
+      .filter(Boolean)
     return {
       addressLine: parts.join(', '),
-      postcode: data.postcode,
+      postcode: addr.postcode,
     }
   })
 }
