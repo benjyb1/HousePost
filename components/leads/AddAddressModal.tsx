@@ -26,6 +26,16 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
 
   if (!open) return null
 
+  function formatPostcode(raw: string): string {
+    const clean = raw.replace(/\s/g, '').toUpperCase()
+    if (clean.length <= 3) return clean
+    return clean.slice(0, -3) + ' ' + clean.slice(-3)
+  }
+
+  function handlePostcodeChange(value: string) {
+    setPostcode(formatPostcode(value))
+  }
+
   async function handleLookup() {
     if (!postcode.trim()) return
     setLoading(true)
@@ -117,7 +127,7 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
               <input
                 type="text"
                 value={postcode}
-                onChange={(e) => setPostcode(e.target.value)}
+                onChange={(e) => handlePostcodeChange(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
                 placeholder="e.g. SW1A 1AA"
                 className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -171,7 +181,7 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
                 type="text"
                 value={manualAddress}
                 onChange={(e) => setManualAddress(e.target.value)}
-                placeholder="e.g. 19 Clemence Street, London"
+                placeholder="e.g. 10 Downing Street, London"
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
