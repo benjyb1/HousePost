@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { RotateCw, Loader2 } from 'lucide-react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
 export default function ResendButton({ jobId }: { jobId: string }) {
   const [sending, setSending] = useState(false)
