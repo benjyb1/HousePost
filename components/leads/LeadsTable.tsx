@@ -11,22 +11,24 @@ import { INCLUDED_POSTCARDS_PER_MONTH } from '@/types/profile'
 import type { SubscriptionStatus } from '@/types/profile'
 import {
   ArrowUpDown, ArrowUp, ArrowDown, SendHorizonal,
-  Archive, Lock, ChevronDown, ChevronUp,
+  Archive, Lock, ChevronDown, ChevronUp, Plus,
 } from 'lucide-react'
+import AddAddressModal from './AddAddressModal'
 import { toast } from 'sonner'
 
 type Lead = {
   id: string
   address_line: string
   postcode: string
-  price: number
-  property_type: string
-  distance_miles: number
-  date_of_transfer: string
+  price: number | null
+  property_type: string | null
+  distance_miles: number | null
+  date_of_transfer: string | null
   selected_for_dispatch: boolean
   postcard_job_id: string | null
   lead_month: string
   archived_at: string | null
+  is_custom: boolean
 }
 
 type SortField = 'distance' | 'price' | 'type' | 'date'
@@ -52,6 +54,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
   const [archiving, setArchiving] = useState(false)
   const [tab, setTab] = useState<Tab>('active')
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({})
+  const [showAddAddress, setShowAddAddress] = useState(false)
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'trialing'
 
@@ -67,14 +70,14 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
 
   function sortLeads(list: Lead[]): Lead[] {
     return [...list].sort((a, b) => {
-      if (distanceSort === 1) return a.distance_miles - b.distance_miles
-      if (distanceSort === 2) return b.distance_miles - a.distance_miles
-      if (priceSort === 1) return b.price - a.price
-      if (priceSort === 2) return a.price - b.price
-      if (typeSort === 1) return a.property_type.localeCompare(b.property_type)
-      if (typeSort === 2) return b.property_type.localeCompare(a.property_type)
-      if (dateSort === 1) return new Date(b.date_of_transfer).getTime() - new Date(a.date_of_transfer).getTime()
-      if (dateSort === 2) return new Date(a.date_of_transfer).getTime() - new Date(b.date_of_transfer).getTime()
+      if (distanceSort === 1) return (a.distance_miles ?? Infinity) - (b.distance_miles ?? Infinity)
+      if (distanceSort === 2) return (b.distance_miles ?? -1) - (a.distance_miles ?? -1)
+      if (priceSort === 1) return (b.price ?? 0) - (a.price ?? 0)
+      if (priceSort === 2) return (a.price ?? 0) - (b.price ?? 0)
+      if (typeSort === 1) return (a.property_type ?? 'Z').localeCompare(b.property_type ?? 'Z')
+      if (typeSort === 2) return (b.property_type ?? '').localeCompare(a.property_type ?? '')
+      if (dateSort === 1) return new Date(b.date_of_transfer ?? 0).getTime() - new Date(a.date_of_transfer ?? 0).getTime()
+      if (dateSort === 2) return new Date(a.date_of_transfer ?? 0).getTime() - new Date(b.date_of_transfer ?? 0).getTime()
       return a.address_line.localeCompare(b.address_line)
     })
   }
@@ -296,18 +299,22 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
           <p className="text-xs text-slate-400">{lead.postcode}</p>
         </td>
         <td className="px-4 py-3 text-right font-semibold text-slate-800">
-          {formatPricePence(lead.price)}
+          {lead.price != null ? formatPricePence(lead.price) : '—'}
         </td>
         <td className="px-4 py-3 text-center">
-          <Badge variant="secondary" className="text-xs">
-            {PROPERTY_TYPE_LABELS[lead.property_type as keyof typeof PROPERTY_TYPE_LABELS] ?? lead.property_type}
-          </Badge>
+          {lead.property_type ? (
+            <Badge variant="secondary" className="text-xs">
+              {PROPERTY_TYPE_LABELS[lead.property_type as keyof typeof PROPERTY_TYPE_LABELS] ?? lead.property_type}
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-500">Custom</Badge>
+          )}
         </td>
         <td className="px-4 py-3 text-right text-slate-600">
-          {lead.distance_miles.toFixed(1)} mi
+          {lead.distance_miles != null ? `${lead.distance_miles.toFixed(1)} mi` : '—'}
         </td>
         <td className="px-4 py-3 text-slate-500 text-xs">
-          {formatDate(lead.date_of_transfer)}
+          {lead.date_of_transfer ? formatDate(lead.date_of_transfer) : '—'}
         </td>
       </tr>
     )
@@ -359,6 +366,10 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
                 </span>
               )}
             </span>
+            <Button size="sm" variant="outline" onClick={() => setShowAddAddress(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add Address
+            </Button>
             <Button size="sm" variant="outline" onClick={selectAll}>
               Select All
             </Button>
@@ -520,6 +531,15 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
           </div>
         )}
       </div>
+
+      <AddAddressModal
+        open={showAddAddress}
+        onClose={() => setShowAddAddress(false)}
+        onAdded={() => {
+          setShowAddAddress(false)
+          window.location.reload()
+        }}
+      />
     </div>
   )
 }

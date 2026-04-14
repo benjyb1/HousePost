@@ -100,9 +100,9 @@ export async function POST(request: Request) {
     const isIncluded = i < included
 
     try {
-      const propertyLabel =
-        PROPERTY_TYPE_LABELS[(lead.property_type as keyof typeof PROPERTY_TYPE_LABELS)] ??
-        lead.property_type
+      const propertyLabel = lead.property_type
+        ? (PROPERTY_TYPE_LABELS[(lead.property_type as keyof typeof PROPERTY_TYPE_LABELS)] ?? lead.property_type)
+        : null
 
       const frontHtml = generateFrontHtml({
         senderName: profile.full_name as string,
@@ -111,9 +111,9 @@ export async function POST(request: Request) {
 
       const backHtml = generateBackHtml({
         recipientAddress: lead.address_line as string,
-        price: lead.price as number,
+        price: lead.price as number | null,
         propertyType: propertyLabel,
-        saleDate: formatDate(lead.date_of_transfer as string),
+        saleDate: lead.date_of_transfer ? formatDate(lead.date_of_transfer as string) : null,
         senderName: profile.full_name as string,
         backDesignUrl: profile.postcard_design_back_url as string | null,
       })

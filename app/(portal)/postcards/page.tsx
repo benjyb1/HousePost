@@ -5,6 +5,7 @@ import { currentMonthKey, formatMonthKey, formatDate } from '@/lib/utils/date'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Mail } from 'lucide-react'
+import ResendButton from '@/components/postcards/ResendButton'
 
 const statusColors: Record<string, string> = {
   dispatched: 'bg-blue-100 text-blue-800',
@@ -91,6 +92,7 @@ export default async function PostcardsPage() {
                     <th className="px-4 py-2.5 text-center font-medium text-slate-600">Cost</th>
                     <th className="px-4 py-2.5 text-left font-medium text-slate-600">Dispatched</th>
                     <th className="px-4 py-2.5 text-center font-medium text-slate-600">Status</th>
+                    <th className="px-4 py-2.5 text-center font-medium text-slate-600">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -117,6 +119,9 @@ export default async function PostcardsPage() {
                           <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${colorClass}`}>
                             {statusLabels[displayStatus as string] ?? (displayStatus as string).replace('_', ' ')}
                           </span>
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <ResendButton jobId={job.id as string} />
                         </td>
                       </tr>
                     )

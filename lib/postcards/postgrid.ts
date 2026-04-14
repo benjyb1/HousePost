@@ -162,20 +162,21 @@ export function generateFrontHtml(params: {
  */
 export function generateBackHtml(params: {
   recipientAddress: string
-  price: number
-  propertyType: string
-  saleDate: string
+  price: number | null
+  propertyType: string | null
+  saleDate: string | null
   senderName: string
   backDesignUrl?: string | null
 }): string {
   const { recipientAddress, price, propertyType, saleDate, senderName, backDesignUrl } = params
-  const formattedPrice = `£${(price / 100).toLocaleString('en-GB')}`
+  const hasSaleData = price != null && propertyType && saleDate
+  const formattedPrice = price != null ? `£${(price / 100).toLocaleString('en-GB')}` : ''
 
   if (backDesignUrl) {
     return `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;">
-  <img src="${backDesignUrl}" style="width:100%;height:100%;display:block;object-fit:cover;" alt="Postcard back design"/>
+  <img src="${backDesignUrl}" style="width:50%;height:100%;display:block;object-fit:cover;" alt="Postcard back design"/>
 </body>
 </html>`
   }
@@ -185,7 +186,8 @@ export function generateBackHtml(params: {
 <head>
   <meta charset="utf-8"/>
   <style>
-    body { font-family: Arial, sans-serif; margin: 24px; color: #333; font-size: 11px; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #333; font-size: 11px; }
+    .content { width: 50%; height: 100%; padding: 20px; box-sizing: border-box; }
     .header { font-size: 16px; font-weight: bold; color: #152452; margin-bottom: 12px; }
     .highlight { color: #152452; font-weight: bold; }
     .sale-info { background: #f0f4fa; border-left: 3px solid #152452; padding: 8px 12px; margin: 12px 0; font-size: 10px; }
@@ -194,18 +196,19 @@ export function generateBackHtml(params: {
   </style>
 </head>
 <body>
-  <div class="header">A property near you recently sold</div>
+  <div class="content">
+  <div class="header">${hasSaleData ? 'A property near you recently sold' : 'Considering selling your property?'}</div>
 
   <p>Dear Homeowner,</p>
 
-  <p>A property on your street recently sold for <span class="highlight">${formattedPrice}</span>.
+  ${hasSaleData ? `<p>A property on your street recently sold for <span class="highlight">${formattedPrice}</span>.
   As local property specialists, we're working with buyers actively searching in your area.</p>
 
   <div class="sale-info">
     <strong>Recent sale nearby:</strong><br/>
     ${recipientAddress}<br/>
     <strong>Price:</strong> ${formattedPrice} · <strong>Type:</strong> ${propertyType} · <strong>Date:</strong> ${saleDate}
-  </div>
+  </div>` : `<p>As local property specialists, we're working with buyers actively searching in your area and would love to help if you're considering selling.</p>`}
 
   <p class="cta">Thinking of selling? Get in touch for a free, no-obligation appraisal.</p>
 
@@ -214,6 +217,7 @@ export function generateBackHtml(params: {
   <div class="footer">
     Sent by Housepost on behalf of ${senderName}.
     To opt out of future mailings, please contact us.
+  </div>
   </div>
 </body>
 </html>`
