@@ -1,12 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Search, Plus, Loader2 } from 'lucide-react'
-
-interface AddressResult {
-  addressLine: string
-  postcode: string
-}
+import { X, Plus, Loader2 } from 'lucide-react'
 
 interface Props {
   open: boolean
@@ -16,13 +11,9 @@ interface Props {
 
 export default function AddAddressModal({ open, onClose, onAdded }: Props) {
   const [postcode, setPostcode] = useState('')
-  const [addresses, setAddresses] = useState<AddressResult[]>([])
-  const [loading, setLoading] = useState(false)
+  const [address, setAddress] = useState('')
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedAddress, setSelectedAddress] = useState<AddressResult | null>(null)
-  const [manualMode, setManualMode] = useState(false)
-  const [manualAddress, setManualAddress] = useState('')
 
   if (!open) return null
 
@@ -32,49 +23,8 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
     return clean.slice(0, -3) + ' ' + clean.slice(-3)
   }
 
-  function handlePostcodeChange(value: string) {
-    setPostcode(formatPostcode(value))
-  }
-
-  async function handleLookup() {
-    if (!postcode.trim()) return
-    setLoading(true)
-    setError(null)
-    setAddresses([])
-    setSelectedAddress(null)
-    setManualMode(false)
-
-    try {
-      const res = await fetch(`/api/address-lookup?postcode=${encodeURIComponent(postcode)}`)
-      const data = await res.json()
-      if (!res.ok) {
-        setError(data.error ?? 'Lookup failed')
-        setManualMode(true)
-      } else if (data.addresses.length === 0) {
-        setError('No addresses found for this postcode. Enter manually below.')
-        setManualMode(true)
-      } else {
-        setAddresses(data.addresses)
-      }
-    } catch {
-      setError('Failed to look up postcode. Enter manually below.')
-      setManualMode(true)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  function getAddressToSubmit(): { addressLine: string; postcode: string } | null {
-    if (selectedAddress) return selectedAddress
-    if (manualMode && manualAddress.trim() && postcode.trim()) {
-      return { addressLine: manualAddress.trim(), postcode: postcode.trim() }
-    }
-    return null
-  }
-
   async function handleAdd() {
-    const addr = getAddressToSubmit()
-    if (!addr) return
+    if (!address.trim() || !postcode.trim()) return
     setAdding(true)
     setError(null)
 
@@ -82,7 +32,7 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
       const res = await fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(addr),
+        body: JSON.stringify({ addressLine: address.trim(), postcode: postcode.trim() }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -100,15 +50,12 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
 
   function handleClose() {
     setPostcode('')
-    setAddresses([])
-    setSelectedAddress(null)
-    setManualMode(false)
-    setManualAddress('')
+    setAddress('')
     setError(null)
     onClose()
   }
 
-  const canSubmit = !!getAddressToSubmit()
+  const canSubmit = address.trim() && postcode.trim()
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -122,69 +69,29 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
 
         <div className="px-5 py-4 space-y-4">
           <div>
+            <label className="block text-sm font-medium text-slate-600 mb-1">Address</label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="e.g. 10 Downing Street, London"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-slate-600 mb-1">Postcode</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={postcode}
-                onChange={(e) => handlePostcodeChange(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
-                placeholder="e.g. SW1A 1AA"
-                className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <button
-                onClick={handleLookup}
-                disabled={loading || !postcode.trim()}
-                className="flex items-center gap-1.5 rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
-              >
-                {loading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
-                Find
-              </button>
-            </div>
+            <input
+              type="text"
+              value={postcode}
+              onChange={(e) => setPostcode(formatPostcode(e.target.value))}
+              placeholder="e.g. SW1A 1AA"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
           {error && (
             <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
-          )}
-
-          {addresses.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Select address</label>
-              <select
-                value={selectedAddress?.addressLine ?? ''}
-                onChange={(e) => {
-                  const addr = addresses.find((a) => a.addressLine === e.target.value)
-                  setSelectedAddress(addr ?? null)
-                }}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Choose an address...</option>
-                {addresses.map((addr, i) => (
-                  <option key={i} value={addr.addressLine}>
-                    {addr.addressLine}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() => { setManualMode(true); setAddresses([]); setSelectedAddress(null) }}
-                className="mt-1 text-xs text-blue-600 hover:underline"
-              >
-                Can't see your address? Enter manually
-              </button>
-            </div>
-          )}
-
-          {manualMode && (
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">Address</label>
-              <input
-                type="text"
-                value={manualAddress}
-                onChange={(e) => setManualAddress(e.target.value)}
-                placeholder="e.g. 10 Downing Street, London"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
           )}
         </div>
 
