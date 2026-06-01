@@ -1,20 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { cookies } from 'next/headers'
-import { timingSafeEqual } from 'crypto'
+import { adminToken, safeEqualHex } from '@/lib/admin/token'
 
 async function verifyAdminCookie(): Promise<boolean> {
   const cookieStore = await cookies()
   const adminCookie = cookieStore.get('admin-auth')?.value
-  const adminPassword = process.env.ADMIN_PASSWORD ?? ''
-  if (!adminCookie || !adminPassword) return false
-  try {
-    const a = Buffer.from(adminCookie)
-    const b = Buffer.from(adminPassword)
-    return a.length === b.length && timingSafeEqual(a, b)
-  } catch {
-    return false
-  }
+  if (!adminCookie) return false
+  return safeEqualHex(adminCookie, await adminToken())
 }
 
 export async function GET() {

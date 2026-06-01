@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { timingSafeEqual } from 'crypto'
+import { adminToken } from '@/lib/admin/token'
 
 export async function POST(request: Request) {
   const { password } = await request.json()
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
   }
 
   const response = NextResponse.json({ success: true })
-  response.cookies.set('admin-auth', adminPassword, {
+  response.cookies.set('admin-auth', await adminToken(), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
