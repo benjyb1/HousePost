@@ -169,8 +169,16 @@ export default function PostcardDesignPage() {
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
       const page = await pdf.getPage(1)
 
-      // Render at 2x scale for good resolution
-      const scale = 2
+      // Render at ~300 DPI so the print is sharp. pdf.js scale 1 ≈ 72 DPI, so
+      // 300 DPI needs scale ≈ 4.17. At 2x (≈144 DPI) the printer had to upscale,
+      // which is why the trial postcards came out blurry. Cap the long edge so an
+      // oversized PDF doesn't blow up the canvas/upload.
+      const base = page.getViewport({ scale: 1 })
+      const MAX_EDGE = 3000
+      let scale = 300 / 72
+      const longEdge = Math.max(base.width, base.height) * scale
+      if (longEdge > MAX_EDGE) scale = MAX_EDGE / Math.max(base.width, base.height)
+
       const viewport = page.getViewport({ scale })
       const canvas = document.createElement('canvas')
       canvas.width = viewport.width

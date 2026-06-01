@@ -104,8 +104,8 @@ export function calculatePostcardCost(
 
 /**
  * Report overage postcard usage to Stripe's metered billing.
- * The boss's Stripe product includes a built-in £1/postcard metered component.
- * Uses Stripe Billing Meters (v2 API) to report usage events.
+ * Overage postcards are charged at £1.50 each (POSTCARD_OVERAGE_PENCE); the
+ * Stripe meter's per-unit price must match. Uses Stripe Billing Meters (v2 API).
  *
  * Requires STRIPE_METER_EVENT_NAME env var (the event_name from the Stripe Billing Meter).
  */
