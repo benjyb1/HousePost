@@ -107,15 +107,45 @@ export async function generateLeadsForUser(
     return { leadsCreated: 0, hitMaxRadius, radiusUsed }
   }
 
-  const { error: insertError } = await supabase.from('leads').upsert(leadRows, {
-    onConflict: 'user_id,transaction_id,lead_month',
-  })
+  // Insert only leads we don't already have for this user+month, then plain
+  // insert. We can't upsert with onConflict here: the custom-leads migration
+  // replaced the unique constraint with a PARTIAL unique index (it only applies
+  // where transaction_id IS NOT NULL, so custom leads can have a null one), and
+  // PostgREST can't target a partial index — every upsert threw "no unique or
+  // exclusion constraint matching the ON CONFLICT specification" and produced 0
+  // leads. Filtering to new rows also preserves state (selected_for_dispatch,
+  // postcard_job_id, archived_at) on any lead the user has already touched.
+  const { data: existing, error: existingError } = await supabase
+    .from('leads')
+    .select('transaction_id')
+    .eq('user_id', userId)
+    .eq('lead_month', importMonth)
+    .not('transaction_id', 'is', null)
 
-  if (insertError) {
-    throw new Error(`Failed to insert leads for user ${userId}: ${insertError.message}`)
+  if (existingError) {
+    throw new Error(
+      `Failed to read existing leads for user ${userId}: ${existingError.message}`
+    )
   }
 
-  return { leadsCreated: leadRows.length, hitMaxRadius, radiusUsed }
+  const existingIds = new Set((existing ?? []).map((r) => r.transaction_id))
+  const newLeads = leadRows.filter((r) => !existingIds.has(r.transaction_id))
+
+  if (newLeads.length === 0) {
+    return { leadsCreated: 0, hitMaxRadius, radiusUsed }
+  }
+
+  // Insert in batches so a large first month doesn't exceed request limits.
+  const insertBatchSize = 1000
+  for (let i = 0; i < newLeads.length; i += insertBatchSize) {
+    const batch = newLeads.slice(i, i + insertBatchSize)
+    const { error: insertError } = await supabase.from('leads').insert(batch)
+    if (insertError) {
+      throw new Error(`Failed to insert leads for user ${userId}: ${insertError.message}`)
+    }
+  }
+
+  return { leadsCreated: newLeads.length, hitMaxRadius, radiusUsed }
 }
 
 /**

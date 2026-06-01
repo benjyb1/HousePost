@@ -67,14 +67,16 @@ async function main() {
     console.log(`🔍  Generating leads for ${leadMonth}...`)
     const result = await generateLeadsForAllUsers(leadMonth)
 
-    // Send notification emails
+    // Send notification emails (SKIP_EMAILS lets us test generation without
+    // sending anything to real users).
+    const skipEmails = process.env.SKIP_EMAILS === 'true'
     const { data: profiles } = await supabase
       .from('profiles')
       .select('id, email, full_name')
       .in('subscription_status', ['active', 'trialing'])
 
     let emailsSent = 0
-    for (const profile of profiles ?? []) {
+    for (const profile of skipEmails ? [] : profiles ?? []) {
       const { count } = await supabase
         .from('leads')
         .select('id', { count: 'exact', head: true })
@@ -112,6 +114,7 @@ async function main() {
       })
       .eq('id', runId)
 
+    if (skipEmails) console.log('✉️  SKIP_EMAILS set — no notification emails sent.')
     console.log(`✅  Lead generation complete:`, { ...result, emailsSent })
 
     // A completed run that found nothing (or hit per-user errors) is suspicious —
