@@ -74,10 +74,10 @@ export default async function AdminPage() {
             {clients.map((client) => (
               <tr key={client.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3">
-                  <p className="font-medium text-slate-800">{client.full_name || '—'}</p>
+                  <p className="font-medium text-slate-800">{client.full_name || '–'}</p>
                   <p className="text-xs text-slate-400">{client.email}</p>
                 </td>
-                <td className="px-4 py-3 text-slate-600">{client.office_postcode || '—'}</td>
+                <td className="px-4 py-3 text-slate-600">{client.office_postcode || '–'}</td>
                 <td className="px-4 py-3 text-center">
                   <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${statusColors[client.subscription_status] ?? 'bg-slate-100 text-slate-500'}`}>
                     {client.subscription_status === 'incomplete' ? 'Inactive' : client.subscription_status}

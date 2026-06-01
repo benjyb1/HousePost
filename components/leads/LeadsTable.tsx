@@ -293,7 +293,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
           <p className="text-xs text-slate-400">{lead.postcode}</p>
         </td>
         <td className="px-4 py-3 text-right font-semibold text-slate-800">
-          {lead.price != null ? formatPricePence(lead.price) : '—'}
+          {lead.price != null ? formatPricePence(lead.price) : '–'}
         </td>
         <td className="px-4 py-3 text-center">
           {lead.property_type ? (
@@ -305,10 +305,10 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
           )}
         </td>
         <td className="px-4 py-3 text-right text-slate-600">
-          {lead.distance_miles != null ? `${lead.distance_miles.toFixed(1)} mi` : '—'}
+          {lead.distance_miles != null ? `${lead.distance_miles.toFixed(1)} mi` : '–'}
         </td>
         <td className="px-4 py-3 text-slate-500 text-xs">
-          {lead.date_of_transfer ? formatDate(lead.date_of_transfer) : '—'}
+          {lead.date_of_transfer ? formatDate(lead.date_of_transfer) : '–'}
         </td>
       </tr>
     )
@@ -433,7 +433,8 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
 
       {/* Table */}
       <div className="relative rounded-lg border bg-white overflow-hidden">
-        <table className="w-full text-sm">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px] text-sm">
           <thead className="border-b bg-slate-50">
             <tr>
               {showCheckbox && <th className="px-4 py-3 text-left w-10"></th>}
@@ -501,6 +502,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
             })}
           </tbody>
         </table>
+        </div>
 
         {/* Subscription overlay */}
         {!isSubscribed && currentLeads.length > 5 && (
