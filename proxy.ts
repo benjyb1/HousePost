@@ -1,20 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { adminToken, safeEqualHex } from '@/lib/admin/token'
 
 const PORTAL_PATHS = ['/dashboard', '/leads', '/postcards', '/billing', '/settings']
-
-/**
- * Timing-safe string equality for Edge Runtime (no Node.js crypto module).
- * XOR every character pair — leaks only length if lengths differ, not content.
- */
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false
-  let diff = 0
-  for (let i = 0; i < a.length; i++) {
-    diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
-  }
-  return diff === 0
-}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -22,8 +10,7 @@ export async function proxy(request: NextRequest) {
   // ── Admin routes ──────────────────────────────────────────────────────────
   if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
     const adminCookie = request.cookies.get('admin-auth')?.value ?? ''
-    const adminPassword = process.env.ADMIN_PASSWORD ?? ''
-    const isAuthed = adminCookie !== '' && safeEqual(adminCookie, adminPassword)
+    const isAuthed = adminCookie !== '' && safeEqualHex(adminCookie, await adminToken())
 
     if (!isAuthed) {
       return NextResponse.redirect(new URL('/admin/login', request.url))

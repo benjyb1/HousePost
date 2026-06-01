@@ -120,7 +120,7 @@ export default function BillingPage() {
             </div>
           ) : (
             <Button onClick={openCheckout} disabled={checkoutLoading}>
-              {checkoutLoading ? 'Redirecting…' : 'Subscribe — £15/month'}
+              {checkoutLoading ? 'Redirecting…' : 'Subscribe – £15/month'}
             </Button>
           )}
         </CardContent>

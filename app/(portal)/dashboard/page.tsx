@@ -75,9 +75,10 @@ export default async function DashboardPage() {
   // Untapped leads
   const untappedLeads = (leadCount ?? 0) - (postcardCount ?? 0)
 
-  // Next leads drop: 22nd of the next month
+  // Next leads drop is the 22nd. Before the 22nd it's this month's 22nd;
+  // from the 22nd onward it's next month's 22nd.
   const now = new Date()
-  const nextDropMonth = now.getDate() >= 22 ? now.getMonth() + 2 : now.getMonth() + 1
+  const nextDropMonth = now.getDate() >= 22 ? now.getMonth() + 1 : now.getMonth()
   const nextDropDate = new Date(now.getFullYear(), nextDropMonth, 22)
   // Handle year rollover automatically via Date constructor
   const daysUntilDrop = Math.ceil((nextDropDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))

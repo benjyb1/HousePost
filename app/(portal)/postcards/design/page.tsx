@@ -149,7 +149,7 @@ export default function PostcardDesignPage() {
       await page.render({ canvas, viewport }).promise
       setImageSrc(canvas.toDataURL('image/png'))
     } catch {
-      toast.error('Failed to render PDF — make sure it is a valid PDF file')
+      toast.error('Failed to render PDF – make sure it is a valid PDF file')
     } finally {
       setRendering(false)
       // Reset the input so the same file can be re-selected

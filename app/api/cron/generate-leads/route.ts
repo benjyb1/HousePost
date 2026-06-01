@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { isScheduledRunDay, toMonthKey } from '@/lib/cron/schedule'
+import { isWithinRunWindow, toMonthKey } from '@/lib/cron/schedule'
 import { generateLeadsForAllUsers } from '@/lib/leads/generator'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendLeadsReadyEmail } from '@/lib/email/resend'
+import { sendLeadsReadyEmail, sendAdminAlert } from '@/lib/email/resend'
 
 export const maxDuration = 60
 
@@ -19,10 +19,10 @@ export async function POST(request: Request) {
   const now = new Date()
   const leadMonth = toMonthKey(now)
 
-  if (!isScheduledRunDay(22, now)) {
+  if (!isWithinRunWindow(22, now)) {
     return NextResponse.json({
       skipped: true,
-      reason: 'Not the scheduled run day',
+      reason: 'Outside the run window',
       today: now.toISOString().slice(0, 10),
     })
   }
@@ -123,6 +123,25 @@ export async function POST(request: Request) {
           result.errors.length > 0 ? result.errors.join('\n') : null,
       })
       .eq('id', runId)
+
+    // A completed run that found nothing (or hit per-user errors) is suspicious.
+    if (result.totalLeads === 0 || result.errors.length > 0) {
+      try {
+        await sendAdminAlert(
+          `[Housepost] Lead run needs a look — ${leadMonth}`,
+          `<p>Lead generation for <strong>${leadMonth}</strong> completed but looks off.</p>
+           <ul>
+             <li>Users processed: ${result.usersProcessed}</li>
+             <li>Leads generated: <strong>${result.totalLeads}</strong></li>
+             <li>Users at max radius: ${result.usersAtMaxRadius}</li>
+             <li>Emails sent: ${emailsSent}</li>
+           </ul>
+           ${result.errors.length > 0 ? `<pre>${result.errors.join('\n')}</pre>` : ''}`
+        )
+      } catch (e) {
+        console.error('Failed to send zero-lead admin alert:', e)
+      }
+    }
 
     return NextResponse.json({ success: true, leadMonth, ...result, emailsSent })
   } catch (err) {

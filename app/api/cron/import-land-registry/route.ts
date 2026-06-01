@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { isScheduledRunDay, toMonthKey } from '@/lib/cron/schedule'
+import { isWithinRunWindow, toMonthKey } from '@/lib/cron/schedule'
 import { runImport } from '@/lib/land-registry/importer'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendAdminImportFailureAlert } from '@/lib/email/resend'
@@ -19,11 +19,12 @@ export async function POST(request: Request) {
   const now = new Date()
   const importMonth = toMonthKey(now)
 
-  // Only run on the scheduled day (21st, deferred to Monday if weekend)
-  if (!isScheduledRunDay(21, now)) {
+  // Run on the 21st (deferred to Monday if weekend) or any of the following
+  // days in the window, so a failed run retries instead of skipping the month.
+  if (!isWithinRunWindow(21, now)) {
     return NextResponse.json({
       skipped: true,
-      reason: 'Not the scheduled run day',
+      reason: 'Outside the run window',
       today: now.toISOString().slice(0, 10),
     })
   }

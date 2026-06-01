@@ -78,15 +78,30 @@ export async function sendAdminImportFailureAlert(
   error: string,
   importMonth: string
 ): Promise<void> {
+  await sendAdminAlert(
+    `[Housepost] Land Registry import failed — ${importMonth}`,
+    `<p>The Land Registry import for <strong>${importMonth}</strong> failed.</p>
+     <pre>${error}</pre>
+     <p>Please retry manually via the admin panel or re-trigger the cron.</p>`
+  )
+}
+
+/**
+ * Send an arbitrary alert to the admin email. Used for any pipeline anomaly
+ * that needs a human — a failed run, or a run that completed but produced
+ * nothing (which previously looked identical to a healthy quiet month).
+ */
+export async function sendAdminAlert(
+  subject: string,
+  bodyHtml: string
+): Promise<void> {
   const resend = getResend()
   const adminEmail = process.env.ADMIN_ALERT_EMAIL ?? FROM
 
   await resend.emails.send({
     from: FROM,
     to: adminEmail,
-    subject: `[Housepost] Land Registry import failed — ${importMonth}`,
-    html: `<p>The Land Registry import for <strong>${importMonth}</strong> failed.</p>
-           <pre>${error}</pre>
-           <p>Please retry manually via the admin panel or re-trigger the cron.</p>`,
+    subject,
+    html: bodyHtml,
   })
 }

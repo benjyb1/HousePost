@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { fetchLandRegistryCsvStream } from './downloader'
 import { parseLandRegistryCsvStream, buildAddressLine } from './parser'
+import { geocodeTransactionsForMonth } from '@/lib/geocoding/postcodes-io'
 import type { PropertyTransaction } from '@/types/land-registry'
 
 const BATCH_SIZE = 500
@@ -10,6 +11,7 @@ interface ImportResult {
   rowsInserted: number
   rowsSkipped: number
   rowsDeleted: number
+  rowsGeocoded: number
 }
 
 interface DbRow {
@@ -68,8 +70,9 @@ async function upsertBatch(
     })
 
   if (error) {
-    console.error('Batch upsert error:', error.message)
-    return { inserted: 0, skipped: rows.length }
+    // Fail loudly. Swallowing this is how a totally broken import (e.g. the
+    // database briefly unreachable) used to report "success" and produce no data.
+    throw new Error(`Batch upsert failed: ${error.message}`)
   }
 
   return { inserted: count ?? rows.length, skipped: 0 }
@@ -102,10 +105,7 @@ export async function runImport(importMonth: string): Promise<ImportResult> {
     if (tx.recordStatus === 'D') {
       deleteIds.push(tx.transactionId)
       if (deleteIds.length >= BATCH_SIZE) {
-        await supabase
-          .from('property_transactions')
-          .delete()
-          .in('transaction_id', deleteIds)
+        await deleteTransactions(supabase, deleteIds, importMonth)
         rowsDeleted += deleteIds.length
         deleteIds.length = 0
       }
@@ -131,12 +131,41 @@ export async function runImport(importMonth: string): Promise<ImportResult> {
 
   // Flush remaining deletes
   if (deleteIds.length > 0) {
-    await supabase
-      .from('property_transactions')
-      .delete()
-      .in('transaction_id', deleteIds)
+    await deleteTransactions(supabase, deleteIds, importMonth)
     rowsDeleted += deleteIds.length
   }
 
-  return { rowsDownloaded, rowsInserted, rowsSkipped, rowsDeleted }
+  // Geocode this month's freshly imported rows so lead generation can use them.
+  const geo = await geocodeTransactionsForMonth(importMonth)
+
+  return {
+    rowsDownloaded,
+    rowsInserted,
+    rowsSkipped,
+    rowsDeleted,
+    rowsGeocoded: geo.rowsGeocoded,
+  }
+}
+
+/**
+ * Delete transactions for the CURRENT import_month only.
+ *
+ * The table is keyed (transaction_id, import_month) — each month is its own
+ * snapshot. Deleting by transaction_id alone wiped the row from every prior
+ * month too, corrupting historical snapshots that other months' leads point at.
+ */
+async function deleteTransactions(
+  supabase: ReturnType<typeof createAdminClient>,
+  transactionIds: string[],
+  importMonth: string
+): Promise<void> {
+  const { error } = await supabase
+    .from('property_transactions')
+    .delete()
+    .eq('import_month', importMonth)
+    .in('transaction_id', transactionIds)
+
+  if (error) {
+    throw new Error(`Delete failed: ${error.message}`)
+  }
 }
