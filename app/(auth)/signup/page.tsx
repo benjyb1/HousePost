@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -19,7 +18,6 @@ export default function SignupPage() {
   const [officePostcode, setOfficePostcode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
 
   const [submitted, setSubmitted] = useState(false)
 
@@ -69,8 +67,10 @@ export default function SignupPage() {
       }).eq('id', data.user.id)
 
       toast.success('Account created! Redirecting to billing setup…')
-      router.push('/billing')
-      router.refresh()
+      // Keep the button in its loading state and do a full navigation so the
+      // server reliably picks up the new session cookie.
+      window.location.assign('/billing')
+      return
     }
 
     setLoading(false)

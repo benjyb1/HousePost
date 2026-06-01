@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -14,7 +13,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
 
   async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -25,11 +23,21 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       setError(error.message)
-    } else {
-      router.push('/dashboard')
-      router.refresh()
+      setLoading(false)
+      return
     }
-    setLoading(false)
+
+    // Success. Keep the button in its "Signing in…" state and do a full
+    // navigation so the server reliably picks up the new session cookie
+    // (router.push can race the cookie write and bounce back to /login).
+    // loading stays true until this page unloads, so the spinner persists
+    // through the redirect instead of flicking back to "Sign in".
+    const requested = new URLSearchParams(window.location.search).get('redirectTo')
+    const dest =
+      requested && requested.startsWith('/') && !requested.startsWith('//')
+        ? requested
+        : '/dashboard'
+    window.location.assign(dest)
   }
 
   return (
