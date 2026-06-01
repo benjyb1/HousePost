@@ -21,17 +21,17 @@ export default function HomePage() {
       {/* ── Nav ── */}
       <nav className="sticky top-0 z-50 border-b bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/">
+          <Link href="/" className="shrink-0">
             <Image
               src="/logo-wordmark.png"
               alt="Housepost"
               width={600}
               height={150}
-              className="h-10 w-auto"
+              className="h-8 w-auto sm:h-10"
               priority
             />
           </Link>
-          <div className="flex items-center gap-4 sm:gap-6">
+          <div className="flex items-center gap-3 sm:gap-6">
             <Link
               href="#how-it-works"
               className="hidden sm:inline text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
@@ -46,13 +46,13 @@ export default function HomePage() {
             </Link>
             <Link
               href="/login"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+              className="whitespace-nowrap text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
             >
               Sign in
             </Link>
             <Link
               href="/signup"
-              className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark transition-colors"
+              className="whitespace-nowrap rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark transition-colors"
             >
               Get started
             </Link>
