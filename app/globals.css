@@ -5,10 +5,16 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-brand: #152452;
-  --color-brand-dark: #0e1a3d;
+  /* Housepost brand palette
+     #0f1f3d  deep navy   — primary (navbar, buttons, dark backgrounds)
+     #93c5fd  blue-300    — accent (highlighted hero text)
+     #6ee7b7  emerald-300 — signal (pins, active dots, pricing ticks) */
+  --color-brand: #0f1f3d;
+  --color-brand-dark: #0a1733;
   --color-brand-light: #e8ecf4;
   --color-brand-border: #c7d0e3;
+  --color-brand-accent: #93c5fd;
+  --color-signal: #6ee7b7;
 }
 
 @theme inline {
@@ -62,7 +68,7 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: #0f1f3d;
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -81,7 +87,7 @@
   --chart-5: oklch(0.769 0.188 70.08);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: #0f1f3d;
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);

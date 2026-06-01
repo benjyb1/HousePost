@@ -33,7 +33,7 @@ type Lead = {
 
 type SortField = 'distance' | 'price' | 'type' | 'date'
 type SortState = 0 | 1 | 2
-type Tab = 'active' | 'past' | 'archived'
+type Tab = 'new' | 'previous' | 'targeted' | 'archived'
 
 const SECTION_PAGE_SIZE = 15
 
@@ -52,18 +52,24 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
   const [dateSort, setDateSort] = useState<SortState>(0)
   const [dispatching, setDispatching] = useState(false)
   const [archiving, setArchiving] = useState(false)
-  const [tab, setTab] = useState<Tab>('active')
+  const [tab, setTab] = useState<Tab>('new')
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({})
   const [showAddAddress, setShowAddAddress] = useState(false)
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'trialing'
 
+  // Un-dispatched leads split by month: "New leads" = this month, "Previous
+  // leads" = earlier months. "Targeted leads" = ones a postcard has been sent to.
+  const currentMonth = new Date().toISOString().slice(0, 7)
   const activeLeads = leads.filter((l) => !l.postcard_job_id)
-  const pastLeads = leads.filter((l) => !!l.postcard_job_id)
+  const newLeads = activeLeads.filter((l) => l.lead_month === currentMonth)
+  const previousLeads = activeLeads.filter((l) => l.lead_month !== currentMonth)
+  const targetedLeads = leads.filter((l) => !!l.postcard_job_id)
 
   const currentLeads =
-    tab === 'active' ? activeLeads :
-    tab === 'past' ? pastLeads :
+    tab === 'new' ? newLeads :
+    tab === 'previous' ? previousLeads :
+    tab === 'targeted' ? targetedLeads :
     archivedLeads
 
   // --- Sorting ---
@@ -104,31 +110,21 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
   const includedCount = Math.min(selected.length, INCLUDED_POSTCARDS_PER_MONTH)
   const overageCount = Math.max(0, selected.length - INCLUDED_POSTCARDS_PER_MONTH)
 
-  function resetSorts() {
-    setDistanceSort(0)
-    setPriceSort(0)
-    setTypeSort(0)
-    setDateSort(0)
-  }
-
-  function cycleDistance() {
-    resetSorts()
-    setDistanceSort((prev) => ((prev + 1) % 3) as SortState)
-  }
-
-  function cyclePrice() {
-    resetSorts()
-    setPriceSort((prev) => ((prev + 1) % 3) as SortState)
-  }
-
-  function cycleType() {
-    resetSorts()
-    setTypeSort((prev) => ((prev + 1) % 3) as SortState)
-  }
-
-  function cycleDate() {
-    resetSorts()
-    setDateSort((prev) => ((prev + 1) % 3) as SortState)
+  // Click a column to cycle its sort: off → descending → ascending → off.
+  // Read the clicked field's current state first, then set all four in one go
+  // (resetting then incrementing in separate calls always landed back on 1).
+  function cycleSort(field: SortField) {
+    const stateMap: Record<SortField, SortState> = {
+      distance: distanceSort,
+      price: priceSort,
+      type: typeSort,
+      date: dateSort,
+    }
+    const next = (((stateMap[field] + 1) % 3) as SortState)
+    setDistanceSort(field === 'distance' ? next : 0)
+    setPriceSort(field === 'price' ? next : 0)
+    setTypeSort(field === 'type' ? next : 0)
+    setDateSort(field === 'date' ? next : 0)
   }
 
   async function switchTab(t: Tab) {
@@ -259,9 +255,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
 
   function SortToggle({ label, field }: { label: string; field: SortField }) {
     const stateMap = { distance: distanceSort, price: priceSort, type: typeSort, date: dateSort }
-    const cycleMap = { distance: cycleDistance, price: cyclePrice, type: cycleType, date: cycleDate }
     const state = stateMap[field]
-    const cycle = cycleMap[field]
     const active = state !== 0
 
     let Icon = ArrowUpDown
@@ -270,7 +264,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
 
     return (
       <button
-        onClick={cycle}
+        onClick={() => cycleSort(field)}
         className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded transition-colours ${active ? 'bg-slate-200 text-slate-900' : 'text-slate-500 hover:bg-slate-100'}`}
       >
         {label}
@@ -320,7 +314,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
     )
   }
 
-  const showCheckbox = tab === 'active'
+  const showCheckbox = tab === 'new' || tab === 'previous'
   const colCount = showCheckbox ? 7 : 6
 
   return (
@@ -328,8 +322,9 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
       {/* Tabs */}
       <div className="flex gap-1 border-b">
         {([
-          ['active', `Active (${activeLeads.length})`],
-          ['past', `Past Addresses (${pastLeads.length})`],
+          ['new', `New leads (${newLeads.length})`],
+          ['previous', `Previous leads (${previousLeads.length})`],
+          ['targeted', `Targeted leads (${targetedLeads.length})`],
           ['archived', `Archived${archivedLoaded ? ` (${archivedLeads.length})` : ''}`],
         ] as [Tab, string][]).map(([key, label]) => (
           <button
@@ -346,8 +341,8 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
         ))}
       </div>
 
-      {/* Controls — active tab */}
-      {tab === 'active' && (
+      {/* Controls — new / previous tabs (un-dispatched leads) */}
+      {(tab === 'new' || tab === 'previous') && (
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500">Sort by:</span>
@@ -402,8 +397,8 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
         </div>
       )}
 
-      {/* Controls — past tab */}
-      {tab === 'past' && (
+      {/* Controls — targeted tab */}
+      {tab === 'targeted' && (
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500">Sort by:</span>
@@ -412,12 +407,12 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
             <SortToggle label="Distance" field="distance" />
             <SortToggle label="Date" field="date" />
           </div>
-          {pastLeads.length > 0 && (
+          {targetedLeads.length > 0 && (
             <Button
               size="sm"
               variant="outline"
               className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-              onClick={() => archiveLeads(pastLeads.map((l) => l.id))}
+              onClick={() => archiveLeads(targetedLeads.map((l) => l.id))}
               disabled={archiving}
             >
               <Archive className="h-3.5 w-3.5 mr-1" />
@@ -525,8 +520,9 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
 
         {currentLeads.length === 0 && (
           <div className="py-12 text-center text-slate-400">
-            {tab === 'active' && 'No active leads yet.'}
-            {tab === 'past' && 'No past addresses yet.'}
+            {tab === 'new' && 'No new leads this month yet.'}
+            {tab === 'previous' && 'No previous leads.'}
+            {tab === 'targeted' && 'No targeted leads yet.'}
             {tab === 'archived' && 'No archived leads.'}
           </div>
         )}

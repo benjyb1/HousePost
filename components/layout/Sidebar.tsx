@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils'
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/leads', label: 'Leads', icon: MapPin },
-  { href: '/postcards', label: 'Postcards', icon: Mail },
+  { href: '/postcards', label: 'Tracking', icon: Mail },
   { href: '/postcards/design', label: 'Postcard Design', icon: Palette },
   { href: '/billing', label: 'Billing', icon: CreditCard },
   { href: '/settings', label: 'Preferences', icon: Settings },

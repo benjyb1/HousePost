@@ -106,9 +106,9 @@ export default function SignupPage() {
     <Card>
       <CardHeader>
         <CardTitle>Create account</CardTitle>
-        <CardDescription>Start your 30-day free trial — £15/month after</CardDescription>
+        <CardDescription>£15/month</CardDescription>
       </CardHeader>
-      <form onSubmit={handleSignup}>
+      <form onSubmit={handleSignup} className="flex flex-col gap-6">
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

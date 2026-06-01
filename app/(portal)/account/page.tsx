@@ -115,10 +115,10 @@ export default function AccountPage() {
           <p className="text-sm text-slate-600">
             Get in touch at{' '}
             <a
-              href="mailto:support@housepost.co.uk"
+              href="mailto:info@housepost.co.uk"
               className="text-primary hover:underline"
             >
-              support@housepost.co.uk
+              info@housepost.co.uk
             </a>
           </p>
           <p className="mt-1.5 text-xs text-slate-400">

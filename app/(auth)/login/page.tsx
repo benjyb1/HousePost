@@ -38,7 +38,7 @@ export default function LoginPage() {
         <CardTitle>Sign in</CardTitle>
         <CardDescription>Enter your credentials to access your portal</CardDescription>
       </CardHeader>
-      <form onSubmit={handleLogin}>
+      <form onSubmit={handleLogin} className="flex flex-col gap-6">
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>
