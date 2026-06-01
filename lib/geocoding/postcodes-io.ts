@@ -56,87 +56,90 @@ export async function geocodePostcodes(
 }
 
 /**
- * Geocode every property_transactions row for a given import_month that is
- * still missing coordinates, and write lat/lng back to the table.
+ * Geocode property_transactions for a given import_month and write lat/lng back.
  *
  * Without this, freshly imported transactions have no lat/lng, and the radius
  * query in lead generation excludes them (it requires lat/lng to be non-null) —
  * so every user gets zero leads. This step is what makes imported data usable.
  *
- * Safe to run repeatedly: it only touches rows where lat is still null.
+ * Performance: writes are batched — one upsert per ~1000 rows rather than one
+ * UPDATE per postcode (which meant tens of thousands of sequential round-trips
+ * against the national monthly file). Every processed row gets `geocoded_at`
+ * stamped, so:
+ *   - the loop always drains and can't spin forever,
+ *   - postcodes that fail to resolve aren't retried on the next run,
+ *   - it's safe to run repeatedly (only un-attempted rows are touched).
+ *
+ * Only rows within the lead window (last 6 months of sales) are geocoded —
+ * older transactions can never become a lead, so geocoding them is wasted work.
  */
 export async function geocodeTransactionsForMonth(
-  importMonth: string
+  importMonth: string,
+  batchSize = 1000
 ): Promise<{ rowsGeocoded: number; postcodesResolved: number; postcodesFailed: number }> {
   const supabase = createAdminClient()
 
-  // Collect the raw (as-stored) postcodes of every ungeocoded row for the month.
-  // We page through because a month can hold tens of thousands of rows.
-  const rawPostcodes = new Set<string>()
-  const pageSize = 1000
-  let from = 0
+  // Same cutoff the radius query uses, so we only geocode usable rows.
+  const sixMonthsAgo = new Date()
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6)
+  const cutoffDate = sixMonthsAgo.toISOString().slice(0, 10)
+
+  let rowsGeocoded = 0
+  const resolved = new Set<string>()
+  const failed = new Set<string>()
 
   while (true) {
-    const { data, error } = await supabase
+    // Always take the first page of not-yet-attempted rows. Each one gets
+    // geocoded_at stamped below, so it leaves this set and the loop terminates.
+    const { data: rows, error } = await supabase
       .from('property_transactions')
-      .select('postcode')
+      .select('*')
       .eq('import_month', importMonth)
-      .is('lat', null)
-      .not('postcode', 'is', null)
-      .range(from, from + pageSize - 1)
+      .is('geocoded_at', null)
+      .gte('date_of_transfer', cutoffDate)
+      .limit(batchSize)
 
     if (error) {
       throw new Error(`Failed to read ungeocoded transactions: ${error.message}`)
     }
-    if (!data || data.length === 0) break
+    if (!rows || rows.length === 0) break
 
-    for (const row of data) {
-      if (row.postcode) rawPostcodes.add(String(row.postcode))
-    }
+    // Resolve the unique postcodes in this batch (cache + postcodes.io bulk).
+    const normalisedInBatch = [
+      ...new Set(
+        rows
+          .map((r) => (r.postcode ? normalise(String(r.postcode)) : ''))
+          .filter(Boolean)
+      ),
+    ]
+    const geo = await geocodeWithCache(normalisedInBatch)
 
-    if (data.length < pageSize) break
-    from += pageSize
-  }
+    const stamp = new Date().toISOString()
+    const updated = rows.map((r) => {
+      const key = r.postcode ? normalise(String(r.postcode)) : ''
+      const coords = key ? geo.get(key) : null
+      if (coords) resolved.add(key)
+      else if (key) failed.add(key)
+      return {
+        ...r,
+        lat: coords ? coords.lat : null,
+        lng: coords ? coords.lng : null,
+        geocoded_at: stamp,
+      }
+    })
 
-  if (rawPostcodes.size === 0) {
-    return { rowsGeocoded: 0, postcodesResolved: 0, postcodesFailed: 0 }
-  }
-
-  // Look up each unique normalised postcode once (cache + postcodes.io bulk).
-  const uniqueNormalised = [...new Set([...rawPostcodes].map(normalise))]
-  const geo = await geocodeWithCache(uniqueNormalised)
-
-  // Write coordinates back, grouped by the exact stored postcode value so the
-  // .eq() match is reliable regardless of how the raw value was cased/spaced.
-  let rowsGeocoded = 0
-  let postcodesResolved = 0
-  let postcodesFailed = 0
-
-  for (const raw of rawPostcodes) {
-    const coords = geo.get(normalise(raw))
-    if (!coords) {
-      postcodesFailed++
-      continue
-    }
-    postcodesResolved++
-
-    const { error, count } = await supabase
+    const { error: upsertError } = await supabase
       .from('property_transactions')
-      .update(
-        { lat: coords.lat, lng: coords.lng, geocoded_at: new Date().toISOString() },
-        { count: 'exact' }
-      )
-      .eq('import_month', importMonth)
-      .eq('postcode', raw)
-      .is('lat', null)
+      .upsert(updated, { onConflict: 'transaction_id,import_month' })
 
-    if (error) {
-      throw new Error(`Failed to write coordinates for ${raw}: ${error.message}`)
+    if (upsertError) {
+      throw new Error(`Failed to write coordinates: ${upsertError.message}`)
     }
-    rowsGeocoded += count ?? 0
+
+    rowsGeocoded += updated.filter((r) => r.lat != null).length
   }
 
-  return { rowsGeocoded, postcodesResolved, postcodesFailed }
+  return { rowsGeocoded, postcodesResolved: resolved.size, postcodesFailed: failed.size }
 }
 
 /**
