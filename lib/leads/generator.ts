@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { geocodeSingleWithCache } from '@/lib/geocoding/postcodes-io'
 import { geocodeWithCache } from '@/lib/geocoding/postcodes-io'
+import { geocodeTransactionsForMonth } from '@/lib/geocoding/postcodes-io'
 import { expandRadius } from './radius-expander'
 
 interface LeadGenerationResult {
@@ -128,6 +129,11 @@ export async function generateLeadsForAllUsers(importMonth: string): Promise<{
   errors: string[]
 }> {
   const supabase = createAdminClient()
+
+  // Make sure this month's transactions are geocoded before any user is matched.
+  // The import does this too, but running it here also backfills any month that
+  // was imported before geocoding existed, and covers an import that skipped it.
+  await geocodeTransactionsForMonth(importMonth)
 
   const { data: profiles, error } = await supabase
     .from('profiles')

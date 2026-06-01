@@ -5,10 +5,10 @@
  *
  * Usage: npx tsx scripts/run-generate-leads.ts
  */
-import { isScheduledRunDay, toMonthKey } from '@/lib/cron/schedule'
+import { isWithinRunWindow, toMonthKey } from '@/lib/cron/schedule'
 import { generateLeadsForAllUsers } from '@/lib/leads/generator'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendLeadsReadyEmail } from '@/lib/email/resend'
+import { sendLeadsReadyEmail, sendAdminAlert } from '@/lib/email/resend'
 
 async function main() {
   const now = new Date()
@@ -17,8 +17,8 @@ async function main() {
   const forceRun = process.env.FORCE_RUN === 'true'
   console.log(`🗓  Today: ${now.toISOString().slice(0, 10)}${forceRun ? ' (forced)' : ''}`)
 
-  if (!forceRun && !isScheduledRunDay(22, now)) {
-    console.log('⏭  Not the scheduled run day — skipping.')
+  if (!forceRun && !isWithinRunWindow(22, now)) {
+    console.log('⏭  Outside the run window — skipping.')
     process.exit(0)
   }
 
@@ -113,6 +113,26 @@ async function main() {
       .eq('id', runId)
 
     console.log(`✅  Lead generation complete:`, { ...result, emailsSent })
+
+    // A completed run that found nothing (or hit per-user errors) is suspicious —
+    // it's exactly what a silently-broken pipeline looks like. Make it loud.
+    if (result.totalLeads === 0 || result.errors.length > 0) {
+      try {
+        await sendAdminAlert(
+          `[Housepost] Lead run needs a look — ${leadMonth}`,
+          `<p>Lead generation for <strong>${leadMonth}</strong> completed but looks off.</p>
+           <ul>
+             <li>Users processed: ${result.usersProcessed}</li>
+             <li>Leads generated: <strong>${result.totalLeads}</strong></li>
+             <li>Users at max radius: ${result.usersAtMaxRadius}</li>
+             <li>Emails sent: ${emailsSent}</li>
+           </ul>
+           ${result.errors.length > 0 ? `<pre>${result.errors.join('\n')}</pre>` : ''}`
+        )
+      } catch (e) {
+        console.error('Failed to send zero-lead admin alert:', e)
+      }
+    }
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err)
 

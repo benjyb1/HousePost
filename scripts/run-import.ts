@@ -5,7 +5,7 @@
  *
  * Usage: npx tsx scripts/run-import.ts
  */
-import { isScheduledRunDay, toMonthKey } from '@/lib/cron/schedule'
+import { isWithinRunWindow, toMonthKey } from '@/lib/cron/schedule'
 import { runImport } from '@/lib/land-registry/importer'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendAdminImportFailureAlert } from '@/lib/email/resend'
@@ -17,8 +17,8 @@ async function main() {
   const forceRun = process.env.FORCE_RUN === 'true'
   console.log(`🗓  Today: ${now.toISOString().slice(0, 10)}${forceRun ? ' (forced)' : ''}`)
 
-  if (!forceRun && !isScheduledRunDay(21, now)) {
-    console.log('⏭  Not the scheduled run day — skipping.')
+  if (!forceRun && !isWithinRunWindow(21, now)) {
+    console.log('⏭  Outside the run window — skipping.')
     process.exit(0)
   }
 
