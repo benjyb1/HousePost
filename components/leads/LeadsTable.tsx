@@ -58,12 +58,14 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'trialing'
 
-  // Un-dispatched leads split by month: "New leads" = this month, "Previous
-  // leads" = earlier months. "Targeted leads" = ones a postcard has been sent to.
-  const currentMonth = new Date().toISOString().slice(0, 7)
+  // "New leads" = your most recent batch. Leads drop on the 22nd, so the newest
+  // batch must stay "new" until the next drop — keying off the calendar month
+  // would show 0 new leads for the ~3 weeks before each drop. "Previous leads" =
+  // everything older. "Targeted leads" = ones a postcard has been sent to.
   const activeLeads = leads.filter((l) => !l.postcard_job_id)
-  const newLeads = activeLeads.filter((l) => l.lead_month === currentMonth)
-  const previousLeads = activeLeads.filter((l) => l.lead_month !== currentMonth)
+  const latestActiveMonth = [...new Set(activeLeads.map((l) => l.lead_month))].sort().pop()
+  const newLeads = activeLeads.filter((l) => l.lead_month === latestActiveMonth)
+  const previousLeads = activeLeads.filter((l) => l.lead_month !== latestActiveMonth)
   const targetedLeads = leads.filter((l) => !!l.postcard_job_id)
 
   const currentLeads =
