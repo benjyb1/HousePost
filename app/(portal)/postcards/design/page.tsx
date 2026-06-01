@@ -9,10 +9,39 @@ import { toast } from 'sonner'
 import { Upload, Trash2, ImageIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-// A5 landscape aspect ratio
+// A5 landscape aspect ratio (full card)
 const A5_ASPECT = 210 / 148
+// The back's right half is reserved by PostGrid for the address + postage, so
+// users only design the left half (105 x 148mm).
+const BACK_DESIGN_ASPECT = 105 / 148
 
 type Side = 'front' | 'back'
+
+/**
+ * The address half of the postcard back, shown next to the crop area so users
+ * can see this space is taken — PostGrid prints the real recipient address and
+ * postage here, so their design only goes on the other (left) half.
+ */
+function AddressHalf() {
+  return (
+    <div className="flex h-full w-1/2 flex-col justify-between border-l border-dashed border-slate-300 bg-slate-50 p-3">
+      <div className="flex justify-end">
+        <div className="flex h-9 w-7 items-center justify-center rounded-sm border-2 border-dashed border-slate-300 text-[7px] font-medium text-slate-400">
+          STAMP
+        </div>
+      </div>
+      <div className="space-y-0.5 text-[10px] leading-tight text-slate-400">
+        <p>Mr A. Homeowner</p>
+        <p>1 Example Street</p>
+        <p>Sometown</p>
+        <p>AB12 3CD</p>
+      </div>
+      <p className="text-[8px] uppercase tracking-wide text-slate-400">
+        Address area · added automatically
+      </p>
+    </div>
+  )
+}
 
 const SIDE_CONFIG = {
   front: {
@@ -99,6 +128,7 @@ export default function PostcardDesignPage() {
   const setCroppedAreaPixels = isFront ? setFrontCroppedAreaPixels : setBackCroppedAreaPixels
   const fileInputRef = isFront ? frontFileInputRef : backFileInputRef
   const config = SIDE_CONFIG[activeSide]
+  const cropAspect = isFront ? A5_ASPECT : BACK_DESIGN_ASPECT
 
   useEffect(() => {
     async function load() {
@@ -256,9 +286,16 @@ export default function PostcardDesignPage() {
             <CardDescription>This design is used when dispatching postcards</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="overflow-hidden rounded-md border border-slate-200" style={{ aspectRatio: '210/148', maxWidth: 420 }}>
-              <img src={currentDesignUrl} alt={`Current postcard ${activeSide} design`} className="w-full h-full object-cover" />
-            </div>
+            {isFront ? (
+              <div className="overflow-hidden rounded-md border border-slate-200" style={{ aspectRatio: '210/148', maxWidth: 420 }}>
+                <img src={currentDesignUrl} alt="Current postcard front design" className="w-full h-full object-cover" />
+              </div>
+            ) : (
+              <div className="flex overflow-hidden rounded-md border border-slate-200 bg-white" style={{ aspectRatio: '210/148', maxWidth: 420 }}>
+                <img src={currentDesignUrl} alt="Current postcard back design" className="w-1/2 h-full object-cover" />
+                <AddressHalf />
+              </div>
+            )}
             <Button variant="outline" size="sm" onClick={handleRemove} disabled={loading}>
               <Trash2 className="h-4 w-4 mr-2" />
               Remove design
@@ -272,7 +309,9 @@ export default function PostcardDesignPage() {
         <CardHeader>
           <CardTitle>{currentDesignUrl ? `Replace ${config.label} Design` : `Upload ${config.label} Design`}</CardTitle>
           <CardDescription>
-            Upload a PDF, crop and scale it to fit the A5 frame, then save.
+            {isFront
+              ? 'Upload a PDF, then crop and scale it to fill the A5 frame, then save.'
+              : 'Upload a PDF, then crop and scale it to fill the left (design) half. The right half is reserved for the address and postage.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -316,18 +355,45 @@ export default function PostcardDesignPage() {
 
           {imageSrc && (
             <>
-              {/* Crop tool — fixed height container required by react-easy-crop */}
-              <div className="relative w-full overflow-hidden rounded-md border border-slate-200" style={{ height: 480 }}>
-                <Cropper
-                  image={imageSrc}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={A5_ASPECT}
-                  onCropChange={setCrop}
-                  onZoomChange={setZoom}
-                  onCropComplete={onCropComplete}
-                />
-              </div>
+              {isFront ? (
+                /* Front — crop the whole card */
+                <div className="relative w-full overflow-hidden rounded-md border border-slate-200" style={{ height: 480 }}>
+                  <Cropper
+                    image={imageSrc}
+                    crop={crop}
+                    zoom={zoom}
+                    aspect={A5_ASPECT}
+                    onCropChange={setCrop}
+                    onZoomChange={setZoom}
+                    onCropComplete={onCropComplete}
+                  />
+                </div>
+              ) : (
+                /* Back — only the left half is yours; the right half is the
+                   address area, shown so it's clear where your design can go. */
+                <div className="w-full">
+                  <div
+                    className="mx-auto flex overflow-hidden rounded-md border border-slate-200 bg-white"
+                    style={{ aspectRatio: '210 / 148', maxWidth: 560 }}
+                  >
+                    <div className="relative w-1/2">
+                      <Cropper
+                        image={imageSrc}
+                        crop={crop}
+                        zoom={zoom}
+                        aspect={BACK_DESIGN_ASPECT}
+                        onCropChange={setCrop}
+                        onZoomChange={setZoom}
+                        onCropComplete={onCropComplete}
+                      />
+                    </div>
+                    <AddressHalf />
+                  </div>
+                  <p className="mt-2 text-center text-xs text-slate-500">
+                    Your design fills the left half. The right half is reserved for the address and postage.
+                  </p>
+                </div>
+              )}
 
               {/* Zoom slider */}
               <div className="flex items-center gap-3">
@@ -375,7 +441,8 @@ export default function PostcardDesignPage() {
       <Card className="border-slate-100 bg-slate-50">
         <CardContent className="pt-4">
           <p className="text-sm text-slate-600">
-            <strong>Tip:</strong> Design your postcard at exactly A5 (210x148mm) at 300 DPI for the sharpest print quality. Only the first page of the PDF is used.
+            <strong>Tip:</strong> For the sharpest print, design at 300 DPI –{' '}
+            {isFront ? 'A5 (210×148mm) for the front' : 'the left half (105×148mm) for the back'}. Only the first page of the PDF is used.
           </p>
         </CardContent>
       </Card>

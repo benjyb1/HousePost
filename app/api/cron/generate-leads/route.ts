@@ -92,16 +92,15 @@ export async function POST(request: Request) {
 
       if ((count ?? 0) === 0) continue
 
-      // Check if they hit max radius
-      const userResult = result // simplified — for per-user tracking you'd store per-user results
+      const userResult = result.perUser[profile.id as string]
       try {
         await sendLeadsReadyEmail({
           to: profile.email as string,
           name: profile.full_name as string,
           leadCount: count ?? 0,
           monthKey: leadMonth,
-          hitMaxRadius: false,
-          radiusUsed: 10,
+          hitMaxRadius: userResult?.hitMaxRadius ?? false,
+          radiusUsed: userResult?.radiusUsed ?? 10,
         })
         emailsSent++
       } catch (e) {
