@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Search,
 } from 'lucide-react'
+import { SiteFooter } from '@/components/layout/SiteFooter'
 
 // Fully static marketing page — no Supabase calls needed
 // Logged-in users navigating to /dashboard are handled by middleware
@@ -30,7 +31,19 @@ export default function HomePage() {
               priority
             />
           </Link>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 sm:gap-6">
+            <Link
+              href="#how-it-works"
+              className="hidden sm:inline text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              How it works
+            </Link>
+            <Link
+              href="#pricing"
+              className="hidden sm:inline text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              Pricing
+            </Link>
             <Link
               href="/login"
               className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
@@ -48,22 +61,26 @@ export default function HomePage() {
       </nav>
 
       {/* ── Hero ── */}
-      <section className="relative bg-brand overflow-hidden">
-        {/* SVG dot pattern overlay */}
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{ opacity: 0.06 }}
-        >
+      <section className="relative overflow-hidden bg-brand">
+        {/* Aerial-houses background with a heavy navy duotone over the top */}
+        <Image
+          src="/hero-aerial.jpg"
+          alt=""
+          fill
+          priority
+          aria-hidden="true"
+          className="object-cover"
+          style={{ filter: 'grayscale(100%) contrast(1.05) brightness(0.9)' }}
+        />
+        {/* Navy duotone: heavier on the left for text legibility, lighter on the
+            right so the aerial houses stay visible. */}
+        <div className="absolute inset-0 bg-gradient-to-r from-brand/95 via-brand/75 to-brand/40" />
+        <div className="absolute inset-0 bg-gradient-to-t from-brand/60 to-transparent" />
+        {/* Subtle dot texture */}
+        <div className="pointer-events-none absolute inset-0" style={{ opacity: 0.06 }}>
           <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
             <defs>
-              <pattern
-                id="hero-dots"
-                x="0"
-                y="0"
-                width="24"
-                height="24"
-                patternUnits="userSpaceOnUse"
-              >
+              <pattern id="hero-dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
                 <circle cx="2" cy="2" r="1.2" fill="white" />
               </pattern>
             </defs>
@@ -71,39 +88,39 @@ export default function HomePage() {
           </svg>
         </div>
 
-        <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-24 text-center">
+        <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-24 text-left">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-sm text-white mb-6">
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"></span>
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-white"></span>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal opacity-75"></span>
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-signal"></span>
             </span>
             Monthly leads, automated
           </div>
-          <h1 className="mx-auto max-w-3xl text-5xl font-extrabold leading-tight tracking-tight text-white">
-            Turning local property sales data into{' '}
+          <h1 className="max-w-3xl text-5xl font-extrabold leading-tight tracking-tight text-white">
+            Turn recent house sales data into{' '}
             <span
               className="bg-clip-text text-transparent"
               style={{
-                backgroundImage: 'linear-gradient(135deg, #C0C0C0, #E8E8E8, #A0A0A0)',
-                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                backgroundImage: 'linear-gradient(135deg, #cfe3fe, #93c5fd, #5b9bf5)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.25))',
               }}
             >
-              postcard campaigns
+              leads worth your time
             </span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-xl text-white/80 leading-relaxed">
+          <p className="mt-6 max-w-2xl text-xl text-white/80 leading-relaxed">
             Every month, Housepost scans the recently sold homes in your local area
-            and delivers your postcard through their letterbox - without you lifting a finger.
+            and delivers your postcard through their letterbox. You pick the targets,
+            we handle the rest.
           </p>
-          <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+          <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row">
             <Link
               href="/signup"
               className="inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3.5 text-base font-semibold text-brand shadow-lg hover:bg-white/90 transition-all"
             >
-              Start free — £15/month
+              Start for £15/month
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
@@ -117,14 +134,13 @@ export default function HomePage() {
       </section>
 
       {/* ── How it works ── */}
-      <section className="bg-slate-50 py-20">
+      <section id="how-it-works" className="scroll-mt-20 bg-slate-50 py-20">
         <div className="mx-auto max-w-6xl px-6">
           <h2 className="text-center text-3xl font-bold text-slate-900 mb-4">
             Three steps. Fully automatic.
           </h2>
           <p className="text-center text-slate-500 mb-14 max-w-xl mx-auto">
-            We do the heavy lifting — you just choose which properties to
-            target.
+            We do the heavy lifting – you just choose which properties to target.
           </p>
           <div className="grid gap-8 md:grid-cols-3">
             {[
@@ -132,7 +148,7 @@ export default function HomePage() {
                 icon: TrendingUp,
                 step: '01',
                 title: 'We find the sales',
-                body: 'Every month we scan recent house sales in your area to assemble a list of all the newly-owned homes near you.',
+                body: 'Every month we scan recent house sales in your local area and assemble a list of all the newly-owned homes near you.',
               },
               {
                 icon: MapPin,
@@ -144,10 +160,13 @@ export default function HomePage() {
                 icon: Mail,
                 step: '03',
                 title: 'We send the postcards',
-                body: 'We print and deliver your postcard via Royal Mail. Track each one in real time.',
+                body: 'We handle the printing and postage of every postcard. Track each one in real time.',
               },
-            ].map(({ icon: Icon, step, title, body }) => (
-              <div key={step} className="rounded-2xl bg-white p-8 shadow-sm border border-slate-100">
+            ].map(({ icon: Icon, step, title, body }, index) => (
+              <div
+                key={step}
+                className="relative rounded-2xl bg-white p-8 shadow-sm border border-slate-100"
+              >
                 <div className="flex items-center gap-3 mb-4">
                   <span className="text-xs font-bold text-brand tracking-widest">{step}</span>
                   <div className="h-10 w-10 rounded-xl bg-brand-light flex items-center justify-center">
@@ -156,6 +175,14 @@ export default function HomePage() {
                 </div>
                 <h3 className="text-lg font-semibold text-slate-900 mb-2">{title}</h3>
                 <p className="text-slate-500 text-sm leading-relaxed">{body}</p>
+
+                {/* Arrow to the next step (desktop only), with a subtle pulse */}
+                {index < 2 && (
+                  <ArrowRight
+                    aria-hidden="true"
+                    className="hidden md:block absolute top-1/2 -right-7 -translate-y-1/2 h-6 w-6 text-brand-accent animate-pulse"
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -192,7 +219,7 @@ export default function HomePage() {
       </section>
 
       {/* ── Pricing ── */}
-      <section className="bg-slate-50 py-20">
+      <section id="pricing" className="scroll-mt-20 bg-slate-50 py-20">
         <div className="mx-auto max-w-md px-6 text-center">
           <h2 className="text-3xl font-bold text-slate-900 mb-4">Simple pricing</h2>
           <p className="text-slate-500 mb-10">One plan. All the features.</p>
@@ -206,16 +233,15 @@ export default function HomePage() {
             </div>
             <div className="px-8 py-8 space-y-3">
               {[
-                '5 postcards included',
+                'Includes 5 free postcards per month',
                 'Each additional postcard just £1.50',
                 'Email alerts when your leads are ready',
-                'Automatic radius expansion',
                 'Live tracking',
                 'No setup fee',
                 'Cancel anytime',
               ].map((item) => (
                 <div key={item} className="flex items-start gap-3 text-sm text-slate-700">
-                  <CheckCircle className="h-4 w-4 text-brand shrink-0 mt-0.5" />
+                  <CheckCircle className="h-4 w-4 text-signal shrink-0 mt-0.5" />
                   {item}
                 </div>
               ))}
@@ -236,10 +262,10 @@ export default function HomePage() {
       <section className="py-20 text-center">
         <div className="mx-auto max-w-2xl px-6">
           <h2 className="text-3xl font-bold text-slate-900 mb-4">
-            Ready to reach new homeowners in your area?
+            Ready to start reaching new homeowners near you?
           </h2>
           <p className="text-slate-500 mb-8">
-            Local leads, automated. Direct marketing couldn&apos;t be easier with Housepost.
+            Local leads, automated. Direct marketing couldn&apos;t be easier.
           </p>
           <Link
             href="/signup"
@@ -252,36 +278,7 @@ export default function HomePage() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t py-12">
-        <div className="mx-auto max-w-6xl px-6 flex flex-col gap-8 sm:flex-row sm:justify-between">
-          {/* Left side */}
-          <div className="flex flex-col gap-3">
-            <Image
-              src="/logo-wordmark.png"
-              alt="Housepost"
-              width={600}
-              height={150}
-              className="h-10 w-auto"
-            />
-            <p className="text-xs text-slate-400">Copyright &copy; 2026 | Housepost</p>
-            <div className="flex flex-col gap-1 text-sm text-slate-500">
-              <Link href="/login" className="hover:text-slate-700 transition-colors">Login</Link>
-              <Link href="/signup" className="hover:text-slate-700 transition-colors">Sign up</Link>
-            </div>
-          </div>
-
-          {/* Right side */}
-          <div className="flex flex-col gap-3 sm:items-end sm:text-right">
-            <p className="text-sm text-slate-400">
-              Data sourced from HM Land Registry &middot; Printed by PostGrid
-            </p>
-            <div className="flex flex-col gap-1 text-sm text-slate-500 sm:items-end">
-              <Link href="/privacy" className="hover:text-slate-700 transition-colors">Privacy policy</Link>
-              <Link href="/terms" className="hover:text-slate-700 transition-colors">Terms and conditions</Link>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   )
 }
