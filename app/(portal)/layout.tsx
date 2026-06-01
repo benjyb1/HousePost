@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { SubscriptionBanner } from '@/components/layout/SubscriptionBanner'
+import { SiteFooter } from '@/components/layout/SiteFooter'
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -36,8 +37,9 @@ export default async function PortalLayout({ children }: { children: React.React
           />
         </div>
         <SubscriptionBanner status={status} />
-        <main className="flex-1 overflow-y-auto p-4 pb-8 sm:p-6">
-          {children}
+        <main className="flex-1 overflow-y-auto">
+          <div className="p-4 pb-8 sm:p-6">{children}</div>
+          <SiteFooter variant="portal" />
         </main>
       </div>
     </div>

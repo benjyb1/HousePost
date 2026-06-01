@@ -173,10 +173,16 @@ export function generateBackHtml(params: {
   const formattedPrice = price != null ? `£${(price / 100).toLocaleString('en-GB')}` : ''
 
   if (backDesignUrl) {
+    // The design occupies the left half; the right half is left blank for the
+    // address block and postage that PostGrid prints on the address side. The
+    // uploaded image is already cropped to the left-half aspect (105x148mm).
     return `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;">
-  <img src="${backDesignUrl}" style="width:50%;height:100%;display:block;object-fit:cover;" alt="Postcard back design"/>
+  <div style="width:100%;height:100%;display:flex;">
+    <img src="${backDesignUrl}" style="width:50%;height:100%;display:block;object-fit:cover;" alt="Postcard back design"/>
+    <div style="width:50%;height:100%;"></div>
+  </div>
 </body>
 </html>`
   }

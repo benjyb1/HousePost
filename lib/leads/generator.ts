@@ -152,11 +152,14 @@ export async function generateLeadsForUser(
  * Generate leads for all active subscribers.
  * Processes users in batches of 5 for reasonable parallelism.
  */
+export type PerUserResult = { leadsCreated: number; hitMaxRadius: boolean; radiusUsed: number }
+
 export async function generateLeadsForAllUsers(importMonth: string): Promise<{
   usersProcessed: number
   totalLeads: number
   usersAtMaxRadius: number
   errors: string[]
+  perUser: Record<string, PerUserResult>
 }> {
   const supabase = createAdminClient()
 
@@ -176,6 +179,7 @@ export async function generateLeadsForAllUsers(importMonth: string): Promise<{
   let totalLeads = 0
   let usersAtMaxRadius = 0
   const errors: string[] = []
+  const perUser: Record<string, PerUserResult> = {}
 
   // Process in batches of 5
   for (let i = 0; i < userIds.length; i += 5) {
@@ -189,6 +193,7 @@ export async function generateLeadsForAllUsers(importMonth: string): Promise<{
       if (result.status === 'fulfilled') {
         totalLeads += result.value.leadsCreated
         if (result.value.hitMaxRadius) usersAtMaxRadius++
+        perUser[batch[j]] = result.value
       } else {
         const msg = `User ${batch[j]}: ${result.reason?.message ?? String(result.reason)}`
         errors.push(msg)
@@ -197,5 +202,5 @@ export async function generateLeadsForAllUsers(importMonth: string): Promise<{
     }
   }
 
-  return { usersProcessed: userIds.length, totalLeads, usersAtMaxRadius, errors }
+  return { usersProcessed: userIds.length, totalLeads, usersAtMaxRadius, errors, perUser }
 }

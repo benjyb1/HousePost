@@ -85,14 +85,15 @@ async function main() {
 
       if ((count ?? 0) === 0) continue
 
+      const userResult = result.perUser[profile.id as string]
       try {
         await sendLeadsReadyEmail({
           to: profile.email as string,
           name: profile.full_name as string,
           leadCount: count ?? 0,
           monthKey: leadMonth,
-          hitMaxRadius: false,
-          radiusUsed: 10,
+          hitMaxRadius: userResult?.hitMaxRadius ?? false,
+          radiusUsed: userResult?.radiusUsed ?? 10,
         })
         emailsSent++
       } catch (e) {

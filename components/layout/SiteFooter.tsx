@@ -2,13 +2,26 @@ import Link from 'next/link'
 import Image from 'next/image'
 
 /**
- * Shared marketing footer. Used on the homepage and the public (auth) pages.
- * Both columns share the same vertical rhythm: a logo-height block at the top,
- * then a single attribution line, then two stacked links — so the right column
- * lines up row-for-row with the left (attribution ↔ copyright, privacy ↔ login,
- * terms ↔ sign up).
+ * Shared site footer. Both columns share the same vertical rhythm: a logo-height
+ * block at the top, then a single attribution line, then two stacked links — so
+ * the right column lines up row-for-row with the left.
+ *
+ * `variant` swaps the left-column links for the context:
+ *  - "public" (homepage, auth pages): Login / Sign up
+ *  - "portal" (signed-in app): Dashboard / Account
  */
-export function SiteFooter() {
+export function SiteFooter({ variant = 'public' }: { variant?: 'public' | 'portal' }) {
+  const leftLinks =
+    variant === 'portal'
+      ? [
+          { href: '/dashboard', label: 'Dashboard' },
+          { href: '/account', label: 'Account' },
+        ]
+      : [
+          { href: '/login', label: 'Login' },
+          { href: '/signup', label: 'Sign up' },
+        ]
+
   return (
     <footer className="border-t py-12">
       <div className="mx-auto max-w-6xl px-6 flex flex-col gap-8 sm:flex-row sm:justify-between">
@@ -23,8 +36,9 @@ export function SiteFooter() {
           />
           <p className="text-xs text-slate-400">Copyright &copy; 2026 | Housepost</p>
           <div className="flex flex-col gap-1 text-sm text-slate-500">
-            <Link href="/login" className="hover:text-slate-700 transition-colors">Login</Link>
-            <Link href="/signup" className="hover:text-slate-700 transition-colors">Sign up</Link>
+            {leftLinks.map(({ href, label }) => (
+              <Link key={href} href={href} className="hover:text-slate-700 transition-colors">{label}</Link>
+            ))}
           </div>
         </div>
 
