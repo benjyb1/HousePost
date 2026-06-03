@@ -10,7 +10,7 @@ function getResend(): Resend {
   return _resend
 }
 
-const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@housepost.co.uk'
+const FROM = process.env.RESEND_FROM_EMAIL ?? 'info@housepost.co.uk'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://housepost.co.uk'
 
 /**

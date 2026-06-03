@@ -24,15 +24,17 @@ export function SiteFooter({ variant = 'public' }: { variant?: 'public' | 'porta
 
   return (
     <footer className="border-t py-12">
-      <div className="mx-auto max-w-6xl px-6 flex flex-col gap-8 sm:flex-row sm:justify-between">
+      <div className="mx-auto max-w-6xl px-6 flex flex-col gap-5 sm:flex-row sm:justify-between sm:gap-8">
         {/* Left */}
         <div className="flex flex-col gap-3">
+          {/* On mobile the logo fills the column width but keeps its aspect
+              ratio (h-auto); from sm up it's a fixed height. */}
           <Image
             src="/logo-wordmark.png"
             alt="Housepost"
             width={600}
             height={150}
-            className="h-10 w-auto"
+            className="h-auto w-full max-w-xs sm:h-10 sm:w-auto sm:max-w-none"
           />
           <p className="text-xs text-slate-400">Copyright &copy; 2026 | Housepost</p>
           <div className="flex flex-col gap-1 text-sm text-slate-500">
@@ -44,7 +46,10 @@ export function SiteFooter({ variant = 'public' }: { variant?: 'public' | 'porta
 
         {/* Right — mirrors the left column's rows */}
         <div className="flex flex-col gap-3 sm:items-end sm:text-right">
-          <div className="h-10" aria-hidden="true" />
+          {/* Spacer matches the logo height so rows line up when the columns sit
+              side by side. Hidden on mobile, where it would just add dead space
+              between the two stacked sections. */}
+          <div className="hidden h-10 sm:block" aria-hidden="true" />
           <p className="text-xs text-slate-400">
             Data sourced from HM Land Registry &middot; Printed by PostGrid
           </p>

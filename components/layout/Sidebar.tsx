@@ -86,10 +86,12 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile hamburger button */}
+      {/* Mobile hamburger button — vertically centred within the h-16 top bar
+          so it doesn't touch the bottom edge of the header. */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed top-4 left-4 z-50 md:hidden rounded-md bg-white p-2 shadow-md border border-slate-200"
+        aria-label="Open menu"
+        className="fixed top-3.5 left-4 z-50 md:hidden rounded-md bg-white p-2 shadow-md border border-slate-200"
       >
         <Menu className="h-5 w-5 text-slate-700" />
       </button>

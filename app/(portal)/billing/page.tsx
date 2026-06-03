@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { CreditCard, ExternalLink, CheckCircle } from 'lucide-react'
+import { CreditCard, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { useEffect } from 'react'
 
@@ -85,18 +85,20 @@ export default function BillingPage() {
           <CardDescription>£15/month · 5 postcards included · £1.50 per additional</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {profile?.subscription_period_end && (
-            <p className="text-sm text-slate-600">
-              Next billing:{' '}
-              {new Date(profile.subscription_period_end).toLocaleDateString('en-GB', {
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-              })}
-            </p>
-          )}
+          <div className="space-y-2">
+            {profile?.subscription_period_end && (
+              <p className="text-sm text-slate-600">
+                Next billing:{' '}
+                <strong>
+                  {new Date(profile.subscription_period_end).toLocaleDateString('en-GB', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  })}
+                </strong>
+              </p>
+            )}
 
-          <div className="flex items-center gap-2">
             <p className="text-sm text-slate-600">
               Postcards used this period:{' '}
               <strong>{profile?.postcards_used_this_period ?? 0} / 5</strong>
@@ -104,7 +106,7 @@ export default function BillingPage() {
           </div>
 
           {isActive ? (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Button variant="outline" onClick={openPortal} disabled={portalLoading}>
                 <ExternalLink className="h-4 w-4 mr-1.5" />
                 {portalLoading ? 'Opening…' : 'Manage subscription'}
@@ -123,27 +125,6 @@ export default function BillingPage() {
               {checkoutLoading ? 'Redirecting…' : 'Subscribe – £15/month'}
             </Button>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>What&apos;s included</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {[
-            'Monthly UK Land Registry property leads',
-            'Automatic radius expansion to ensure 15+ leads',
-            '5 postcards included per month',
-            'PostGrid printing & Royal Mail delivery',
-            'Lead sorting by price and distance',
-            'Postcard tracking (printing → mailed → delivered)',
-          ].map((item) => (
-            <div key={item} className="flex items-start gap-2 text-sm text-slate-600">
-              <CheckCircle className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-              {item}
-            </div>
-          ))}
         </CardContent>
       </Card>
     </div>
