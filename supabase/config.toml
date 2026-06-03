@@ -1,0 +1,8 @@
+# Supabase project config for the CLI migration workflow.
+# Link once with:  supabase link --project-ref dgscubksafqxpccjsqis
+# Then apply pending migrations with:  supabase db push
+project_id = "dgscubksafqxpccjsqis"
+
+[db]
+# Local Postgres major version (for `supabase start`); prod is managed.
+major_version = 15
