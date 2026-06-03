@@ -8,9 +8,9 @@ import {
   Clock,
   CheckCircle,
   ArrowRight,
-  Search,
 } from 'lucide-react'
 import { SiteFooter } from '@/components/layout/SiteFooter'
+import { HeroBackground } from '@/components/marketing/HeroBackground'
 
 // Fully static marketing page — no Supabase calls needed
 // Logged-in users navigating to /dashboard are handled by middleware
@@ -44,6 +44,11 @@ export default function HomePage() {
             >
               Pricing
             </Link>
+            {/* Divider separating the section links from the account actions */}
+            <span
+              aria-hidden="true"
+              className="hidden sm:inline-block h-4 w-px bg-slate-300"
+            />
             <Link
               href="/login"
               className="whitespace-nowrap text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
@@ -63,18 +68,12 @@ export default function HomePage() {
       {/* ── Hero ── */}
       <section className="relative overflow-hidden bg-brand">
         {/* Aerial-houses background with a heavy navy duotone over the top */}
-        <Image
-          src="/hero-aerial.jpg"
-          alt=""
-          fill
-          priority
-          aria-hidden="true"
-          className="object-cover"
-          style={{ filter: 'grayscale(100%) contrast(1.05) brightness(0.9)' }}
-        />
+        <HeroBackground />
         {/* Navy duotone: heavier on the left for text legibility, lighter on the
-            right so the aerial houses stay visible. */}
-        <div className="absolute inset-0 bg-gradient-to-r from-brand/95 via-brand/75 to-brand/40" />
+            right so the aerial houses stay visible. On mobile the left-to-right
+            contrast is gentler — a steep gradient over a narrow screen looks
+            harsh, so we keep it subtle there and only ramp it up from sm up. */}
+        <div className="absolute inset-0 bg-gradient-to-r from-brand/90 to-brand/65 sm:from-brand/95 sm:via-brand/75 sm:to-brand/40" />
         <div className="absolute inset-0 bg-gradient-to-t from-brand/60 to-transparent" />
         {/* Subtle dot texture */}
         <div className="pointer-events-none absolute inset-0" style={{ opacity: 0.06 }}>
@@ -147,19 +146,31 @@ export default function HomePage() {
               {
                 icon: TrendingUp,
                 step: '01',
-                title: 'We find the sales',
+                title: (
+                  <>
+                    We scan for recent <span className="font-bold text-slate-700">sales</span>
+                  </>
+                ),
                 body: 'Every month we scan recent house sales in your local area and assemble a list of all the newly-owned homes near you.',
               },
               {
                 icon: MapPin,
                 step: '02',
-                title: 'You pick your targets',
+                title: (
+                  <>
+                    You pick your <span className="font-bold text-slate-700">targets</span>
+                  </>
+                ),
                 body: 'Log in, review the list, select the ones you want to contact. Filter by distance, price, or property type.',
               },
               {
                 icon: Mail,
                 step: '03',
-                title: 'We send the postcards',
+                title: (
+                  <>
+                    We send the <span className="font-bold text-slate-700">postcards</span>
+                  </>
+                ),
                 body: 'We handle the printing and postage of every postcard. Track each one in real time.',
               },
             ].map(({ icon: Icon, step, title, body }, index) => (
@@ -200,7 +211,6 @@ export default function HomePage() {
               { icon: Clock, title: 'Runs by itself', body: 'Fires automatically every month, you just select and send.' },
               { icon: Shield, title: 'Fresh data, every month', body: 'We use the official UK house sales register, updated monthly.' },
               { icon: CheckCircle, title: 'Filter your way', body: 'Sort leads by distance, price, or property type.' },
-              { icon: Search, title: 'Always enough leads', body: "Can't find 15 properties nearby? We widen the search automatically, up to a 50 mile radius." },
               { icon: Mail, title: 'Printed and posted', body: 'Professionally printed by PostGrid and delivered by Royal Mail.' },
               { icon: TrendingUp, title: 'Live tracking', body: 'Keep an eye on every postcard, from printer to postbox.' },
             ].map(({ icon: Icon, title, body }) => (
@@ -259,17 +269,18 @@ export default function HomePage() {
       </section>
 
       {/* ── CTA ── */}
-      <section className="py-20 text-center">
+      <section className="bg-brand py-20 text-center">
         <div className="mx-auto max-w-2xl px-6">
-          <h2 className="text-3xl font-bold text-slate-900 mb-4">
-            Ready to start reaching new homeowners near you?
+          <h2 className="text-3xl font-bold text-white mb-4">
+            Ready to reach{' '}
+            <span className="text-brand-accent">new homeowners near you</span>?
           </h2>
-          <p className="text-slate-500 mb-8">
+          <p className="text-white/70 mb-8">
             Local leads, automated. Direct marketing couldn&apos;t be easier.
           </p>
           <Link
             href="/signup"
-            className="inline-flex items-center gap-2 rounded-xl bg-brand px-8 py-3.5 text-base font-semibold text-white shadow-lg hover:bg-brand-dark transition-all"
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3.5 text-base font-semibold text-brand shadow-lg hover:bg-white/90 transition-all"
           >
             Start for £15/month
             <ArrowRight className="h-4 w-4" />
