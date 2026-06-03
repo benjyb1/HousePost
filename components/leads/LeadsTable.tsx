@@ -82,8 +82,15 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
       if (distanceSort === 2) return (b.distance_miles ?? -1) - (a.distance_miles ?? -1)
       if (priceSort === 1) return (b.price ?? 0) - (a.price ?? 0)
       if (priceSort === 2) return (a.price ?? 0) - (b.price ?? 0)
-      if (typeSort === 1) return (a.property_type ?? 'Z').localeCompare(b.property_type ?? 'Z')
-      if (typeSort === 2) return (b.property_type ?? '').localeCompare(a.property_type ?? '')
+      // Null/custom property types always sort to the end, in both directions.
+      if (typeSort) {
+        const at = a.property_type
+        const bt = b.property_type
+        if (at == null && bt == null) return 0
+        if (at == null) return 1
+        if (bt == null) return -1
+        return typeSort === 1 ? at.localeCompare(bt) : bt.localeCompare(at)
+      }
       if (dateSort === 1) return new Date(b.date_of_transfer ?? 0).getTime() - new Date(a.date_of_transfer ?? 0).getTime()
       if (dateSort === 2) return new Date(a.date_of_transfer ?? 0).getTime() - new Date(b.date_of_transfer ?? 0).getTime()
       return a.address_line.localeCompare(b.address_line)
@@ -148,11 +155,34 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
     setLeads((prev) =>
       prev.map((l) => (l.id === id ? { ...l, selected_for_dispatch: checked } : l))
     )
-    await fetch(`/api/leads/${id}/select`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ selected: checked }),
-    })
+    try {
+      const res = await fetch(`/api/leads/${id}/select`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selected: checked }),
+      })
+      if (!res.ok) throw new Error('request failed')
+    } catch {
+      // Roll back so the checkbox can't silently disagree with the database.
+      setLeads((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, selected_for_dispatch: !checked } : l))
+      )
+      toast.error('Could not update that selection — please try again.')
+    }
+  }
+
+  // Patch one lead's selection, returning whether it succeeded (no throw).
+  async function patchSelection(id: string, selectedValue: boolean): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/leads/${id}/select`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selected: selectedValue }),
+      })
+      return res.ok
+    } catch {
+      return false
+    }
   }
 
   async function selectAll() {
@@ -167,15 +197,15 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
       prev.map((l) => (ids.includes(l.id) ? { ...l, selected_for_dispatch: true } : l))
     )
 
-    await Promise.all(
-      ids.map((id) =>
-        fetch(`/api/leads/${id}/select`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selected: true }),
-        })
+    const results = await Promise.all(ids.map((id) => patchSelection(id, true)))
+    const failedIds = ids.filter((_, i) => !results[i])
+    if (failedIds.length > 0) {
+      // Roll back only the ones that didn't persist.
+      setLeads((prev) =>
+        prev.map((l) => (failedIds.includes(l.id) ? { ...l, selected_for_dispatch: false } : l))
       )
-    )
+      toast.error('Some leads could not be selected — please try again.')
+    }
   }
 
   async function deselectAll() {
@@ -188,15 +218,14 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
       )
     )
 
-    await Promise.all(
-      selectedIds.map((id) =>
-        fetch(`/api/leads/${id}/select`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ selected: false }),
-        })
+    const results = await Promise.all(selectedIds.map((id) => patchSelection(id, false)))
+    const failedIds = selectedIds.filter((_, i) => !results[i])
+    if (failedIds.length > 0) {
+      setLeads((prev) =>
+        prev.map((l) => (failedIds.includes(l.id) ? { ...l, selected_for_dispatch: true } : l))
       )
-    )
+      toast.error('Some leads could not be deselected — please try again.')
+    }
   }
 
   async function archiveLeads(ids: string[]) {

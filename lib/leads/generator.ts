@@ -115,20 +115,32 @@ export async function generateLeadsForUser(
   // exclusion constraint matching the ON CONFLICT specification" and produced 0
   // leads. Filtering to new rows also preserves state (selected_for_dispatch,
   // postcard_job_id, archived_at) on any lead the user has already touched.
-  const { data: existing, error: existingError } = await supabase
-    .from('leads')
-    .select('transaction_id')
-    .eq('user_id', userId)
-    .eq('lead_month', importMonth)
-    .not('transaction_id', 'is', null)
+  // Page past Supabase's 1000-row default. A user with a large batch (loose
+  // filters / wide radius) can already have more than 1000 leads for the month;
+  // reading only the first 1000 leaves the dedup set incomplete, so the plain
+  // insert below collides on the (user, transaction, month) unique index and
+  // the whole user's generation fails. Loop until every page is read.
+  const existingIds = new Set<string>()
+  const DEDUP_PAGE = 1000
+  for (let from = 0; ; from += DEDUP_PAGE) {
+    const { data: existing, error: existingError } = await supabase
+      .from('leads')
+      .select('transaction_id')
+      .eq('user_id', userId)
+      .eq('lead_month', importMonth)
+      .not('transaction_id', 'is', null)
+      .order('transaction_id', { ascending: true })
+      .range(from, from + DEDUP_PAGE - 1)
 
-  if (existingError) {
-    throw new Error(
-      `Failed to read existing leads for user ${userId}: ${existingError.message}`
-    )
+    if (existingError) {
+      throw new Error(
+        `Failed to read existing leads for user ${userId}: ${existingError.message}`
+      )
+    }
+    if (!existing || existing.length === 0) break
+    for (const r of existing) existingIds.add(r.transaction_id as string)
+    if (existing.length < DEDUP_PAGE) break
   }
-
-  const existingIds = new Set((existing ?? []).map((r) => r.transaction_id))
   const newLeads = leadRows.filter((r) => !existingIds.has(r.transaction_id))
 
   if (newLeads.length === 0) {

@@ -25,15 +25,20 @@ interface GetPostcardResponse {
 async function postGridRequest<T>(
   method: 'GET' | 'POST',
   path: string,
-  body?: Record<string, unknown>
+  body?: Record<string, unknown>,
+  idempotencyKey?: string
 ): Promise<T> {
   const url = `${POSTGRID_BASE}${path}`
+  const headers: Record<string, string> = {
+    'x-api-key': process.env.POSTGRID_API_KEY!,
+    'Content-Type': 'application/json',
+  }
+  // PostGrid dedupes POSTs that carry the same Idempotency-Key, so a double-click
+  // or retry can't print and post the same card twice.
+  if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey
   const response = await fetch(url, {
     method,
-    headers: {
-      'x-api-key': process.env.POSTGRID_API_KEY!,
-      'Content-Type': 'application/json',
-    },
+    headers,
     ...(body ? { body: JSON.stringify(body) } : {}),
   })
 
@@ -67,11 +72,18 @@ export function buildRecipientContact(
   recipientName = 'The Homeowner'
 ): PostGridContact {
   const [firstName, ...rest] = recipientName.split(' ')
+  // The Land Registry address line is "SAON, PAON, Street, Locality, Town", so
+  // the post town is the last comma-separated segment. Use that rather than a
+  // hardcoded "London" (most recipients aren't in London). PostGrid wants a
+  // non-empty city, so for a comma-less line we fall back to the whole line
+  // (PostGrid verifies and corrects against the postcode anyway).
+  const segments = addressLine.split(',').map((s) => s.trim()).filter(Boolean)
+  const city = segments.length > 0 ? segments[segments.length - 1] : addressLine.trim()
   return {
     firstName,
     lastName: rest.join(' ') || undefined,
     addressLine1: addressLine,
-    city: 'London', // Required by PostGrid even for UK addresses
+    city,
     postalOrZip: postcode,
     countryCode: 'GB',
   }
@@ -85,7 +97,8 @@ export async function sendPostcard(
   to: PostGridContact,
   frontHtml: string,
   backHtml: string,
-  size: '6x4' | '4x6' | '6x9' | '6x11' = '6x4'
+  size: '6x4' | '4x6' | '6x9' | '6x11' = '6x4',
+  idempotencyKey?: string
 ): Promise<{ postcardId: string; status: string }> {
   const from = getSenderContact()
 
@@ -96,7 +109,7 @@ export async function sendPostcard(
     backHTML: backHtml,
     size,
     mailingClass: 'royal_mail_second_class',
-  })
+  }, idempotencyKey)
 
   return { postcardId: result.id, status: result.status }
 }
