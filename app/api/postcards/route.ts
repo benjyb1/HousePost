@@ -2,12 +2,11 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { calculatePostcardCost, reportOverageUsage } from '@/lib/stripe/billing'
+import { calculatePostcardCost, billPendingOverage } from '@/lib/stripe/billing'
 import { sendPostcard, buildRecipientContact, generateFrontHtml, generateBackHtml } from '@/lib/postcards/postgrid'
-import { sendAdminAlert } from '@/lib/email/resend'
 import { currentMonthKey, formatDate } from '@/lib/utils/date'
 import { PROPERTY_TYPE_LABELS } from '@/types/land-registry'
-import { POSTCARD_OVERAGE_PENCE } from '@/types/profile'
+import { INCLUDED_POSTCARDS_PER_MONTH, POSTCARD_OVERAGE_PENCE } from '@/types/profile'
 
 // GET: list postcard jobs for the authenticated user
 export async function GET(request: Request) {
@@ -79,7 +78,7 @@ export async function POST(request: Request) {
   // Work out how many are included vs overage, but DON'T bill yet — we only
   // charge for postcards that actually dispatch (see after the loop).
   const used = profile.postcards_used_this_period as number
-  const { included, overage, overageCostPence } = calculatePostcardCost(leads.length, used)
+  const { overage } = calculatePostcardCost(leads.length, used)
 
   if (overage > 0 && !profile.stripe_customer_id) {
     return NextResponse.json({ error: 'No Stripe customer found' }, { status: 403 })
@@ -87,15 +86,57 @@ export async function POST(request: Request) {
 
   // Dispatch postcards via PostGrid and insert job records
   const adminSupabase = createAdminClient()
-  const dispatched: { leadId: string; jobId: string | null; isOverage: boolean }[] = []
+  const dispatched: { leadId: string; jobId: string; isOverage: boolean }[] = []
   const failed: string[] = []
   const failReasons: string[] = []
+  // Counts cards that actually went out this request, so the included/overage
+  // split is based on real dispatches rather than the original loop index — a
+  // lead that loses the claim race must not push another lead into overage.
+  let dispatchedSoFar = 0
 
   for (let i = 0; i < leads.length; i++) {
     const lead = leads[i]
-    const isIncluded = i < included
+    let jobId: string | null = null
 
     try {
+      // 1. Create a pending job row first so we have an id to claim the lead
+      //    with. The included/overage flag is set later, once the card actually
+      //    dispatches (a pending row is never billed).
+      const { data: jobRow, error: jobErr } = await adminSupabase.from('postcard_jobs').insert({
+        user_id: user.id,
+        lead_id: lead.id,
+        lead_month: lead.lead_month,
+        recipient_address_line: lead.address_line,
+        recipient_postcode: lead.postcode,
+        was_included_in_subscription: true,
+        charge_amount_pence: 0,
+        status: 'pending',
+      }).select('id').single()
+      if (jobErr || !jobRow) {
+        throw new Error(jobErr?.message ?? 'Could not create postcard job')
+      }
+      jobId = jobRow.id as string
+
+      // 2. Atomically claim the lead. The conditional UPDATE only succeeds if the
+      //    lead isn't already linked to a job, so a concurrent double-submit
+      //    can't both win — the loser gets zero rows back and skips.
+      const { data: claimed, error: claimErr } = await adminSupabase
+        .from('leads')
+        .update({ postcard_job_id: jobId, selected_for_dispatch: true })
+        .eq('id', lead.id)
+        .is('postcard_job_id', null)
+        .select('id')
+      if (claimErr) throw new Error(claimErr.message)
+      if (!claimed || claimed.length === 0) {
+        // Lost the race — another request already claimed this lead. Cancel our
+        // pending job and move on without sending, counting, or billing.
+        await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).eq('id', jobId)
+        continue
+      }
+
+      // 3. We own the lead — print and post. The idempotency key is deterministic
+      //    per (user, lead, batch), so even a retry that somehow got this far
+      //    can't make PostGrid produce a second physical card.
       const propertyLabel = lead.property_type
         ? (PROPERTY_TYPE_LABELS[(lead.property_type as keyof typeof PROPERTY_TYPE_LABELS)] ?? lead.property_type)
         : null
@@ -119,33 +160,37 @@ export async function POST(request: Request) {
         lead.postcode as string
       )
 
-      const { postcardId, status } = await sendPostcard(recipient, frontHtml, backHtml, '6x4')
+      const idempotencyKey = createHash('sha256')
+        .update(`postcard:${user.id}:${lead.id}:${lead.lead_month}`)
+        .digest('hex')
+        .slice(0, 40)
 
-      const { data: jobData } = await adminSupabase.from('postcard_jobs').insert({
-        user_id: user.id,
-        lead_id: lead.id,
-        lead_month: lead.lead_month,
+      const { postcardId, status } = await sendPostcard(recipient, frontHtml, backHtml, '6x4', idempotencyKey)
+
+      // Only now that the card is actually going out do we decide whether it's
+      // an included or an overage card, based on how many have dispatched so far.
+      const isIncluded = used + dispatchedSoFar < INCLUDED_POSTCARDS_PER_MONTH
+      dispatchedSoFar++
+
+      await adminSupabase.from('postcard_jobs').update({
         postgrid_letter_id: postcardId,
         postgrid_status: status,
-        recipient_address_line: lead.address_line,
-        recipient_postcode: lead.postcode,
-        stripe_payment_intent_id: null, // set after billing, below
         was_included_in_subscription: isIncluded,
         charge_amount_pence: isIncluded ? 0 : POSTCARD_OVERAGE_PENCE,
         status: 'dispatched',
         dispatched_at: new Date().toISOString(),
-      }).select('id').single()
+      }).eq('id', jobId)
 
-      // Link lead to job so the UI shows "Dispatched"
-      await adminSupabase
-        .from('leads')
-        .update({ postcard_job_id: jobData?.id, selected_for_dispatch: true })
-        .eq('id', lead.id)
-
-      dispatched.push({ leadId: lead.id as string, jobId: jobData?.id ?? null, isOverage: !isIncluded })
+      dispatched.push({ leadId: lead.id as string, jobId, isOverage: !isIncluded })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`PostGrid dispatch failed for lead ${lead.id}:`, msg)
+      // Release the lead and mark the pending job failed so the lead becomes
+      // eligible to retry rather than being stuck "dispatched".
+      if (jobId) {
+        await adminSupabase.from('postcard_jobs').update({ status: 'failed' }).eq('id', jobId)
+        await adminSupabase.from('leads').update({ postcard_job_id: null }).eq('id', lead.id)
+      }
       failed.push(lead.id as string)
       failReasons.push(msg)
     }
@@ -161,70 +206,53 @@ export async function POST(request: Request) {
     }, { status: 502 })
   }
 
-  // Bill ONLY for overage postcards that actually dispatched, with a
-  // deterministic idempotency key so a retried request can't double-charge.
-  const overageJobs = dispatched.filter((d) => d.isOverage)
-  let stripeUsageRecordId: string | null = null
-  if (overageJobs.length > 0 && profile.stripe_customer_id) {
-    const idempotencyKey = createHash('sha256')
-      .update(`${user.id}:${currentMonthKey()}:${dispatched.map((d) => d.leadId).sort().join(',')}`)
-      .digest('hex')
-      .slice(0, 40)
+  const overageCount = dispatched.filter((d) => d.isOverage).length
+
+  // Bill any unbilled overage for this user — the cards just dispatched plus any
+  // left pending by an earlier failed attempt. Per-job idempotency keeps this
+  // safe to retry; if Stripe is momentarily down the cards stay pending and the
+  // next dispatch or resend sweeps them up, so there's nothing to reconcile by
+  // hand.
+  let overageBilled = 0
+  if (profile.stripe_customer_id) {
     try {
-      stripeUsageRecordId = await reportOverageUsage(
-        profile.stripe_customer_id as string,
-        overageJobs.length,
-        idempotencyKey
-      )
-      const overageJobIds = overageJobs.map((d) => d.jobId).filter(Boolean) as string[]
-      if (overageJobIds.length > 0) {
-        await adminSupabase
-          .from('postcard_jobs')
-          .update({ stripe_payment_intent_id: stripeUsageRecordId })
-          .in('id', overageJobIds)
-      }
+      overageBilled = await billPendingOverage(user.id, profile.stripe_customer_id as string)
     } catch (err) {
-      // Postcards already went out, so don't fail the request — alert instead
-      // so the charge can be reconciled manually.
       const msg = err instanceof Error ? err.message : String(err)
-      console.error('Overage billing failed after dispatch:', msg)
-      try {
-        await sendAdminAlert(
-          `[Housepost] Overage billing failed — user ${user.id}`,
-          `<p>${overageJobs.length} overage postcard(s) dispatched for user <strong>${user.id}</strong> but the Stripe meter event failed.</p><pre>${msg}</pre><p>Please reconcile manually.</p>`
-        )
-      } catch { /* don't mask the original error */ }
+      console.error(`Overage billing sweep failed for user ${user.id} (will retry on next activity):`, msg)
     }
   }
 
   // Increment the usage counter atomically. Falls back to read-modify-write if
   // the increment_postcards_used function hasn't been applied to the DB yet.
-  const { error: incErr } = await adminSupabase.rpc('increment_postcards_used', {
-    p_user_id: user.id,
-    p_amount: dispatched.length,
-  })
-  if (incErr) {
-    const { data: fresh } = await adminSupabase
-      .from('profiles')
-      .select('postcards_used_this_period')
-      .eq('id', user.id)
-      .single()
-    await adminSupabase
-      .from('profiles')
-      .update({
-        postcards_used_this_period:
-          ((fresh?.postcards_used_this_period as number) ?? used) + dispatched.length,
-      })
-      .eq('id', user.id)
+  if (dispatched.length > 0) {
+    const { error: incErr } = await adminSupabase.rpc('increment_postcards_used', {
+      p_user_id: user.id,
+      p_amount: dispatched.length,
+    })
+    if (incErr) {
+      const { data: fresh } = await adminSupabase
+        .from('profiles')
+        .select('postcards_used_this_period')
+        .eq('id', user.id)
+        .single()
+      await adminSupabase
+        .from('profiles')
+        .update({
+          postcards_used_this_period:
+            ((fresh?.postcards_used_this_period as number) ?? used) + dispatched.length,
+        })
+        .eq('id', user.id)
+    }
   }
 
   return NextResponse.json({
     success: true,
     dispatched: dispatched.length,
     failed: failed.length,
-    included,
-    overage: overageJobs.length,
-    overageCostPence: overageJobs.length * POSTCARD_OVERAGE_PENCE,
-    stripeUsageRecordId,
+    included: Math.max(0, dispatched.length - overageCount),
+    overage: overageCount,
+    overageCostPence: overageCount * POSTCARD_OVERAGE_PENCE,
+    overageBilled,
   })
 }

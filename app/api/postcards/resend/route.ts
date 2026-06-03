@@ -2,9 +2,8 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { calculatePostcardCost, reportOverageUsage } from '@/lib/stripe/billing'
+import { calculatePostcardCost, billPendingOverage } from '@/lib/stripe/billing'
 import { sendPostcard, buildRecipientContact, generateFrontHtml, generateBackHtml } from '@/lib/postcards/postgrid'
-import { sendAdminAlert } from '@/lib/email/resend'
 import { currentMonthKey } from '@/lib/utils/date'
 import { POSTCARD_OVERAGE_PENCE } from '@/types/profile'
 
@@ -53,8 +52,16 @@ export async function POST(request: Request) {
 
   const adminSupabase = createAdminClient()
 
+  // Deterministic idempotency key — re-sending the same job within the same
+  // billing month dedupes at PostGrid, so a double-click can't post two cards.
+  const idempotencyKey = createHash('sha256')
+    .update(`resend:${user.id}:${jobId}:${currentMonthKey()}`)
+    .digest('hex')
+    .slice(0, 40)
+
   // Dispatch first — we only bill once the postcard has actually gone out.
-  let newJobId: string | null = null
+  let postcardId = ''
+  let status = ''
   try {
     const recipient = buildRecipientContact(
       job.recipient_address_line as string,
@@ -75,58 +82,58 @@ export async function POST(request: Request) {
       backDesignUrl: profile.postcard_design_back_url as string | null,
     })
 
-    const { postcardId, status } = await sendPostcard(recipient, frontHtml, backHtml, '6x4')
-
-    const { data: jobData } = await adminSupabase.from('postcard_jobs').insert({
-      user_id: user.id,
-      lead_id: job.lead_id,
-      lead_month: currentMonthKey(),
-      postgrid_letter_id: postcardId,
-      postgrid_status: status,
-      recipient_address_line: job.recipient_address_line,
-      recipient_postcode: job.recipient_postcode,
-      stripe_payment_intent_id: null, // set after billing, below
-      was_included_in_subscription: isIncluded,
-      charge_amount_pence: isIncluded ? 0 : POSTCARD_OVERAGE_PENCE,
-      status: 'dispatched',
-      dispatched_at: new Date().toISOString(),
-    }).select('id').single()
-
-    newJobId = jobData?.id ?? null
+    ;({ postcardId, status } = await sendPostcard(recipient, frontHtml, backHtml, '6x4', idempotencyKey))
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Dispatch failed'
     return NextResponse.json({ error: msg }, { status: 502 })
   }
 
-  // Bill the overage (if any) after a successful dispatch, with a deterministic
-  // idempotency key so a double-submit can't charge twice.
-  let stripeUsageRecordId: string | null = null
-  if (!isIncluded && profile.stripe_customer_id) {
-    const idempotencyKey = createHash('sha256')
-      .update(`${user.id}:${currentMonthKey()}:resend:${jobId}`)
-      .digest('hex')
-      .slice(0, 40)
+  // If PostGrid returned a letter we've already recorded (an idempotent replay
+  // of a double-click), don't create a second job or bill again.
+  const { data: existingJob } = await adminSupabase
+    .from('postcard_jobs')
+    .select('id')
+    .eq('postgrid_letter_id', postcardId)
+    .maybeSingle()
+  if (existingJob) {
+    return NextResponse.json({ success: true, deduped: true })
+  }
+
+  // Record the new card. lead_month tracks the original lead's batch so it lines
+  // up with the dashboard's per-batch counts. dispatch_idempotency_key carries a
+  // UNIQUE partial index, so a truly concurrent double-click (which both passed
+  // the check above and got the same PostGrid letter) fails the second insert —
+  // we treat that as a dedup rather than billing the card twice.
+  const { data: jobData, error: insertErr } = await adminSupabase.from('postcard_jobs').insert({
+    user_id: user.id,
+    lead_id: job.lead_id,
+    lead_month: job.lead_month,
+    postgrid_letter_id: postcardId,
+    postgrid_status: status,
+    recipient_address_line: job.recipient_address_line,
+    recipient_postcode: job.recipient_postcode,
+    was_included_in_subscription: isIncluded,
+    charge_amount_pence: isIncluded ? 0 : POSTCARD_OVERAGE_PENCE,
+    status: 'dispatched',
+    dispatched_at: new Date().toISOString(),
+    dispatch_idempotency_key: idempotencyKey,
+  }).select('id').single()
+
+  if (insertErr || !jobData) {
+    // Most likely the unique idempotency-key guard rejected a concurrent
+    // duplicate — the card already went out under the other request.
+    return NextResponse.json({ success: true, deduped: true })
+  }
+
+  // Bill any unbilled overage (this card plus anything left pending earlier).
+  // Idempotent and self-healing — nothing to reconcile by hand.
+  let overageBilled = 0
+  if (profile.stripe_customer_id) {
     try {
-      stripeUsageRecordId = await reportOverageUsage(
-        profile.stripe_customer_id as string,
-        1,
-        idempotencyKey
-      )
-      if (newJobId) {
-        await adminSupabase
-          .from('postcard_jobs')
-          .update({ stripe_payment_intent_id: stripeUsageRecordId })
-          .eq('id', newJobId)
-      }
+      overageBilled = await billPendingOverage(user.id, profile.stripe_customer_id as string)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
-      console.error('Resend overage billing failed after dispatch:', msg)
-      try {
-        await sendAdminAlert(
-          `[Housepost] Resend overage billing failed — user ${user.id}`,
-          `<p>A re-sent postcard dispatched for user <strong>${user.id}</strong> but the Stripe meter event failed.</p><pre>${msg}</pre><p>Please reconcile manually.</p>`
-        )
-      } catch { /* don't mask the original error */ }
+      console.error(`Resend overage billing sweep failed for user ${user.id} (will retry on next activity):`, msg)
     }
   }
 
@@ -149,5 +156,5 @@ export async function POST(request: Request) {
       .eq('id', user.id)
   }
 
-  return NextResponse.json({ success: true, stripeUsageRecordId })
+  return NextResponse.json({ success: true, overageBilled })
 }

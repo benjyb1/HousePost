@@ -38,19 +38,29 @@ export async function handleSubscriptionUpdated(
   const periodEnd = firstItem?.current_period_end
   const periodStart = firstItem?.current_period_start
 
-  await supabase
+  // Only write the period dates when Stripe actually gave them to us — never
+  // blank out a good value because a particular event omitted the field.
+  const update: Record<string, unknown> = {
+    stripe_subscription_id: subscription.id,
+    subscription_status: mapStatus(subscription.status),
+  }
+  if (periodEnd) update.subscription_period_end = new Date(periodEnd * 1000).toISOString()
+  if (periodStart) update.current_period_start = new Date(periodStart * 1000).toISOString()
+
+  const { data, error } = await supabase
     .from('profiles')
-    .update({
-      stripe_subscription_id: subscription.id,
-      subscription_status: mapStatus(subscription.status),
-      subscription_period_end: periodEnd
-        ? new Date(periodEnd * 1000).toISOString()
-        : null,
-      current_period_start: periodStart
-        ? new Date(periodStart * 1000).toISOString()
-        : null,
-    })
+    .update(update)
     .eq('id', userId)
+    .select('id')
+
+  // Throw on a real DB error so the route 500s and Stripe retries, rather than
+  // silently dropping a subscription state change.
+  if (error) {
+    throw new Error(`Failed to update subscription for user ${userId}: ${error.message}`)
+  }
+  if (!data || data.length === 0) {
+    console.warn(`Subscription webhook matched no profile for userId ${userId} (subscription ${subscription.id})`)
+  }
 }
 
 export async function handleSubscriptionDeleted(
@@ -58,12 +68,19 @@ export async function handleSubscriptionDeleted(
 ): Promise<void> {
   const supabase = createAdminClient()
   const userId = subscription.metadata?.userId
-  if (!userId) return
+  if (!userId) {
+    console.warn('Deleted subscription has no userId metadata:', subscription.id)
+    return
+  }
 
-  await supabase
+  const { error } = await supabase
     .from('profiles')
     .update({ subscription_status: 'canceled' })
     .eq('id', userId)
+
+  if (error) {
+    throw new Error(`Failed to mark subscription canceled for user ${userId}: ${error.message}`)
+  }
 }
 
 export async function handleInvoicePaymentSucceeded(
@@ -80,10 +97,14 @@ export async function handleInvoicePaymentSucceeded(
 
   if (!customerId) return
 
-  await supabase
+  const { error } = await supabase
     .from('profiles')
     .update({ postcards_used_this_period: 0 })
     .eq('stripe_customer_id', customerId)
+
+  if (error) {
+    throw new Error(`Failed to reset postcard allowance for customer ${customerId}: ${error.message}`)
+  }
 }
 
 export async function handleInvoicePaymentFailed(
@@ -97,8 +118,12 @@ export async function handleInvoicePaymentFailed(
 
   if (!customerId) return
 
-  await supabase
+  const { error } = await supabase
     .from('profiles')
     .update({ subscription_status: 'past_due' })
     .eq('stripe_customer_id', customerId)
+
+  if (error) {
+    throw new Error(`Failed to mark past_due for customer ${customerId}: ${error.message}`)
+  }
 }

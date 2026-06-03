@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { getStripe } from './client'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { INCLUDED_POSTCARDS_PER_MONTH, POSTCARD_OVERAGE_PENCE } from '@/types/profile'
@@ -138,4 +139,58 @@ export async function reportOverageUsage(
   )
 
   return meterEvent.identifier ?? idempotencyKey
+}
+
+/**
+ * Bill every overage postcard for this user that hasn't been billed yet, and
+ * mark each one billed. An "unbilled overage" is a dispatched job with
+ * was_included_in_subscription = false and no stripe_payment_intent_id.
+ *
+ * Each card is metered as one unit with a per-job idempotency key, so this is
+ * safe to call repeatedly: Stripe dedupes by identifier, and any card already
+ * carrying a payment id is skipped. That makes billing self-healing — if a
+ * meter call failed earlier (Stripe blip, missing config), the next dispatch or
+ * resend sweeps it up automatically. No manual reconciliation.
+ *
+ * Returns the number of cards newly billed. Throws if a meter call fails, so
+ * the caller can decide whether to surface it; the unbilled cards simply stay
+ * pending for the next sweep.
+ */
+export async function billPendingOverage(
+  userId: string,
+  customerId: string
+): Promise<number> {
+  const supabase = createAdminClient()
+
+  const { data: pending, error } = await supabase
+    .from('postcard_jobs')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('status', 'dispatched')
+    .eq('was_included_in_subscription', false)
+    .is('stripe_payment_intent_id', null)
+
+  if (error) {
+    throw new Error(`Failed to read pending overage for user ${userId}: ${error.message}`)
+  }
+  if (!pending || pending.length === 0) return 0
+
+  let billed = 0
+  for (const job of pending) {
+    const jobId = job.id as string
+    const idempotencyKey = createHash('sha256')
+      .update(`overage:${jobId}`)
+      .digest('hex')
+      .slice(0, 40)
+
+    const recordId = await reportOverageUsage(customerId, 1, idempotencyKey)
+
+    await supabase
+      .from('postcard_jobs')
+      .update({ stripe_payment_intent_id: recordId })
+      .eq('id', jobId)
+
+    billed++
+  }
+  return billed
 }

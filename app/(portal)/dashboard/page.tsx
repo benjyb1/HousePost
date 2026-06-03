@@ -35,11 +35,20 @@ export default async function DashboardPage() {
 
   const latestLeadMonth = latestLead?.lead_month ?? prevMonthKey
 
+  // Our "month" runs on the leads cycle, not the calendar: a fresh batch drops
+  // on the 22nd and postcards get sent against that batch until the next one
+  // arrives. So "postcards sent" and "untapped" are both measured against the
+  // latest batch (postcard_jobs.lead_month = the batch the lead came from), and
+  // the "vs last month" delta compares it to the batch before that.
+  const [latestLeadYear, latestLeadMonthNum] = latestLeadMonth.split('-').map(Number)
+  const prevBatchDate = new Date(latestLeadYear, latestLeadMonthNum - 2, 1)
+  const prevLeadMonth = `${prevBatchDate.getFullYear()}-${String(prevBatchDate.getMonth() + 1).padStart(2, '0')}`
+
   const [{ data: profile }, { count: leadCount }, { count: postcardCount }, { count: prevPostcardCount }] = await Promise.all([
     supabase.from('profiles').select('full_name, subscription_status, postcards_used_this_period, search_radius_miles, office_postcode').eq('id', user.id).single(),
     supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', latestLeadMonth).is('archived_at', null),
-    supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', monthKey),
-    supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', prevMonthKey),
+    supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', latestLeadMonth),
+    supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', prevLeadMonth),
   ])
 
   const statusLabels: Record<string, string> = {

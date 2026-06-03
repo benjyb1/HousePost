@@ -19,7 +19,10 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
 
   function formatPostcode(raw: string): string {
     const clean = raw.replace(/\s/g, '').toUpperCase()
-    if (clean.length <= 3) return clean
+    // Only insert the inward-code space once the entry is long enough to be a
+    // real postcode (UK postcodes are 5–7 chars). Formatting half-typed input on
+    // every keystroke fights the caret and mangles short entries like "N167".
+    if (clean.length < 5) return clean
     return clean.slice(0, -3) + ' ' + clean.slice(-3)
   }
 
