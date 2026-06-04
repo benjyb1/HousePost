@@ -374,10 +374,17 @@ export default function PostcardDesignPage() {
         .from('postcard-designs')
         .getPublicUrl(path)
 
+      // The storage path is fixed (design.png), so the public URL never changes
+      // and Supabase's CDN keeps serving the previous image for up to an hour —
+      // longer once the browser caches it too, which is why a replaced design
+      // took "a few hours" to show. Append a version so the browser, the CDN and
+      // PostGrid all fetch the new file straight away.
+      const versionedUrl = `${publicUrl}?v=${Date.now()}`
+
       const res = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [config.settingsKey]: publicUrl }),
+        body: JSON.stringify({ [config.settingsKey]: versionedUrl }),
       })
 
       if (!res.ok) {
@@ -385,7 +392,7 @@ export default function PostcardDesignPage() {
         throw new Error(error ?? 'Failed to save')
       }
 
-      setCurrentDesignUrl(publicUrl)
+      setCurrentDesignUrl(versionedUrl)
       setImageSrc(null)
       setPreviewUrl(null) // design changed — the old proof is stale
       toast.success(`${config.label} design saved`)
@@ -598,7 +605,7 @@ export default function PostcardDesignPage() {
                     className="mx-auto flex overflow-hidden rounded-md border border-slate-200 bg-white"
                     style={{ aspectRatio: `${addBleed ? CARD.trimW / CARD.trimH : DOC_W / DOC_H}`, maxWidth: 560 }}
                   >
-                    <div className="relative w-1/2">
+                    <div className="relative w-1/2 border border-slate-300">
                       <Cropper
                         image={imageSrc}
                         crop={crop}
