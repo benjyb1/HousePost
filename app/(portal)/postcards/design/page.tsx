@@ -471,12 +471,8 @@ export default function PostcardDesignPage() {
       {(frontDesignUrl || backDesignUrl) && (
         <Card>
           <CardHeader>
-            <CardTitle>Exact print proof</CardTitle>
-            <CardDescription>
-              Generate the real PDF PostGrid would print, both sides, with the
-              address area in place. Nothing is sent or charged — this is the
-              definitive preview of what lands on the doormat.
-            </CardDescription>
+            <CardTitle>Print preview</CardTitle>
+            <CardDescription>Generate a preview of what will be printed.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Button onClick={handlePreview} disabled={previewLoading}>
@@ -510,10 +506,10 @@ export default function PostcardDesignPage() {
       {currentDesignUrl && (
         <Card>
           <CardHeader>
-            <CardTitle>Current {config.label} Design — print preview</CardTitle>
+            <CardTitle>{config.label} Design</CardTitle>
             <CardDescription>
-              This is exactly what gets printed and posted. The dashed red line is
-              where it&apos;s cut to 6×4″ — anything outside it is trimmed off.
+              The dashed red line marks where it&apos;ll be cropped, anything
+              outside it is trimmed off.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -715,10 +711,10 @@ export default function PostcardDesignPage() {
       <Card className="border-slate-100 bg-slate-50">
         <CardContent className="pt-4">
           <p className="text-sm text-slate-600">
-            <strong>Tip:</strong> For the sharpest print, design at 300 DPI –{' '}
+            <strong>Tip:</strong> For the sharpest print, design at 300 DPI{' '}
             {isFront
-              ? 'the front at 6.25×4.25″ (1875×1275px), with 0.125″ of bleed on every edge'
-              : 'the back design half at 3.125×4.25″ (937×1275px) — bleed on the top, bottom and left only, none on the right (that edge is the card centre)'}
+              ? 'with the front at 6.25×4.25″ (1875×1275px), and 0.125″ of bleed on every edge'
+              : 'with the back design half at 3.125×4.25″ (937×1275px), and 0.125″ of bleed on the top, bottom and left only (none on the right, that edge is the card centre)'}
             . Keep important text and logos at least 0.125″ inside the red trim line. Only the first page of the PDF is used.
           </p>
         </CardContent>
