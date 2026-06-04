@@ -466,39 +466,6 @@ export default function PostcardDesignPage() {
         ))}
       </div>
 
-      {/* Exact print proof — kept at the top so the button is visible without
-          scrolling */}
-      {(frontDesignUrl || backDesignUrl) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Print preview</CardTitle>
-            <CardDescription>Generate a preview of what will be printed.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button onClick={handlePreview} disabled={previewLoading}>
-              {previewLoading ? 'Rendering proof…' : 'Preview exact printed postcard'}
-            </Button>
-            {previewUrl && (
-              <div className="space-y-2">
-                <iframe
-                  src={previewUrl}
-                  className="h-[34rem] w-full rounded-md border border-slate-200"
-                  title="Postcard print proof"
-                />
-                <a
-                  href={previewUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-600 underline"
-                >
-                  Open the proof PDF in a new tab
-                </a>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
       {/* Design preview (left) and upload / crop tools (right), side by side so
           the page fills the width instead of a narrow column */}
       <div className="grid items-start gap-6 lg:grid-cols-2">
@@ -525,10 +492,32 @@ export default function PostcardDesignPage() {
                 <TrimGuide />
               </div>
             )}
-            <Button variant="outline" size="sm" onClick={handleRemove} disabled={loading}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Remove design
-            </Button>
+            <div className="flex items-center justify-between gap-3">
+              <Button onClick={handlePreview} disabled={previewLoading}>
+                {previewLoading ? 'Rendering…' : 'Preview exact printed postcard'}
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleRemove} disabled={loading}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Remove design
+              </Button>
+            </div>
+            {previewUrl && (
+              <div className="space-y-2">
+                <iframe
+                  src={previewUrl}
+                  className="h-[34rem] w-full rounded-md border border-slate-200"
+                  title="Postcard print proof"
+                />
+                <a
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 underline"
+                >
+                  Open the proof PDF in a new tab
+                </a>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
