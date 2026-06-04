@@ -440,7 +440,7 @@ export default function PostcardDesignPage() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-6xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Postcard Design</h1>
         <p className="text-sm text-slate-500">
@@ -466,8 +466,48 @@ export default function PostcardDesignPage() {
         ))}
       </div>
 
+      {/* Exact print proof — kept at the top so the button is visible without
+          scrolling */}
+      {(frontDesignUrl || backDesignUrl) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Exact print proof</CardTitle>
+            <CardDescription>
+              Generate the real PDF PostGrid would print, both sides, with the
+              address area in place. Nothing is sent or charged — this is the
+              definitive preview of what lands on the doormat.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button onClick={handlePreview} disabled={previewLoading}>
+              {previewLoading ? 'Rendering proof…' : 'Preview exact printed postcard'}
+            </Button>
+            {previewUrl && (
+              <div className="space-y-2">
+                <iframe
+                  src={previewUrl}
+                  className="h-[34rem] w-full rounded-md border border-slate-200"
+                  title="Postcard print proof"
+                />
+                <a
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 underline"
+                >
+                  Open the proof PDF in a new tab
+                </a>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Design preview (left) and upload / crop tools (right), side by side so
+          the page fills the width instead of a narrow column */}
+      <div className="grid items-start gap-6 lg:grid-cols-2">
       {/* Current design preview */}
-      {currentDesignUrl && !imageSrc && (
+      {currentDesignUrl && (
         <Card>
           <CardHeader>
             <CardTitle>Current {config.label} Design — print preview</CardTitle>
@@ -540,7 +580,7 @@ export default function PostcardDesignPage() {
                 <>
                   <Upload className="h-8 w-8" />
                   <span className="text-sm font-medium">Click to upload PDF</span>
-                  <span className="text-xs">First page will be used as the {activeSide} design</span>
+                  <span className="text-xs">Then crop &amp; resize it to fit — controls appear right here</span>
                 </>
               )}
             </button>
@@ -669,42 +709,7 @@ export default function PostcardDesignPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Exact print proof — PostGrid's own render via the test sandbox */}
-      {(frontDesignUrl || backDesignUrl) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Exact print proof</CardTitle>
-            <CardDescription>
-              Generate the real PDF PostGrid would print, both sides, with the
-              address area in place. Nothing is sent or charged — this is the
-              definitive preview of what lands on the doormat.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button onClick={handlePreview} disabled={previewLoading}>
-              {previewLoading ? 'Rendering proof…' : 'Preview exact printed postcard'}
-            </Button>
-            {previewUrl && (
-              <div className="space-y-2">
-                <iframe
-                  src={previewUrl}
-                  className="h-96 w-full rounded-md border border-slate-200"
-                  title="Postcard print proof"
-                />
-                <a
-                  href={previewUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-600 underline"
-                >
-                  Open the proof PDF in a new tab
-                </a>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      </div>
 
       {/* Info card */}
       <Card className="border-slate-100 bg-slate-50">
