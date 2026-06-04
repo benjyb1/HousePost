@@ -9,13 +9,88 @@ import { toast } from 'sonner'
 import { Upload, Trash2, ImageIcon } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
-// A5 landscape aspect ratio (full card)
-const A5_ASPECT = 210 / 148
+// PostGrid prints a 6x4" card. The artwork is NOT rendered at the 6x4 trim
+// size — PostGrid renders the HTML to the full bleed area (6.25x4.25") and then
+// cuts 0.125" off every edge down to 6x4". So the design has to extend past the
+// trim on all sides; whatever sits in that outer 0.125" band gets trimmed away.
+const CARD = { trimW: 6, trimH: 4, bleed: 0.125 } // inches
+const DOC_W = CARD.trimW + CARD.bleed * 2 // 6.25"
+const DOC_H = CARD.trimH + CARD.bleed * 2 // 4.25"
+// The front fills the whole bleed area.
+const FRONT_ASPECT = DOC_W / DOC_H // 6.25 / 4.25
 // The back's right half is reserved by PostGrid for the address + postage, so
-// users only design the left half (105 x 148mm).
-const BACK_DESIGN_ASPECT = 105 / 148
+// the design covers the left half of the finished card (3") plus bleed on the
+// three OUTER edges only. The right edge is the card centre, so it gets no
+// bleed — hence 3.125 (3" + one 0.125" bleed) x 4.25" (4" + two bleeds).
+const BACK_DESIGN_W = CARD.trimW / 2 + CARD.bleed // 3.125"
+const BACK_DESIGN_ASPECT = BACK_DESIGN_W / DOC_H // 3.125 / 4.25
+// Trim line as a fraction of the full bleed doc, for the print-preview overlay.
+const TRIM_INSET_X = (CARD.bleed / DOC_W) * 100 // 2%
+const TRIM_INSET_Y = (CARD.bleed / DOC_H) * 100 // ~2.94%
+
+// When the user lets us add the bleed for them, the crop frame is the FINISHED
+// card (no bleed) and we synthesise the 0.125" margin afterwards. These are the
+// trim aspect ratios for that mode.
+const FRONT_TRIM_ASPECT = CARD.trimW / CARD.trimH // 6 / 4
+const BACK_TRIM_ASPECT = CARD.trimW / 2 / CARD.trimH // 3 / 4
 
 type Side = 'front' | 'back'
+
+// Below ~250 DPI a 6x4 card starts to look soft, so warn the customer before
+// they commit a design that'll print blurry.
+const MIN_PRINT_DPI = 250
+
+/**
+ * Where the guide line sits inside the crop frame, as % insets per edge.
+ * - "addBleed" off: the frame is the full bleed doc, so the guide is the TRIM
+ *   line, one bleed in from every cut edge.
+ * - "addBleed" on: the frame is the finished card, so the guide is the SAFE
+ *   zone, one bleed inside the cut.
+ * The back's right edge is the card centre (not a cut), so it never gets an inset.
+ */
+function guideInsets(side: Side, addBleed: boolean) {
+  const frameW = addBleed
+    ? side === 'front' ? CARD.trimW : CARD.trimW / 2
+    : side === 'front' ? DOC_W : BACK_DESIGN_W
+  const frameH = addBleed ? CARD.trimH : DOC_H
+  const x = (CARD.bleed / frameW) * 100
+  const y = (CARD.bleed / frameH) * 100
+  return {
+    left: x,
+    right: side === 'back' ? 0 : x,
+    top: y,
+    bottom: y,
+    variant: addBleed ? ('safe' as const) : ('cut' as const),
+  }
+}
+
+/**
+ * Dashed guide drawn over the live cropper. A red "cut" line shows what gets
+ * trimmed off; a blue "safe" line (matching PostGrid's own template) shows where
+ * to keep text. Insets are given per edge so the back's centre edge stays flush.
+ */
+function GuideBox({
+  left,
+  right,
+  top,
+  bottom,
+  variant,
+}: ReturnType<typeof guideInsets>) {
+  const cut = variant === 'cut'
+  return (
+    <div
+      className="pointer-events-none absolute rounded-[1px] border border-dashed"
+      style={{
+        left: `${left}%`,
+        right: `${right}%`,
+        top: `${top}%`,
+        bottom: `${bottom}%`,
+        borderColor: cut ? 'rgba(239,68,68,0.95)' : 'rgba(37,99,235,0.95)',
+        ...(cut ? { boxShadow: '0 0 0 9999px rgba(15,23,42,0.22)' } : {}),
+      }}
+    />
+  )
+}
 
 /**
  * The address half of the postcard back, shown next to the crop area so users
@@ -43,6 +118,27 @@ function AddressHalf() {
   )
 }
 
+/**
+ * Dashed rectangle marking where PostGrid cuts the card down to 6x4". Anything
+ * outside it is bleed and gets trimmed off. Sits over a full-bleed preview so a
+ * customer can see exactly what survives the cut — the same thing the printer's
+ * crop marks indicate on the proof.
+ */
+function TrimGuide() {
+  return (
+    <div
+      className="pointer-events-none absolute rounded-[1px] border border-dashed border-red-500/90"
+      style={{
+        top: `${TRIM_INSET_Y}%`,
+        bottom: `${TRIM_INSET_Y}%`,
+        left: `${TRIM_INSET_X}%`,
+        right: `${TRIM_INSET_X}%`,
+        boxShadow: '0 0 0 9999px rgba(15,23,42,0.18)',
+      }}
+    />
+  )
+}
+
 const SIDE_CONFIG = {
   front: {
     storagePath: (userId: string) => `${userId}/design.png`,
@@ -56,7 +152,30 @@ const SIDE_CONFIG = {
   },
 } as const
 
-async function getCroppedImg(imageSrc: string, cropArea: Area): Promise<Blob> {
+function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob)
+      else reject(new Error('Failed to create blob'))
+    }, 'image/png')
+  })
+}
+
+/**
+ * Crop the rendered design to the chosen area and return a PNG.
+ *
+ * When `addBleed` is set, the crop area is the FINISHED 6x4 card (or the 3x4
+ * back half) and we synthesise the 0.125" bleed by replicating the edge pixels
+ * outward — for customers who upload artwork without bleed. The bleed band gets
+ * trimmed off, so the stretched edge never shows on the final card; it just
+ * stops a white sliver appearing if the cut drifts. The back gets no right-edge
+ * bleed because that edge is the card centre.
+ */
+async function getCroppedImg(
+  imageSrc: string,
+  cropArea: Area,
+  addBleed?: Side
+): Promise<Blob> {
   const image = await new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image()
     img.onload = () => resolve(img)
@@ -64,29 +183,44 @@ async function getCroppedImg(imageSrc: string, cropArea: Area): Promise<Blob> {
     img.src = imageSrc
   })
 
+  const cw = Math.round(cropArea.width)
+  const ch = Math.round(cropArea.height)
+
+  if (!addBleed) {
+    const canvas = document.createElement('canvas')
+    canvas.width = cw
+    canvas.height = ch
+    const ctx = canvas.getContext('2d')!
+    ctx.drawImage(image, cropArea.x, cropArea.y, cropArea.width, cropArea.height, 0, 0, cw, ch)
+    return canvasToBlob(canvas)
+  }
+
+  // Bleed in pixels, scaled from the cropped trim region.
+  const bx = Math.max(1, Math.round((cw * CARD.bleed) / CARD.trimW))
+  const by = Math.max(1, Math.round((ch * CARD.bleed) / CARD.trimH))
+  const rightBleed = addBleed === 'back' ? 0 : bx // back right edge is the card centre
+
   const canvas = document.createElement('canvas')
-  canvas.width = cropArea.width
-  canvas.height = cropArea.height
+  canvas.width = cw + bx + rightBleed
+  canvas.height = ch + by * 2
   const ctx = canvas.getContext('2d')!
 
-  ctx.drawImage(
-    image,
-    cropArea.x,
-    cropArea.y,
-    cropArea.width,
-    cropArea.height,
-    0,
-    0,
-    cropArea.width,
-    cropArea.height
-  )
+  // Finished artwork in the middle, offset by the left/top bleed.
+  ctx.drawImage(image, cropArea.x, cropArea.y, cropArea.width, cropArea.height, bx, by, cw, ch)
 
-  return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob)
-      else reject(new Error('Failed to create blob'))
-    }, 'image/png')
-  })
+  // Replicate the outer rows/columns of the artwork into each margin.
+  ctx.drawImage(canvas, bx, by, 1, ch, 0, by, bx, ch) // left
+  ctx.drawImage(canvas, bx, by, cw, 1, bx, 0, cw, by) // top
+  ctx.drawImage(canvas, bx, by + ch - 1, cw, 1, bx, by + ch, cw, by) // bottom
+  ctx.drawImage(canvas, bx, by, 1, 1, 0, 0, bx, by) // top-left corner
+  ctx.drawImage(canvas, bx, by + ch - 1, 1, 1, 0, by + ch, bx, by) // bottom-left corner
+  if (rightBleed) {
+    ctx.drawImage(canvas, bx + cw - 1, by, 1, ch, bx + cw, by, rightBleed, ch) // right
+    ctx.drawImage(canvas, bx + cw - 1, by, 1, 1, bx + cw, 0, rightBleed, by) // top-right
+    ctx.drawImage(canvas, bx + cw - 1, by + ch - 1, 1, 1, bx + cw, by + ch, rightBleed, by) // bottom-right
+  }
+
+  return canvasToBlob(canvas)
 }
 
 export default function PostcardDesignPage() {
@@ -111,8 +245,17 @@ export default function PostcardDesignPage() {
   const [backZoom, setBackZoom] = useState(1)
   const [backCroppedAreaPixels, setBackCroppedAreaPixels] = useState<Area | null>(null)
 
+  // Whether to synthesise bleed for the customer, per side (some uploads include
+  // bleed, some don't — they're designed in separate steps).
+  const [frontAddBleed, setFrontAddBleed] = useState(false)
+  const [backAddBleed, setBackAddBleed] = useState(false)
+
   const [loading, setLoading] = useState(false)
   const [rendering, setRendering] = useState(false)
+
+  // Exact-print proof (PostGrid test-mode render)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   // Derived state for whichever side is active
   const isFront = activeSide === 'front'
@@ -128,7 +271,24 @@ export default function PostcardDesignPage() {
   const setCroppedAreaPixels = isFront ? setFrontCroppedAreaPixels : setBackCroppedAreaPixels
   const fileInputRef = isFront ? frontFileInputRef : backFileInputRef
   const config = SIDE_CONFIG[activeSide]
-  const cropAspect = isFront ? A5_ASPECT : BACK_DESIGN_ASPECT
+  const addBleed = isFront ? frontAddBleed : backAddBleed
+  const setAddBleed = isFront ? setFrontAddBleed : setBackAddBleed
+
+  // Crop frame: the bleed doc when the design already has bleed, or the finished
+  // card when we're adding it.
+  const cropAspect = isFront
+    ? addBleed ? FRONT_TRIM_ASPECT : FRONT_ASPECT
+    : addBleed ? BACK_TRIM_ASPECT : BACK_DESIGN_ASPECT
+
+  // Roughly how many DPI the cropped artwork will print at. The crop frame spans
+  // this many inches across, so dividing the cropped pixel width by it gives DPI.
+  const cropFrameInches = isFront
+    ? addBleed ? CARD.trimW : DOC_W
+    : addBleed ? CARD.trimW / 2 : BACK_DESIGN_W
+  const effectiveDpi = croppedAreaPixels
+    ? Math.round(croppedAreaPixels.width / cropFrameInches)
+    : null
+  const lowRes = effectiveDpi != null && effectiveDpi < MIN_PRINT_DPI
 
   useEffect(() => {
     async function load() {
@@ -169,13 +329,14 @@ export default function PostcardDesignPage() {
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
       const page = await pdf.getPage(1)
 
-      // Render at ~300 DPI so the print is sharp. pdf.js scale 1 ≈ 72 DPI, so
-      // 300 DPI needs scale ≈ 4.17. At 2x (≈144 DPI) the printer had to upscale,
-      // which is why the trial postcards came out blurry. Cap the long edge so an
-      // oversized PDF doesn't blow up the canvas/upload.
+      // Render at ~400 DPI so the print is sharp with headroom above PostGrid's
+      // 300 DPI. pdf.js scale 1 ≈ 72 DPI, so 400 DPI needs scale ≈ 5.56. (At 2x
+      // ≈144 DPI the printer had to upscale, which is why the trial postcards came
+      // out blurry.) Cap the long edge so an oversized PDF doesn't blow up the
+      // canvas/upload — 6.25" at 400 DPI is 2500px, well under the cap.
       const base = page.getViewport({ scale: 1 })
-      const MAX_EDGE = 3000
-      let scale = 300 / 72
+      const MAX_EDGE = 3200
+      let scale = 400 / 72
       const longEdge = Math.max(base.width, base.height) * scale
       if (longEdge > MAX_EDGE) scale = MAX_EDGE / Math.max(base.width, base.height)
 
@@ -200,7 +361,7 @@ export default function PostcardDesignPage() {
     setLoading(true)
 
     try {
-      const blob = await getCroppedImg(imageSrc, croppedAreaPixels)
+      const blob = await getCroppedImg(imageSrc, croppedAreaPixels, addBleed ? activeSide : undefined)
 
       const path = config.storagePath(userId)
       const { error: uploadError } = await supabase.storage
@@ -226,11 +387,30 @@ export default function PostcardDesignPage() {
 
       setCurrentDesignUrl(publicUrl)
       setImageSrc(null)
+      setPreviewUrl(null) // design changed — the old proof is stale
       toast.success(`${config.label} design saved`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save design')
     } finally {
       setLoading(false)
+    }
+  }
+
+  /**
+   * Render an exact print proof through PostGrid's test sandbox. Nothing is
+   * printed, posted or charged — it returns the same PDF the printer would use.
+   */
+  async function handlePreview() {
+    setPreviewLoading(true)
+    try {
+      const res = await fetch('/api/postcards/preview', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Failed to render preview')
+      setPreviewUrl(data.url)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to render preview')
+    } finally {
+      setPreviewLoading(false)
     }
   }
 
@@ -264,7 +444,7 @@ export default function PostcardDesignPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Postcard Design</h1>
         <p className="text-sm text-slate-500">
-          Upload your custom postcard designs as PDFs. They will be printed A5 (210x148mm).
+          Upload your custom postcard designs as PDFs. They&apos;re printed 6×4″ (152×102mm). Design at 6.25×4.25″ so there&apos;s 0.125″ of bleed to trim.
         </p>
       </div>
 
@@ -290,18 +470,23 @@ export default function PostcardDesignPage() {
       {currentDesignUrl && !imageSrc && (
         <Card>
           <CardHeader>
-            <CardTitle>Current {config.label} Design</CardTitle>
-            <CardDescription>This design is used when dispatching postcards</CardDescription>
+            <CardTitle>Current {config.label} Design — print preview</CardTitle>
+            <CardDescription>
+              This is exactly what gets printed and posted. The dashed red line is
+              where it&apos;s cut to 6×4″ — anything outside it is trimmed off.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {isFront ? (
-              <div className="overflow-hidden rounded-md border border-slate-200" style={{ aspectRatio: '210/148', maxWidth: 420 }}>
+              <div className="relative overflow-hidden rounded-md border border-slate-200" style={{ aspectRatio: `${DOC_W}/${DOC_H}`, maxWidth: 420 }}>
                 <img src={currentDesignUrl} alt="Current postcard front design" className="w-full h-full object-cover" />
+                <TrimGuide />
               </div>
             ) : (
-              <div className="flex overflow-hidden rounded-md border border-slate-200 bg-white" style={{ aspectRatio: '210/148', maxWidth: 420 }}>
+              <div className="relative flex overflow-hidden rounded-md border border-slate-200 bg-white" style={{ aspectRatio: `${DOC_W}/${DOC_H}`, maxWidth: 420 }}>
                 <img src={currentDesignUrl} alt="Current postcard back design" className="w-1/2 h-full object-cover" />
                 <AddressHalf />
+                <TrimGuide />
               </div>
             )}
             <Button variant="outline" size="sm" onClick={handleRemove} disabled={loading}>
@@ -318,8 +503,8 @@ export default function PostcardDesignPage() {
           <CardTitle>{currentDesignUrl ? `Replace ${config.label} Design` : `Upload ${config.label} Design`}</CardTitle>
           <CardDescription>
             {isFront
-              ? 'Upload a PDF, then crop and scale it to fill the A5 frame, then save.'
-              : 'Upload a PDF, then crop and scale it to fill the left (design) half. The right half is reserved for the address and postage.'}
+              ? 'Upload a PDF. If it already has 0.125″ bleed (6.25×4.25″), crop to fill the frame. If it\'s just the finished 6×4″ card, tick “add bleed for me” below and crop to the card.'
+              : 'Upload a PDF for the left (design) half. The right half is reserved for the address and postage. No bleed on your file? Tick “add bleed for me”.'}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -364,17 +549,21 @@ export default function PostcardDesignPage() {
           {imageSrc && (
             <>
               {isFront ? (
-                /* Front — crop the whole card */
-                <div className="relative w-full overflow-hidden rounded-md border border-slate-200" style={{ height: 480 }}>
+                /* Front — crop the whole card. The guide overlay shows the cut. */
+                <div
+                  className="relative mx-auto w-full overflow-hidden rounded-md border border-slate-200"
+                  style={{ aspectRatio: `${cropAspect}`, maxWidth: 560 }}
+                >
                   <Cropper
                     image={imageSrc}
                     crop={crop}
                     zoom={zoom}
-                    aspect={A5_ASPECT}
+                    aspect={cropAspect}
                     onCropChange={setCrop}
                     onZoomChange={setZoom}
                     onCropComplete={onCropComplete}
                   />
+                  <GuideBox {...guideInsets('front', addBleed)} />
                 </div>
               ) : (
                 /* Back — only the left half is yours; the right half is the
@@ -382,24 +571,60 @@ export default function PostcardDesignPage() {
                 <div className="w-full">
                   <div
                     className="mx-auto flex overflow-hidden rounded-md border border-slate-200 bg-white"
-                    style={{ aspectRatio: '210 / 148', maxWidth: 560 }}
+                    style={{ aspectRatio: `${addBleed ? CARD.trimW / CARD.trimH : DOC_W / DOC_H}`, maxWidth: 560 }}
                   >
                     <div className="relative w-1/2">
                       <Cropper
                         image={imageSrc}
                         crop={crop}
                         zoom={zoom}
-                        aspect={BACK_DESIGN_ASPECT}
+                        aspect={cropAspect}
                         onCropChange={setCrop}
                         onZoomChange={setZoom}
                         onCropComplete={onCropComplete}
                       />
+                      <GuideBox {...guideInsets('back', addBleed)} />
                     </div>
                     <AddressHalf />
                   </div>
                   <p className="mt-2 text-center text-xs text-slate-500">
                     Your design fills the left half. The right half is reserved for the address and postage.
                   </p>
+                </div>
+              )}
+
+              {/* Add-bleed helper — for designs that don't already include bleed */}
+              <label className="flex items-start gap-2 rounded-md bg-slate-50 p-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={addBleed}
+                  onChange={(e) => setAddBleed(e.target.checked)}
+                  className="mt-0.5 h-4 w-4"
+                />
+                <span>
+                  <span className="font-medium text-slate-700">My design doesn&apos;t include bleed — add it for me</span>
+                  <span className="mt-0.5 block text-xs text-slate-500">
+                    Tick this if your artwork is exactly the finished postcard size.
+                    We&apos;ll extend the edges by 0.125″ so no white shows after
+                    trimming. Leave it unticked if you already designed at 6.25×4.25″
+                    with bleed.
+                  </span>
+                </span>
+              </label>
+
+              {/* Guide legend */}
+              <p className="text-xs text-slate-500">
+                {addBleed
+                  ? 'The blue dashed line is the safe zone — keep text and logos inside it.'
+                  : 'The red dashed line is where the card is cut. Let the background run to the outer edge, and keep text inside the line.'}
+              </p>
+
+              {/* Low-resolution warning */}
+              {lowRes && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                  This crop is about {effectiveDpi} DPI, below the {MIN_PRINT_DPI} DPI
+                  we recommend — it may print soft. Zoom out, or upload a
+                  higher-resolution PDF.
                 </div>
               )}
 
@@ -445,12 +670,51 @@ export default function PostcardDesignPage() {
         </CardContent>
       </Card>
 
+      {/* Exact print proof — PostGrid's own render via the test sandbox */}
+      {(frontDesignUrl || backDesignUrl) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Exact print proof</CardTitle>
+            <CardDescription>
+              Generate the real PDF PostGrid would print, both sides, with the
+              address area in place. Nothing is sent or charged — this is the
+              definitive preview of what lands on the doormat.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Button onClick={handlePreview} disabled={previewLoading}>
+              {previewLoading ? 'Rendering proof…' : 'Preview exact printed postcard'}
+            </Button>
+            {previewUrl && (
+              <div className="space-y-2">
+                <iframe
+                  src={previewUrl}
+                  className="h-96 w-full rounded-md border border-slate-200"
+                  title="Postcard print proof"
+                />
+                <a
+                  href={previewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 underline"
+                >
+                  Open the proof PDF in a new tab
+                </a>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Info card */}
       <Card className="border-slate-100 bg-slate-50">
         <CardContent className="pt-4">
           <p className="text-sm text-slate-600">
             <strong>Tip:</strong> For the sharpest print, design at 300 DPI –{' '}
-            {isFront ? 'A5 (210×148mm) for the front' : 'the left half (105×148mm) for the back'}. Only the first page of the PDF is used.
+            {isFront
+              ? 'the front at 6.25×4.25″ (1875×1275px), with 0.125″ of bleed on every edge'
+              : 'the back design half at 3.125×4.25″ (937×1275px) — bleed on the top, bottom and left only, none on the right (that edge is the card centre)'}
+            . Keep important text and logos at least 0.125″ inside the red trim line. Only the first page of the PDF is used.
           </p>
         </CardContent>
       </Card>

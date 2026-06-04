@@ -20,17 +20,21 @@ interface CreatePostcardResponse {
 interface GetPostcardResponse {
   id: string
   status: string
+  // PostGrid renders a print-ready PDF a few seconds after the order is created
+  // and exposes it here. This is the exact artwork the printer uses.
+  url?: string
 }
 
 async function postGridRequest<T>(
   method: 'GET' | 'POST',
   path: string,
   body?: Record<string, unknown>,
-  idempotencyKey?: string
+  idempotencyKey?: string,
+  apiKey?: string
 ): Promise<T> {
   const url = `${POSTGRID_BASE}${path}`
   const headers: Record<string, string> = {
-    'x-api-key': process.env.POSTGRID_API_KEY!,
+    'x-api-key': apiKey ?? process.env.POSTGRID_API_KEY!,
     'Content-Type': 'application/json',
   }
   // PostGrid dedupes POSTs that carry the same Idempotency-Key, so a double-click
@@ -126,6 +130,62 @@ export async function getPostcardStatus(postcardId: string): Promise<string> {
 }
 
 /**
+ * Create a postcard in PostGrid's TEST sandbox and return the URL of the
+ * rendered PDF proof — the exact artwork the printer would use. Test-mode
+ * orders are never printed, never posted and never charged, so this is safe to
+ * call for an on-screen "what will actually print" preview.
+ *
+ * Requires POSTGRID_TEST_API_KEY (the test key from PostGrid → Settings). We use
+ * a dedicated test key rather than POSTGRID_API_KEY so a preview can never touch
+ * the live mailing/billing path, regardless of which key dispatch runs on.
+ */
+export async function createPostcardPreview(
+  to: PostGridContact,
+  frontHtml: string,
+  backHtml: string,
+  size: '6x4' | '4x6' | '6x9' | '6x11' = '6x4'
+): Promise<{ url: string }> {
+  const testKey = process.env.POSTGRID_TEST_API_KEY
+  if (!testKey) {
+    throw new Error('POSTGRID_TEST_API_KEY is not set')
+  }
+  if (!testKey.startsWith('test_')) {
+    // Guard against someone pasting a live key here — a live key would print and
+    // post a real card and charge for it.
+    throw new Error('POSTGRID_TEST_API_KEY must be a test key (starts with "test_")')
+  }
+
+  const created = await postGridRequest<CreatePostcardResponse>(
+    'POST',
+    '/postcards',
+    {
+      to,
+      from: getSenderContact(),
+      frontHTML: frontHtml,
+      backHTML: backHtml,
+      size,
+    },
+    undefined,
+    testKey
+  )
+
+  // The proof PDF appears a few seconds after creation, so poll for it.
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const result = await postGridRequest<GetPostcardResponse>(
+      'GET',
+      `/postcards/${created.id}`,
+      undefined,
+      undefined,
+      testKey
+    )
+    if (result.url) return { url: result.url }
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+  }
+
+  throw new Error('PostGrid preview did not render in time — please try again')
+}
+
+/**
  * Generate HTML for the front of a postcard.
  * If the user has a custom design, embed it as a full-bleed image.
  * Otherwise use a default template.
@@ -188,7 +248,9 @@ export function generateBackHtml(params: {
   if (backDesignUrl) {
     // The design occupies the left half; the right half is left blank for the
     // address block and postage that PostGrid prints on the address side. The
-    // uploaded image is already cropped to the left-half aspect (105x148mm).
+    // uploaded image is already cropped to the left-half-plus-bleed aspect
+    // (3.125x4.25in: half the 6in trim + 0.125in bleed wide, full 4.25in tall).
+    // width:50% maps exactly onto that, since 3.125 / 6.25 = 0.5.
     return `<!DOCTYPE html>
 <html>
 <body style="margin:0;padding:0;">
