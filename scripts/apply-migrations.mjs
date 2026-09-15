@@ -58,11 +58,12 @@ for (const f of files) {
   const sql = fs.readFileSync(path.join(dir, f), 'utf8')
   process.stdout.write(`Applying ${f} ... `)
   try {
-    await run(sql)
     const rec = hasName
       ? `insert into supabase_migrations.schema_migrations(version,name) values('${version}','${name.replace(/'/g, "''")}') on conflict (version) do nothing`
       : `insert into supabase_migrations.schema_migrations(version) values('${version}') on conflict (version) do nothing`
-    await run(rec)
+    // Apply the migration and record it atomically: if anything in the file
+    // fails, the whole thing rolls back and the version is not marked applied.
+    await run(`BEGIN;\n${sql}\n;\n${rec};\nCOMMIT;`)
     console.log('done')
     count++
   } catch (e) {

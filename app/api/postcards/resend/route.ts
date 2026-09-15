@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { calculatePostcardCost, billPendingOverage } from '@/lib/stripe/billing'
 import { sendPostcard, buildRecipient } from '@/lib/postcards/stannp'
 import { currentMonthKey } from '@/lib/utils/date'
-import { POSTCARD_OVERAGE_PENCE } from '@/types/profile'
+import { POSTCARD_OVERAGE_PENCE, MONTHLY_POSTCARD_CAP } from '@/types/profile'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -25,6 +25,16 @@ export async function POST(request: Request) {
 
   if (jobError || !job) {
     return NextResponse.json({ error: 'Job not found' }, { status: 404 })
+  }
+
+  // Only a job that has actually been SENT can be re-sent. Resending a job that
+  // is still in-flight (pending / held in cool-off / dispatching) would create a
+  // second card and could double-send, so refuse those with a 409.
+  if (['pending', 'held', 'dispatching'].includes(job.status as string)) {
+    return NextResponse.json(
+      { error: 'This postcard is still being processed and cannot be re-sent yet.' },
+      { status: 409 }
+    )
   }
 
   // Fetch profile
@@ -93,7 +103,34 @@ export async function POST(request: Request) {
   }
   const newJobId = pending.id as string
 
-  // We own the slot — print and post.
+  // Reserve one postcard against the hard monthly cap BEFORE we dispatch. The
+  // capped RPC (service-role only, hence the admin client) atomically increments
+  // the period counter and returns the PRE-increment usage, or -1 if the send
+  // would breach the cap. Doing this before Stannp means an over-cap resend never
+  // prints a card.
+  const { data: preUsedRaw, error: reserveErr } = await adminSupabase.rpc(
+    'increment_postcards_used_capped',
+    { p_user_id: user.id, p_amount: 1, p_cap: MONTHLY_POSTCARD_CAP }
+  )
+  if (reserveErr) {
+    await adminSupabase.from('postcard_jobs').update({ status: 'failed' }).eq('id', newJobId)
+    return NextResponse.json(
+      { error: 'Could not reserve your postcard allowance. Please try again.' },
+      { status: 500 }
+    )
+  }
+  const preUsed = preUsedRaw as number
+  if (preUsed < 0) {
+    await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).eq('id', newJobId)
+    return NextResponse.json(
+      { error: `This would exceed your monthly limit of ${MONTHLY_POSTCARD_CAP} postcards.` },
+      { status: 403 }
+    )
+  }
+  // Authoritative included/paid split from the reserved pre-usage value.
+  const reservedIncluded = calculatePostcardCost(1, preUsed).included > 0
+
+  // We own the slot and the allowance — print and post.
   let postcardId = ''
   let status = ''
   try {
@@ -108,8 +145,10 @@ export async function POST(request: Request) {
       tag: idempotencyKey,
     }))
   } catch (err) {
-    // Release the pending row so the card becomes eligible to retry rather than
-    // being stuck "pending".
+    // Dispatch failed: hand back the allowance we reserved and release the
+    // pending row so the card becomes eligible to retry rather than being stuck
+    // "pending".
+    await adminSupabase.rpc('decrement_postcards_used', { p_user_id: user.id, p_amount: 1 })
     await adminSupabase.from('postcard_jobs').update({ status: 'failed' }).eq('id', newJobId)
     const msg = err instanceof Error ? err.message : 'Dispatch failed'
     return NextResponse.json({ error: msg }, { status: 502 })
@@ -119,8 +158,8 @@ export async function POST(request: Request) {
   await adminSupabase.from('postcard_jobs').update({
     postgrid_letter_id: postcardId,
     postgrid_status: status,
-    was_included_in_subscription: isIncluded,
-    charge_amount_pence: isIncluded ? 0 : POSTCARD_OVERAGE_PENCE,
+    was_included_in_subscription: reservedIncluded,
+    charge_amount_pence: reservedIncluded ? 0 : POSTCARD_OVERAGE_PENCE,
     status: 'dispatched',
     dispatched_at: new Date().toISOString(),
   }).eq('id', newJobId)
@@ -137,24 +176,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // Atomic counter increment, with read-modify-write fallback.
-  const { error: incErr } = await adminSupabase.rpc('increment_postcards_used', {
-    p_user_id: user.id,
-    p_amount: 1,
-  })
-  if (incErr) {
-    const { data: fresh } = await adminSupabase
-      .from('profiles')
-      .select('postcards_used_this_period')
-      .eq('id', user.id)
-      .single()
-    await adminSupabase
-      .from('profiles')
-      .update({
-        postcards_used_this_period: ((fresh?.postcards_used_this_period as number) ?? used) + 1,
-      })
-      .eq('id', user.id)
-  }
-
+  // Usage was already counted by the capped reservation above (before dispatch),
+  // so there is nothing to increment here.
   return NextResponse.json({ success: true, overageBilled })
 }

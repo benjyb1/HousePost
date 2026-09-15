@@ -46,6 +46,33 @@ export async function POST() {
 
   const admin = createAdminClient()
 
+  // 0. Refuse deletion while any order is still in flight. A 'held' order has
+  //    been charged and is waiting out its cool-off; a 'dispatching' one is
+  //    mid-send. Deleting now would strand that charge (and detach the history it
+  //    belongs to) — the user must let these finish or cancel them first.
+  const { count: inFlightCount, error: inFlightErr } = await admin
+    .from('postcard_jobs')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .in('status', ['held', 'dispatching'])
+
+  if (inFlightErr) {
+    console.error('Account deletion: failed to check in-flight orders:', inFlightErr.message)
+    return NextResponse.json(
+      { error: 'Could not verify your account state. Please try again shortly.' },
+      { status: 500 }
+    )
+  }
+  if ((inFlightCount ?? 0) > 0) {
+    return NextResponse.json(
+      {
+        error:
+          'You have postcard orders that are still being processed. Please wait for them to send, or cancel them, before deleting your account.',
+      },
+      { status: 409 }
+    )
+  }
+
   // 1. Look up the profile for Stripe references.
   const { data: profile } = await admin
     .from('profiles')

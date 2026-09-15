@@ -22,7 +22,15 @@ ALTER TABLE postcard_jobs
   -- Groups every job created by a single "send" so the UI can cancel the whole
   -- order and so the up-front charge (one PaymentIntent per send) can be found
   -- again for a refund. NULL for all historical rows.
-  ADD COLUMN IF NOT EXISTS batch_id UUID;
+  ADD COLUMN IF NOT EXISTS batch_id UUID,
+  -- Set when the release cron claims a row for dispatch, so a row stuck in
+  -- 'dispatching' (a crash mid-send) can be detected and alerted on.
+  ADD COLUMN IF NOT EXISTS dispatching_at TIMESTAMPTZ,
+  -- Design snapshot taken at hold time, so a design change (or removal) during
+  -- the cool-off can't alter or break what actually prints versus what the user
+  -- previewed. The release cron prints from these, not the live profile.
+  ADD COLUMN IF NOT EXISTS held_design_front_url TEXT,
+  ADD COLUMN IF NOT EXISTS held_design_back_url TEXT;
 
 -- 2. New statuses ------------------------------------------------------------
 --

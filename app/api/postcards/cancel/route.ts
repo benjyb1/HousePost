@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { refundPostcardCharge } from '@/lib/stripe/billing'
+import { sendAdminAlert } from '@/lib/email/resend'
 import { POSTCARD_OVERAGE_PENCE } from '@/types/profile'
 
 /**
@@ -12,9 +13,12 @@ import { POSTCARD_OVERAGE_PENCE } from '@/types/profile'
  *           (alias: { batchId })
  * Response: { success: true, cancelled: number, refundedPence: number, refundFormatted }
  *
- * Only orders that are still 'held' AND still before their release_at can be
- * cancelled; once the release cron has begun dispatching (status 'dispatching'
- * or 'dispatched') or the window has passed, cancellation is refused with 409.
+ * Only orders that are still 'held' can be cancelled; once the release cron has
+ * begun dispatching (status 'dispatching' or 'dispatched') cancellation is
+ * refused with 409. We do NOT gate on release_at: the cron atomically flips a
+ * row 'held' -> 'dispatching' before it calls Stannp, so the 'held' claim alone
+ * is race-safe (each row is taken by exactly one of cancel or the cron) and lets
+ * a user cancel right up to the moment of dispatch even if the cron runs late.
  * Cancelling unwinds everything the send set up: the held rows are marked
  * cancelled, the reserved usage is handed back, the leads are freed for reuse,
  * and the up-front card charge is refunded (only for the paid cards actually
@@ -32,13 +36,12 @@ export async function POST(request: Request) {
   }
 
   const adminSupabase = createAdminClient()
-  const nowIso = new Date().toISOString()
 
   // Atomically claim the still-cancellable rows of this order. The
-  //   status = 'held' AND release_at > now()
+  //   status = 'held'
   // predicate is what makes this race-safe against the release cron: the cron
-  // only ever transitions 'held' rows whose release_at <= now(), so a given row
-  // can be taken by exactly one of the two. The user_id filter ensures a user
+  // flips a row 'held' -> 'dispatching' before it sends, so a given row can be
+  // taken by exactly one of cancel or the cron. The user_id filter ensures a user
   // can only cancel their own order. RETURNING gives us what we need to unwind.
   const { data: cancelledRows, error: cancelErr } = await adminSupabase
     .from('postcard_jobs')
@@ -46,7 +49,6 @@ export async function POST(request: Request) {
     .eq('batch_id', orderId)
     .eq('user_id', user.id)
     .eq('status', 'held')
-    .gt('release_at', nowIso)
     .select('id, lead_id, was_included_in_subscription, stripe_payment_intent_id')
 
   if (cancelErr) {
@@ -101,17 +103,54 @@ export async function POST(request: Request) {
       })
       refundedPence = refundPence
     } catch (err) {
-      // The cards are already cancelled and will NOT be sent; surface the refund
-      // failure so it can be retried/reconciled rather than silently swallowed.
+      // The cards are already cancelled and will NOT be sent, but the refund did
+      // not go through. This must NOT be silently lost: (1) alert an operator with
+      // the batch + PaymentIntent so it can be refunded by hand, and (2) persist a
+      // recoverable marker on the affected rows (postgrid_status = 'refund_failed')
+      // so a reconciliation sweep can find exactly which cancelled paid cards are
+      // still owed a refund. Then return an honest message.
       const msg = err instanceof Error ? err.message : String(err)
-      console.error(`Refund failed for cancelled order ${orderId}:`, msg)
+      console.error(
+        `Refund failed for cancelled order ${orderId} (PaymentIntent ${paymentIntentId}):`,
+        msg
+      )
+
+      const paidRowIds = cancelledRows
+        .filter((r) => r.was_included_in_subscription === false)
+        .map((r) => r.id as string)
+      if (paidRowIds.length > 0) {
+        await adminSupabase
+          .from('postcard_jobs')
+          .update({ postgrid_status: 'refund_failed' })
+          .in('id', paidRowIds)
+      }
+
+      try {
+        await sendAdminAlert(
+          `[Housepost] Postcard cancel refund FAILED — order ${orderId}`,
+          `<p>A cancelled postcard order could not be refunded automatically and needs a manual
+            refund in Stripe.</p>
+           <ul>
+             <li>Batch id: <strong>${orderId}</strong></li>
+             <li>PaymentIntent: <strong>${paymentIntentId}</strong></li>
+             <li>Amount owed: <strong>£${(refundPence / 100).toFixed(2)}</strong> (${paidCancelled} paid card${paidCancelled === 1 ? '' : 's'})</li>
+             <li>User: <strong>${user.id}</strong></li>
+           </ul>
+           <p>Affected job rows are marked <code>postgrid_status = 'refund_failed'</code>.</p>
+           <pre>${msg}</pre>`
+        )
+      } catch (alertErr) {
+        console.error(`Failed to send refund-failure alert for order ${orderId}:`, alertErr)
+      }
+
       return NextResponse.json(
         {
           success: true,
           cancelled: cancelledCount,
           refundedPence: 0,
           refundFormatted: '£0.00',
-          warning: 'Your order was cancelled but the refund could not be completed automatically. Our team has been notified.',
+          warning:
+            'Your order was cancelled but the refund could not be completed automatically. Our team has been notified and will refund you manually.',
         },
         { status: 200 }
       )

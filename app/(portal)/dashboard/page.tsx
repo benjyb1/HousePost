@@ -49,8 +49,11 @@ export default async function DashboardPage() {
   const [{ data: profile }, { count: leadCount }, { count: postcardCount }, { count: prevPostcardCount }] = await Promise.all([
     supabase.from('profiles').select('full_name, subscription_status, postcards_used_this_period, search_radius_miles, office_postcode').eq('id', user.id).single(),
     supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', latestLeadMonth).is('archived_at', null),
-    supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', latestLeadMonth),
-    supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', prevLeadMonth),
+    // "Postcards sent" must count only cards actually sent to the provider, so we
+    // exclude everything still in-flight or dead: pending/held/dispatching (not
+    // yet sent) and cancelled/failed (never sent).
+    supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', latestLeadMonth).not('status', 'in', '(pending,held,dispatching,cancelled,failed)'),
+    supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', prevLeadMonth).not('status', 'in', '(pending,held,dispatching,cancelled,failed)'),
   ])
 
   const statusLabels: Record<string, string> = {
@@ -94,8 +97,10 @@ export default async function DashboardPage() {
   // responsive feed can show up to ~5 on large screens.
   const notifications = await listNotifications(user.id, 5)
 
-  // Untapped leads
-  const untappedLeads = (leadCount ?? 0) - (postcardCount ?? 0)
+  // Untapped leads. Clamped at 0: sent-postcard and lead counts are queried
+  // separately and a race (or a resend counted as sent) must never show a
+  // negative figure.
+  const untappedLeads = Math.max(0, (leadCount ?? 0) - (postcardCount ?? 0))
 
   // Next leads drop is the 6th. Before the 6th it's this month's 6th;
   // from the 6th onward it's next month's 6th.

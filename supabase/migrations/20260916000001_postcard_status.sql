@@ -45,6 +45,7 @@ ALTER TABLE postcard_jobs
     'delivered',
     'held',
     'dispatching',
+    'provider_hold',
     'error',
     'failed',
     'cancelled'
@@ -68,7 +69,7 @@ UPDATE postcard_jobs
       'printed',
       'dispatched',
       'delivered',
-      'held',
+      'provider_hold',
       'error',
       'failed',
       'cancelled'

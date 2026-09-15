@@ -28,6 +28,8 @@ export type NormalisedStatus =
   | 'dispatched'
   | 'delivered'
   | 'held'
+  | 'dispatching'
+  | 'provider_hold'
   | 'error'
   | 'failed'
   | 'cancelled'
@@ -87,11 +89,14 @@ const RAW_STATUS_MAP: Record<string, NormalisedStatus> = {
   completed: 'dispatched',
   // Optional delivery confirmation (tracked products only).
   delivered: 'delivered',
-  // Manually held for review.
-  held: 'held',
-  hold: 'held',
-  on_hold: 'held',
-  onhold: 'held',
+  // Manually held for review by the provider. This is a DISTINCT state from our
+  // internal cool-off 'held' (pre-send). Mapping it to 'held' would collide with
+  // the cool-off state and let the release cron re-send an already-dispatched
+  // card, so provider holds get their own neutral, NON-terminal key.
+  held: 'provider_hold',
+  hold: 'provider_hold',
+  on_hold: 'provider_hold',
+  onhold: 'provider_hold',
   // Stopped / failed states.
   cancelled: 'cancelled',
   canceled: 'cancelled',

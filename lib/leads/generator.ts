@@ -21,10 +21,13 @@ type SupabaseAdminClient = ReturnType<typeof createAdminClient>
  * lib/address/normalise.ts:addressKey() on both sides so a plain Set lookup is
  * enough — no per-row queries.
  *
- * Fails soft: if the suppression_list table does not yet exist (migration not
- * applied) or the read errors for any reason, we log and return an empty set so
- * lead generation continues to work. An empty table likewise yields an empty
- * set. Screening then simply excludes nothing.
+ * Fails soft ONLY for a genuinely-absent table: if suppression_list does not
+ * yet exist (Postgres 42P01 undefined_table — the migration hasn't been applied,
+ * so there legitimately are no opt-outs), we log and return an empty set so lead
+ * generation still works. An empty table likewise yields an empty set. For ANY
+ * OTHER error we THROW: a transient read failure must NOT silently disable
+ * do-not-contact screening (that would post to people who opted out). The thrown
+ * error fails the generation run and fires the existing admin failure alert.
  */
 async function loadSuppressionKeys(
   supabase: SupabaseAdminClient
@@ -38,9 +41,13 @@ async function loadSuppressionKeys(
       .range(from, from + PAGE - 1)
 
     if (error) {
-      // Table missing / transient error — proceed without suppression.
-      console.warn(`Suppression list unavailable, skipping screening: ${error.message}`)
-      return keys
+      // Only an absent table fails soft (migration not applied yet). Anything
+      // else must fail loudly so we never post to opted-out addresses.
+      if (error.code === '42P01') {
+        console.warn(`Suppression list table absent, skipping screening: ${error.message}`)
+        return keys
+      }
+      throw new Error(`Failed to load suppression list: ${error.message}`)
     }
     if (!data || data.length === 0) break
     for (const row of data) {

@@ -190,13 +190,22 @@ export async function chargePostcardBatch(params: {
     return { paymentIntentId: intent.id }
   } catch (err) {
     // Stripe surfaces off-session declines as a card error carrying the failed
-    // PaymentIntent. Bubble up a clean message; the caller aborts the send.
+    // PaymentIntent. Bubble up a clean message, but PRESERVE the Stripe `type`
+    // and `code` on the thrown error so the caller can tell a genuine card
+    // decline (safe to unwind and refuse) from any other failure (where the
+    // charge may in fact have succeeded and must NOT be blindly unwound).
     if (err instanceof Stripe.errors.StripeError) {
       const declineMessage =
         err.code === 'authentication_required'
           ? 'Your card needs authentication that we cannot complete for an automatic charge. Please contact support or update your card.'
           : err.message || 'Your card was declined.'
-      throw new Error(declineMessage)
+      const wrapped = new Error(declineMessage) as Error & {
+        type?: string
+        code?: string
+      }
+      wrapped.type = err.type
+      wrapped.code = err.code ?? undefined
+      throw wrapped
     }
     throw err
   }

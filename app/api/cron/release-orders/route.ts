@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendPostcard, buildRecipient } from '@/lib/postcards/stannp'
+import { refundPostcardCharge } from '@/lib/stripe/billing'
+import { sendAdminAlert } from '@/lib/email/resend'
 
 export const maxDuration = 60
 
@@ -9,6 +11,12 @@ export const maxDuration = 60
 // call takes a moment. Any backlog beyond this drains on the next run (the
 // workflow fires every ~5 minutes).
 const MAX_ORDERS_PER_RUN = 100
+
+// A row that has been in 'dispatching' longer than this almost certainly crashed
+// mid-send (between the atomic claim and the status write). We alert on these but
+// NEVER auto-retry them — the Stannp call may already have posted the card, so a
+// retry could double-print.
+const STUCK_DISPATCHING_MINUTES = 10
 
 function verifyCronSecret(request: Request): boolean {
   const auth = request.headers.get('authorization')
@@ -26,8 +34,12 @@ function verifyCronSecret(request: Request): boolean {
  *     called. If the claim returns no row, a cancel beat us to it and we skip,
  *     so a card is never both refunded and posted.
  *   • Per-order failures are tolerated: the row is marked 'failed' and the run
- *     continues. A failed row is NOT auto-refunded (the charge stands) — see the
- *     handoff note in the PR; these need operator review.
+ *     continues. Because the card was NOT sent, a failed row is also refunded
+ *     (for paid cards), has its reserved allowance handed back, and its lead
+ *     freed so it returns to New leads. A refund that itself fails raises an
+ *     admin alert for manual reconciliation.
+ *   • Rows that print from a per-order design SNAPSHOT captured at hold time, so a
+ *     design change during the cool-off cannot alter what actually goes out.
  */
 export async function POST(request: Request) {
   if (!verifyCronSecret(request)) {
@@ -37,12 +49,48 @@ export async function POST(request: Request) {
   const supabase = createAdminClient()
   const nowIso = new Date().toISOString()
 
-  // Due held orders, oldest first.
+  // Detect rows stuck in 'dispatching' from an earlier crashed run and alert on
+  // them. We do NOT touch or retry them: the earlier Stannp call may already have
+  // posted the card, so a retry could double-print. These need operator review.
+  const stuckCutoffIso = new Date(
+    Date.now() - STUCK_DISPATCHING_MINUTES * 60_000
+  ).toISOString()
+  const { data: stuck } = await supabase
+    .from('postcard_jobs')
+    .select('id, user_id, dispatching_at')
+    .eq('status', 'dispatching')
+    .lt('dispatching_at', stuckCutoffIso)
+    .limit(MAX_ORDERS_PER_RUN)
+  if (stuck && stuck.length > 0) {
+    const ids = stuck.map((r) => r.id as string)
+    console.error(
+      `Release cron: ${stuck.length} postcard job(s) stuck in 'dispatching' (>${STUCK_DISPATCHING_MINUTES}m):`,
+      ids.join(', ')
+    )
+    try {
+      await sendAdminAlert(
+        `[Housepost] ${stuck.length} postcard job(s) stuck 'dispatching' — needs review`,
+        `<p><strong>${stuck.length}</strong> postcard job(s) have been in the transient
+          <code>dispatching</code> state for over ${STUCK_DISPATCHING_MINUTES} minutes, which points to a
+          crash mid-send. They were NOT auto-retried (a retry could double-print). Check Stannp for each
+          before deciding whether to mark them dispatched or failed:</p>
+         <pre>${ids.join('\n')}</pre>`
+      )
+    } catch (alertErr) {
+      console.error('Release cron: failed to send stuck-dispatching alert:', alertErr)
+    }
+  }
+
+  // Due held orders, oldest first. The `postgrid_letter_id IS NULL` guard is a
+  // belt-and-braces stop against ever re-sending: a row that has already been
+  // dispatched carries a letter id, so even if its status somehow flapped back to
+  // 'held' it could never be picked up and posted twice.
   const { data: due, error: dueErr } = await supabase
     .from('postcard_jobs')
-    .select('id, user_id, lead_id, lead_month, recipient_address_line, recipient_postcode')
+    .select('id, user_id, lead_id, lead_month, recipient_address_line, recipient_postcode, held_design_front_url, held_design_back_url, stripe_payment_intent_id, charge_amount_pence, was_included_in_subscription')
     .eq('status', 'held')
     .lte('release_at', nowIso)
+    .is('postgrid_letter_id', null)
     .order('release_at', { ascending: true })
     .limit(MAX_ORDERS_PER_RUN)
 
@@ -51,20 +99,6 @@ export async function POST(request: Request) {
   }
   if (!due || due.length === 0) {
     return NextResponse.json({ success: true, released: 0, dispatched: 0, failed: 0, skipped: 0 })
-  }
-
-  // Fetch each distinct user's saved designs once.
-  const userIds = [...new Set(due.map((j) => j.user_id as string))]
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, postcard_design_url, postcard_design_back_url')
-    .in('id', userIds)
-  const designs = new Map<string, { front: string | null; back: string | null }>()
-  for (const p of profiles ?? []) {
-    designs.set(p.id as string, {
-      front: p.postcard_design_url as string | null,
-      back: p.postcard_design_back_url as string | null,
-    })
   }
 
   let dispatched = 0
@@ -79,7 +113,7 @@ export async function POST(request: Request) {
     // can't also act on it. Only a row still 'held' is claimable.
     const { data: claimed, error: claimErr } = await supabase
       .from('postcard_jobs')
-      .update({ status: 'dispatching' })
+      .update({ status: 'dispatching', dispatching_at: new Date().toISOString() })
       .eq('id', jobId)
       .eq('status', 'held')
       .select('id')
@@ -95,9 +129,13 @@ export async function POST(request: Request) {
     }
 
     try {
-      const design = designs.get(job.user_id as string)
-      if (!design?.front || !design?.back) {
-        throw new Error('Postcard designs are missing for this account')
+      // Print from the design SNAPSHOT taken at hold time, never the live profile
+      // designs — a change or removal during the cool-off must not alter or break
+      // what actually goes out versus what the user previewed and paid for.
+      const frontUrl = job.held_design_front_url as string | null
+      const backUrl = job.held_design_back_url as string | null
+      if (!frontUrl || !backUrl) {
+        throw new Error('Postcard design snapshot is missing for this order')
       }
 
       const recipient = buildRecipient(
@@ -112,8 +150,8 @@ export async function POST(request: Request) {
 
       const { id: postcardId, status } = await sendPostcard({
         to: recipient,
-        frontUrl: design.front,
-        backUrl: design.back,
+        frontUrl,
+        backUrl,
         tag: idempotencyKey,
       })
 
@@ -131,8 +169,61 @@ export async function POST(request: Request) {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error(`Release dispatch failed for job ${jobId}:`, msg)
-      // Mark failed and keep going. The charge stands; operator review needed.
+
+      // Mark failed and keep going.
       await supabase.from('postcard_jobs').update({ status: 'failed' }).eq('id', jobId)
+
+      // The card was NOT sent, so make the user whole: refund any up-front charge
+      // on this row and free the lead so it returns to New leads. Without this a
+      // failed paid card would be charged-but-never-sent, and the lead would sit
+      // under "Send again" where it could be charged a second time.
+      const paymentIntentId = job.stripe_payment_intent_id as string | null
+      const chargePence = (job.charge_amount_pence as number | null) ?? 0
+      const wasPaid = job.was_included_in_subscription === false
+      if (wasPaid && paymentIntentId && chargePence > 0) {
+        try {
+          await refundPostcardCharge({
+            paymentIntentId,
+            amountPence: chargePence,
+            // Per-job key: each failed card is refunded at most once even if the
+            // cron re-encounters it, and other cards on the same PaymentIntent are
+            // unaffected.
+            idempotencyKey: `postcard-release-refund:${jobId}`,
+          })
+        } catch (refundErr) {
+          const rmsg = refundErr instanceof Error ? refundErr.message : String(refundErr)
+          console.error(`Release refund failed for job ${jobId}:`, rmsg)
+          try {
+            await sendAdminAlert(
+              `[Housepost] Postcard send failed AND refund failed — job ${jobId}`,
+              `<p>Postcard job <strong>${jobId}</strong> failed to send and the automatic refund of
+                ${chargePence}p against PaymentIntent <strong>${paymentIntentId}</strong> also failed.
+                Please refund manually in Stripe.</p><pre>${rmsg}</pre>`
+            )
+          } catch (alertErr) {
+            console.error(`Release cron: failed to alert on refund failure for job ${jobId}:`, alertErr)
+          }
+          reasons.push(`${jobId}: send failed AND refund failed`)
+        }
+      }
+
+      // Free the lead (scoped to this job) so it goes back to New leads rather
+      // than staying attached to a failed order.
+      if (job.lead_id) {
+        await supabase
+          .from('leads')
+          .update({ postcard_job_id: null, selected_for_dispatch: false })
+          .eq('id', job.lead_id as string)
+          .eq('postcard_job_id', jobId)
+      }
+
+      // Hand back the reserved allowance for this un-sent card (mirrors cancel),
+      // so freeing the lead for re-send can't double-count usage.
+      await supabase.rpc('decrement_postcards_used', {
+        p_user_id: job.user_id as string,
+        p_amount: 1,
+      })
+
       failed++
       reasons.push(`${jobId}: ${msg}`)
     }

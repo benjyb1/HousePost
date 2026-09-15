@@ -5,6 +5,7 @@ import { formatMonthKey, formatDate } from '@/lib/utils/date'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Mail, ChevronDown } from 'lucide-react'
 import ResendButton from '@/components/postcards/ResendButton'
+import CancelOrderButton from '@/components/postcards/CancelOrderButton'
 
 // Show the first 15 rows of each month, with the rest behind a "Show more"
 // disclosure — mirrors the Previous leads table's page size.
@@ -21,6 +22,9 @@ const statusColors: Record<string, string> = {
   production: 'bg-orange-100 text-orange-800',
   printed: 'bg-orange-100 text-orange-800',
   held: 'bg-purple-100 text-purple-800',
+  dispatching: 'bg-blue-100 text-blue-800',
+  provider_hold: 'bg-purple-100 text-purple-800',
+  refund_failed: 'bg-amber-100 text-amber-800',
   error: 'bg-red-100 text-red-800',
 }
 
@@ -33,7 +37,10 @@ const statusLabels: Record<string, string> = {
   printed: 'Printed',
   dispatched: 'Dispatched',
   delivered: 'Delivered',
-  held: 'On hold',
+  held: 'Scheduled',
+  dispatching: 'Sending',
+  provider_hold: 'On hold',
+  refund_failed: 'Refund pending',
   error: 'Error',
   pending: 'Pending',
   failed: 'Failed',
@@ -48,6 +55,7 @@ type Job = {
   dispatched_at: string | null
   status: string
   postgrid_status: string | null
+  batch_id: string | null
   lead_month: string
   created_at: string
 }
@@ -84,7 +92,17 @@ function JobRow({ job }: { job: Job }) {
         </span>
       </td>
       <td className="px-4 py-3 text-center align-top">
-        <ResendButton jobId={job.id} />
+        {displayStatus === 'dispatched' || displayStatus === 'delivered' ? (
+          // Re-send is only offered once a card has actually been sent. Never for
+          // in-flight states (pending/held/dispatching/…) — resending those could
+          // double-send.
+          <ResendButton jobId={job.id} />
+        ) : displayStatus === 'held' && job.batch_id ? (
+          // Still in the cool-off window: let the user cancel from here.
+          <CancelOrderButton orderId={job.batch_id} />
+        ) : (
+          <span className="text-xs text-slate-300">–</span>
+        )}
       </td>
     </tr>
   )

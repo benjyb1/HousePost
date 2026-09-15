@@ -5,6 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { calculatePostcardCost, chargePostcardBatch } from '@/lib/stripe/billing'
 import { currentMonthKey } from '@/lib/utils/date'
 import { createNotification } from '@/lib/notifications'
+import { sendAdminAlert } from '@/lib/email/resend'
 import {
   INCLUDED_POSTCARDS_PER_MONTH,
   POSTCARD_OVERAGE_PENCE,
@@ -237,7 +238,13 @@ export async function POST(request: Request) {
       console.error(`Failed to reserve postcard job for lead ${lead.id}:`, err)
       if (jobId) {
         await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).eq('id', jobId)
-        await adminSupabase.from('leads').update({ postcard_job_id: null }).eq('id', lead.id)
+        // Scope the unclaim to OUR job so a concurrent request that successfully
+        // claimed the same lead isn't accidentally unlinked.
+        await adminSupabase
+          .from('leads')
+          .update({ postcard_job_id: null })
+          .eq('id', lead.id)
+          .eq('postcard_job_id', jobId)
       }
     }
   }
@@ -253,9 +260,16 @@ export async function POST(request: Request) {
   // Helper to undo everything reserved above (used on any failure past here).
   const releaseReservation = async () => {
     const jobIds = claimed.map((c) => c.jobId)
-    const leadIdsToFree = claimed.map((c) => c.leadId)
     await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).in('id', jobIds)
-    await adminSupabase.from('leads').update({ postcard_job_id: null, selected_for_dispatch: false }).in('id', leadIdsToFree)
+    // Free each lead scoped to the job that claimed it, so we can never unlink a
+    // lead that a concurrent request has since claimed under a different job.
+    for (const c of claimed) {
+      await adminSupabase
+        .from('leads')
+        .update({ postcard_job_id: null, selected_for_dispatch: false })
+        .eq('id', c.leadId)
+        .eq('postcard_job_id', c.jobId)
+    }
   }
 
   // 2. Reserve q postcards against the period counter AND the hard cap, in one
@@ -307,17 +321,58 @@ export async function POST(request: Request) {
       const { paymentIntentId: pi } = await chargePostcardBatch({
         customerId: profile.stripe_customer_id as string,
         amountPence: costPence,
-        // Stable per send: a retried confirm reuses the same batch id, so Stripe
-        // dedupes and never double-charges.
+        // Keyed on THIS request's batch id. batchId is randomUUID() per request
+        // (see above), so this only dedupes a transport-level retry of this exact
+        // request — it does NOT dedupe a user's repeated confirm, which arrives
+        // with a fresh batch id.
         idempotencyKey: `postcard-batch:${batchId}`,
         metadata: { userId: user.id, batchId, payableCount: String(payableCount) },
       })
       paymentIntentId = pi
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Your card was declined.'
-      await adminSupabase.rpc('decrement_postcards_used', { p_user_id: user.id, p_amount: q })
-      await releaseReservation()
-      return NextResponse.json({ error: msg }, { status: 402 })
+      const e = err as Error & { type?: string; code?: string }
+      const isCardDecline =
+        e.type === 'StripeCardError' ||
+        e.code === 'card_declined' ||
+        e.code === 'authentication_required'
+
+      if (isCardDecline) {
+        // A genuine decline means no money moved, so it is safe to fully unwind
+        // and refuse: hand back the reserved usage, cancel the holds, free the
+        // leads, dispatch nothing.
+        const msg = e.message || 'Your card was declined.'
+        await adminSupabase.rpc('decrement_postcards_used', { p_user_id: user.id, p_amount: q })
+        await releaseReservation()
+        return NextResponse.json({ error: msg }, { status: 402 })
+      }
+
+      // Any OTHER failure (network/timeout, Stripe API error, or our own
+      // non-succeeded guard): the charge MAY have actually gone through, so we
+      // must NOT decrement usage or free the leads — that would risk a
+      // charged-but-freed state. Leave the reservation and (still pending, so the
+      // cron never posts them) holds in place for operator review, alert, and
+      // return 500.
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error(
+        `Postcard charge failed (non-decline) for batch ${batchId}, user ${user.id}:`,
+        msg
+      )
+      await sendAdminAlert(
+        `[Housepost] Postcard charge failed and needs review — batch ${batchId}`,
+        `<p>A postcard charge for user <strong>${user.id}</strong> (batch <strong>${batchId}</strong>,
+          ${payableCount} paid card${payableCount === 1 ? '' : 's'}, ${formatPounds(costPence)}) failed
+          with a NON-decline error. The charge may have succeeded, so the reserved usage and pending
+          holds were deliberately LEFT IN PLACE (not unwound) to avoid a charged-but-freed state.
+          Please reconcile against Stripe.</p>
+         <pre>${msg}</pre>`
+      )
+      return NextResponse.json(
+        {
+          error:
+            'Something went wrong while taking payment. Our team has been notified — please check with support before trying again.',
+        },
+        { status: 500 }
+      )
     }
   }
 
@@ -326,21 +381,39 @@ export async function POST(request: Request) {
   //    so cancel can refund them. Stannp is NOT called here — the release cron
   //    does that once the cool-off expires.
   const releaseAt = new Date(Date.now() + POSTCARD_COOL_OFF_MINUTES * 60_000).toISOString()
-  const heldJobIds: string[] = []
-  for (let i = 0; i < claimed.length; i++) {
-    const { jobId } = claimed[i]
-    const isIncluded = i < includedCount
+  const heldJobIds = claimed.map((c) => c.jobId)
+  // The included cards are always the first `includedCount` of the batch.
+  const paidJobIds = claimed.slice(includedCount).map((c) => c.jobId)
+
+  // Promote every held row in ONE update, defaulting to included (free) and
+  // snapshotting the designs AS THEY ARE NOW. The release cron prints from these
+  // snapshot columns, so a design change or removal during the cool-off can't
+  // alter or break what actually goes out versus what the user previewed.
+  await adminSupabase
+    .from('postcard_jobs')
+    .update({
+      status: 'held',
+      release_at: releaseAt,
+      was_included_in_subscription: true,
+      charge_amount_pence: 0,
+      stripe_payment_intent_id: null,
+      held_design_front_url: frontUrl,
+      held_design_back_url: backUrl,
+    })
+    .in('id', heldJobIds)
+
+  // Then flip only the paid rows to carry the overage charge and the shared
+  // PaymentIntent (so cancel can refund them). Two bulk updates in total, never
+  // one round-trip per row.
+  if (paidJobIds.length > 0) {
     await adminSupabase
       .from('postcard_jobs')
       .update({
-        status: 'held',
-        release_at: releaseAt,
-        was_included_in_subscription: isIncluded,
-        charge_amount_pence: isIncluded ? 0 : POSTCARD_OVERAGE_PENCE,
-        stripe_payment_intent_id: isIncluded ? null : paymentIntentId,
+        was_included_in_subscription: false,
+        charge_amount_pence: POSTCARD_OVERAGE_PENCE,
+        stripe_payment_intent_id: paymentIntentId,
       })
-      .eq('id', jobId)
-    heldJobIds.push(jobId)
+      .in('id', paidJobIds)
   }
 
   // Record the purchase as an in-app notification (and email, per the user's
