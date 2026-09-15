@@ -1,3 +1,4 @@
+import { createElement } from 'react'
 import Link from 'next/link'
 import { MapPin, Mail, Bell } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,7 +23,10 @@ function iconFor(type: string) {
  * /notifications page. When a `href` is present the whole row links to it.
  */
 export function NotificationRow({ notification }: { notification: Notification }) {
-  const Icon = iconFor(notification.type)
+  // createElement, not <Icon/>: aliasing a component to a render-local and
+  // rendering it as JSX trips react-hooks/static-components. iconFor only ever
+  // returns an existing module-level icon, so this is behaviourally identical.
+  const icon = createElement(iconFor(notification.type), { className: 'h-4 w-4' })
 
   const inner = (
     <div className="flex items-start gap-3 px-4 py-3">
@@ -32,7 +36,7 @@ export function NotificationRow({ notification }: { notification: Notification }
           notification.read ? 'bg-slate-100 text-slate-400' : 'bg-brand-light/20 text-brand'
         )}
       >
-        <Icon className="h-4 w-4" />
+        {icon}
       </span>
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-2 text-sm font-medium text-slate-800">

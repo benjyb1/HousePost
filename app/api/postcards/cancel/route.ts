@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { refundPostcardCharge } from '@/lib/stripe/billing'
 import { sendAdminAlert } from '@/lib/email/resend'
+import { createNotification } from '@/lib/notifications'
 import { POSTCARD_OVERAGE_PENCE } from '@/types/profile'
 
 /**
@@ -158,6 +159,20 @@ export async function POST(request: Request) {
       )
     }
   }
+
+  // Record the cancellation as an in-app notification (and email, per the user's
+  // preference), mirroring the "on the way" one the send creates. Best-effort —
+  // never block the cancel response on it.
+  await createNotification({
+    userId: user.id,
+    type: 'order_cancelled',
+    title: `Order cancelled — ${cancelledCount} postcard${cancelledCount === 1 ? '' : 's'} held back`,
+    body:
+      refundedPence > 0
+        ? `£${(refundedPence / 100).toFixed(2)} has been refunded to your card.`
+        : 'No charge was taken, so there is nothing to refund.',
+    href: '/postcards',
+  })
 
   return NextResponse.json({
     success: true,

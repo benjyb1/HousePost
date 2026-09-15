@@ -27,6 +27,12 @@ export default function ResetPasswordPage() {
     // already-used link), it arrives in the URL hash. Surface it plainly.
     const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
     if (hash.get('error')) {
+      // This effect's whole job is to read the recovery token out of the URL and
+      // sync it into React state; a lazy useState initialiser can't do it (window
+      // is undefined during SSR, and a client-only initial value would hydrate-
+      // mismatch). Setting state synchronously here is correct, so silence the
+      // rule for this one line rather than restructure a verified auth flow.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStatus('invalid')
       return
     }

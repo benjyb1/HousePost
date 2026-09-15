@@ -17,10 +17,12 @@ const ACTIVITY_THROTTLE_MS = 1000
 
 export function IdleLogout() {
   const router = useRouter()
-  const lastActivityRef = useRef<number>(Date.now())
+  // Seeded in the effect (not here): reading Date.now() during render is impure.
+  const lastActivityRef = useRef<number>(0)
   const loggingOutRef = useRef(false)
 
   useEffect(() => {
+    lastActivityRef.current = Date.now()
     let lastWrite = 0
     const markActivity = () => {
       const now = Date.now()
