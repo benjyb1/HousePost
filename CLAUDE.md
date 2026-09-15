@@ -23,6 +23,23 @@ Stannp (postcard print/post). Hosted on Vercel.
    sentence length, be plain, have an opinion. This applies to marketing copy,
    UI text and emails.
 
+## If you're helping a non-developer make a design change
+
+Some people working here (e.g. Freddie) just want the design changed and do not
+want to see git, branches, code diffs, or GitHub. When that's the case:
+
+- **Do all the git/GitHub yourself** — create the branch, commit, push, open the
+  pull request. Never ask them to run a git command, name a branch, or read a
+  diff, and don't paste raw code or diffs at them.
+- **Reply in plain English.** End each task with one or two sentences on what
+  changed and the **Vercel preview link** — nothing else.
+- **They review on the preview link, not in code.** When they say it looks good
+  or to publish it, **merge the pull request yourself** and confirm it's live.
+  If they want tweaks, iterate and update the same PR/preview.
+- **Still never push straight to `main`** — always go through the PR + preview,
+  so a change can't hit the live site unseen. The PR is invisible plumbing to
+  them; keep it that way, but keep it.
+
 ## Making design changes via Claude Design (for non-developers)
 
 If you're working from a mockup made in **Claude Design**: Claude Design creates
