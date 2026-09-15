@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { ArrowLeft, Check, RotateCcw, Upload, ExternalLink } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { PostcardPreview } from './PostcardPreview'
 import {
   SVG_TEMPLATES,
   getTemplate,
@@ -74,13 +75,23 @@ function SvgFrame({ svgString, className }: { svgString: string; className?: str
   )
 }
 
-export function SvgTemplateEditor({ onUseUpload }: { onUseUpload?: () => void }) {
+export function SvgTemplateEditor({
+  onUseUpload,
+  onBackToOptions,
+}: {
+  onUseUpload?: () => void
+  onBackToOptions?: () => void
+}) {
   const supabase = createClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [values, setValues] = useState<TemplateValues | null>(null)
   const [saving, setSaving] = useState(false)
   const [savedUrl, setSavedUrl] = useState<string | null>(null)
+  const [savedBackUrl, setSavedBackUrl] = useState<string | null>(null)
+  // When set, the front design has just been saved as active — show the
+  // confirmation preview instead of silently returning to the editor.
+  const [confirmFrontUrl, setConfirmFrontUrl] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -92,6 +103,7 @@ export function SvgTemplateEditor({ onUseUpload }: { onUseUpload?: () => void })
       const res = await fetch('/api/settings', { cache: 'no-store' })
       const { profile } = await res.json()
       setSavedUrl(profile?.postcard_design_url ?? null)
+      setSavedBackUrl(profile?.postcard_design_back_url ?? null)
     }
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -147,12 +159,83 @@ export function SvgTemplateEditor({ onUseUpload }: { onUseUpload?: () => void })
       }
 
       setSavedUrl(versionedUrl)
+
+      // Also record it in the saved-designs LIBRARY (templates are front-only).
+      // Best-effort: a failure here must not undo the successful active save.
+      try {
+        await fetch('/api/postcards/designs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source: 'template',
+            front_url: versionedUrl,
+            label: `${template.name} template · ${new Intl.DateTimeFormat('en-GB', {
+              day: 'numeric',
+              month: 'short',
+            }).format(new Date())}`,
+          }),
+        })
+      } catch {
+        /* non-fatal — the design is already saved as active */
+      }
+
       toast.success('Front design saved from your template')
+      setConfirmFrontUrl(versionedUrl)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save design')
     } finally {
       setSaving(false)
     }
+  }
+
+  /* --------------------------- Confirmation step -------------------------- */
+  if (confirmFrontUrl) {
+    return (
+      <div className="space-y-5">
+        <Card className="border-green-200 bg-green-50/60">
+          <CardContent className="space-y-1 p-5">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-green-800">
+              <Check className="h-4 w-4" />
+              This is now your active postcard
+            </h3>
+            <p className="text-sm text-green-700/90">
+              Here&apos;s how it will print. Templates set the front only — the back shows the reserved
+              address area until you add a back design.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-5">
+            <PostcardPreview frontUrl={confirmFrontUrl} backUrl={savedBackUrl} onAddBack={onUseUpload} />
+          </CardContent>
+        </Card>
+
+        {!savedBackUrl && (
+          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+            No back design yet. The back will print as the reserved address area only.{' '}
+            {onUseUpload && (
+              <button
+                type="button"
+                onClick={onUseUpload}
+                className="font-medium underline underline-offset-2"
+              >
+                Add a back design
+              </button>
+            )}
+          </p>
+        )}
+
+        <div className="flex flex-wrap gap-3">
+          {onBackToOptions && (
+            <Button onClick={onBackToOptions}>Done</Button>
+          )}
+          <Button variant="outline" onClick={() => setConfirmFrontUrl(null)}>
+            Back to templates
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   /* ----------------------------- Chooser step ----------------------------- */

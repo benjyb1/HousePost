@@ -56,7 +56,6 @@ export function SiteFooter({ variant = 'public' }: { variant?: 'public' | 'porta
           <div className="flex flex-col gap-1 text-sm text-slate-500 sm:items-end">
             <Link href="/opt-out" className="hover:text-slate-700 transition-colors">Opt out of mail</Link>
             <Link href="/privacy" className="hover:text-slate-700 transition-colors">Privacy policy</Link>
-            <Link href="/terms" className="hover:text-slate-700 transition-colors">Terms and conditions</Link>
           </div>
         </div>
       </div>

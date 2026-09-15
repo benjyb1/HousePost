@@ -7,6 +7,7 @@ import { DesignOptionChooser, type DesignOption } from '@/components/postcards/D
 import { SvgTemplateEditor } from '@/components/postcards/SvgTemplateEditor'
 import { UploadCustomDesign } from '@/components/postcards/UploadCustomDesign'
 import { CustomDesignBrief } from '@/components/postcards/CustomDesignBrief'
+import { DesignLibrary } from '@/components/postcards/DesignLibrary'
 
 const HEADINGS: Record<DesignOption, { title: string; subtitle: string }> = {
   template: {
@@ -37,6 +38,7 @@ export default function PostcardDesignPage() {
             </p>
           </div>
           <DesignOptionChooser onSelect={setOption} />
+          <DesignLibrary onGoToUpload={() => setOption('upload')} />
         </>
       ) : (
         <>
@@ -56,8 +58,13 @@ export default function PostcardDesignPage() {
             </div>
           </div>
 
-          {option === 'template' && <SvgTemplateEditor onUseUpload={() => setOption('upload')} />}
-          {option === 'upload' && <UploadCustomDesign />}
+          {option === 'template' && (
+            <SvgTemplateEditor
+              onUseUpload={() => setOption('upload')}
+              onBackToOptions={() => setOption(null)}
+            />
+          )}
+          {option === 'upload' && <UploadCustomDesign onBackToOptions={() => setOption(null)} />}
           {option === 'request' && <CustomDesignBrief />}
         </>
       )}

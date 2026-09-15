@@ -6,8 +6,9 @@ import type { Area } from 'react-easy-crop'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
-import { Upload, Trash2, ImageIcon, Eye, Sparkles } from 'lucide-react'
+import { Upload, Trash2, ImageIcon, Eye, Sparkles, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { PostcardPreview } from './PostcardPreview'
 
 // Cards print A6 (148×105mm). Artwork is supplied at 154×111mm (A6 + 3mm bleed
 // on every edge) and 3mm is trimmed off all round, so the design must run past
@@ -219,7 +220,7 @@ async function getCroppedImg(imageSrc: string, cropArea: Area, addBleed: boolean
   return canvasToBlob(full)
 }
 
-export function UploadCustomDesign() {
+export function UploadCustomDesign({ onBackToOptions }: { onBackToOptions?: () => void }) {
   const supabase = createClient()
   const frontFileInputRef = useRef<HTMLInputElement>(null)
   const backFileInputRef = useRef<HTMLInputElement>(null)
@@ -254,6 +255,9 @@ export function UploadCustomDesign() {
   const [rendering, setRendering] = useState(false)
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  // After a successful save, show the finished-card confirmation preview instead
+  // of silently returning. Holds the resulting active front/back pair.
+  const [confirmPair, setConfirmPair] = useState<{ front: string | null; back: string | null } | null>(null)
 
   // Derived state for whichever side is active
   const isFront = activeSide === 'front'
@@ -425,7 +429,29 @@ export function UploadCustomDesign() {
       setCurrentDesignUrl(versionedUrl)
       setImageSrc(null)
       setPreviewUrl(null) // design changed — the old proof is stale
+
+      // The resulting active pair after this save (the other side is unchanged).
+      const pair = isFront
+        ? { front: versionedUrl, back: backDesignUrl }
+        : { front: frontDesignUrl, back: versionedUrl }
+
+      // Record it in the saved-designs LIBRARY. A front is required, so if only a
+      // back exists so far we skip (the library entry appears once a front is in).
+      // Best-effort: never undo the successful active save.
+      if (pair.front) {
+        try {
+          await fetch('/api/postcards/designs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ source: 'upload', front_url: pair.front, back_url: pair.back }),
+          })
+        } catch {
+          /* non-fatal */
+        }
+      }
+
       toast.success(`${config.label} design saved`)
+      setConfirmPair(pair)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save design')
     } finally {
@@ -488,6 +514,54 @@ export function UploadCustomDesign() {
 
   return (
     <div className="space-y-6">
+      {/* Post-save confirmation — the finished card, front and back. */}
+      {confirmPair && (
+        <Card className="border-green-200 bg-green-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-green-800">
+              <Check className="h-5 w-5" />
+              This is now your active postcard
+            </CardTitle>
+            <CardDescription className="text-green-700/90">
+              Here&apos;s how it will print — front and back. The back&apos;s right half is reserved for the
+              address the printer adds.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <PostcardPreview
+              frontUrl={confirmPair.front}
+              backUrl={confirmPair.back}
+              onAddBack={() => {
+                setConfirmPair(null)
+                setActiveSide('back')
+              }}
+            />
+            {!confirmPair.back && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                No back design yet. The back will print as the reserved address area only —{' '}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setConfirmPair(null)
+                    setActiveSide('back')
+                  }}
+                  className="font-medium underline underline-offset-2"
+                >
+                  add a back design
+                </button>
+                .
+              </p>
+            )}
+            <div className="flex flex-wrap gap-3">
+              {onBackToOptions && <Button onClick={onBackToOptions}>Done</Button>}
+              <Button variant="outline" onClick={() => setConfirmPair(null)}>
+                Keep editing
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
         <p className="text-sm text-slate-600">
           Upload your front and back artwork as PDFs. The technical spec: a print-ready PDF at A6 with 3mm bleed,
