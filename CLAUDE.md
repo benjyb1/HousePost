@@ -23,6 +23,22 @@ Stannp (postcard print/post). Hosted on Vercel.
    sentence length, be plain, have an opinion. This applies to marketing copy,
    UI text and emails.
 
+## Making design changes via Claude Design (for non-developers)
+
+If you're working from a mockup made in **Claude Design**: Claude Design creates
+the look, but it does **not** change this live site by itself. Turn it into a
+real change with **Claude Code on the web** (claude.ai/code) — no local setup:
+
+1. Design the change in Claude Design (it can read this repo's colours, fonts
+   and components so mockups match the real site).
+2. Open claude.ai/code, pick this repo, and ask it to implement the design —
+   e.g. "restyle the homepage hero to match this Claude Design: <link/description>".
+3. It edits the code and opens a **pull request**. Open the Vercel preview link
+   on that PR to see it live, tweak by replying, then merge when happy.
+
+Follow the same boundaries below — restyle freely, don't change how the money,
+auth, database or compliance code behaves.
+
 ## What's safe to change (design & content — go ahead)
 
 - **Pages & layout:** `app/page.tsx` (homepage), `app/houses-sold/`,
