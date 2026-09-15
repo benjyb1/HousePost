@@ -6,6 +6,8 @@ import { calculatePostcardCost, chargePostcardBatch } from '@/lib/stripe/billing
 import { currentMonthKey } from '@/lib/utils/date'
 import { createNotification } from '@/lib/notifications'
 import { sendAdminAlert } from '@/lib/email/resend'
+import { loadSuppressionKeys } from '@/lib/leads/suppression'
+import { addressKey } from '@/lib/address/normalise'
 import {
   INCLUDED_POSTCARDS_PER_MONTH,
   POSTCARD_OVERAGE_PENCE,
@@ -133,7 +135,32 @@ export async function POST(request: Request) {
   }
 
   const used = (profile.postcards_used_this_period as number) ?? 0
-  const eligible = leads ?? []
+
+  // ── Do-not-contact screening (compliance) ──────────────────────────────────
+  // Screen every eligible lead against the suppression list HERE, at send time —
+  // not just at lead generation. An opt-out recorded after a batch dropped, a
+  // "Send again", or a hand-typed custom address would otherwise still be posted.
+  // loadSuppressionKeys fails CLOSED (throws on a transient read error), so a
+  // blip refuses the send rather than silently posting to opted-out addresses.
+  const adminScreen = createAdminClient()
+  let suppressionKeys: Set<string>
+  try {
+    suppressionKeys = await loadSuppressionKeys(adminScreen)
+  } catch (err) {
+    console.error('Suppression screen failed for send:', err)
+    return NextResponse.json(
+      { error: 'We could not verify the do-not-contact list just now. Please try again shortly.' },
+      { status: 503 }
+    )
+  }
+  const notSuppressed = (leads ?? []).filter(
+    (l) =>
+      suppressionKeys.size === 0 ||
+      !suppressionKeys.has(addressKey(l.address_line as string, l.postcode as string))
+  )
+  const suppressedCount = (leads ?? []).length - notSuppressed.length
+
+  const eligible = notSuppressed
   const quantity = eligible.length
 
   // ── PREVIEW ──────────────────────────────────────────────────────────────
@@ -143,7 +170,8 @@ export async function POST(request: Request) {
       preview: true,
       requested: leadIds.length,
       quantity,
-      alreadySent: leadIds.length - quantity,
+      suppressed: suppressedCount,
+      alreadySent: leadIds.length - quantity - suppressedCount,
       used,
       includedRemaining: Math.max(0, INCLUDED_POSTCARDS_PER_MONTH - used),
       includedApplied: included,
@@ -334,7 +362,12 @@ export async function POST(request: Request) {
       const isCardDecline =
         e.type === 'StripeCardError' ||
         e.code === 'card_declined' ||
-        e.code === 'authentication_required'
+        e.code === 'authentication_required' ||
+        // No usable card on file: chargePostcardBatch throws BEFORE hitting
+        // Stripe, so no money moved and it is safe to unwind and refuse. Without
+        // this it fell through to the ambiguous path below and stranded the
+        // leads + reserved allowance behind a 500.
+        e.code === 'no_payment_method'
 
       if (isCardDecline) {
         // A genuine decline means no money moved, so it is safe to fully unwind
@@ -357,15 +390,21 @@ export async function POST(request: Request) {
         `Postcard charge failed (non-decline) for batch ${batchId}, user ${user.id}:`,
         msg
       )
-      await sendAdminAlert(
-        `[Housepost] Postcard charge failed and needs review — batch ${batchId}`,
-        `<p>A postcard charge for user <strong>${user.id}</strong> (batch <strong>${batchId}</strong>,
-          ${payableCount} paid card${payableCount === 1 ? '' : 's'}, ${formatPounds(costPence)}) failed
-          with a NON-decline error. The charge may have succeeded, so the reserved usage and pending
-          holds were deliberately LEFT IN PLACE (not unwound) to avoid a charged-but-freed state.
-          Please reconcile against Stripe.</p>
-         <pre>${msg}</pre>`
-      )
+      // Best-effort: a Resend outage here must not turn into an unhandled 500 that
+      // masks the real "check with support" message below.
+      try {
+        await sendAdminAlert(
+          `[Housepost] Postcard charge failed and needs review — batch ${batchId}`,
+          `<p>A postcard charge for user <strong>${user.id}</strong> (batch <strong>${batchId}</strong>,
+            ${payableCount} paid card${payableCount === 1 ? '' : 's'}, ${formatPounds(costPence)}) failed
+            with a NON-decline error. The charge may have succeeded, so the reserved usage and pending
+            holds were deliberately LEFT IN PLACE (not unwound) to avoid a charged-but-freed state.
+            Please reconcile against Stripe.</p>
+           <pre>${msg}</pre>`
+        )
+      } catch (alertErr) {
+        console.error(`Failed to send charge-ambiguous alert for batch ${batchId}:`, alertErr)
+      }
       return NextResponse.json(
         {
           error:

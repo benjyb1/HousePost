@@ -18,6 +18,13 @@ const MAX_ORDERS_PER_RUN = 100
 // retry could double-print.
 const STUCK_DISPATCHING_MINUTES = 10
 
+// A row left in 'pending' this long almost certainly comes from a charge whose
+// outcome was ambiguous (network/timeout after the PaymentIntent was created):
+// the send route deliberately does NOT unwind those, to avoid a charged-but-freed
+// state. They carry no release_at so the cron never posts them, and nothing else
+// sweeps them, so their leads stay claimed. Alert so an operator reconciles.
+const STUCK_PENDING_MINUTES = 20
+
 function verifyCronSecret(request: Request): boolean {
   const auth = request.headers.get('authorization')
   return auth === `Bearer ${process.env.CRON_SECRET}`
@@ -78,6 +85,37 @@ export async function POST(request: Request) {
       )
     } catch (alertErr) {
       console.error('Release cron: failed to send stuck-dispatching alert:', alertErr)
+    }
+  }
+
+  // Detect rows stuck in 'pending' (an ambiguous charge that we deliberately did
+  // not unwind). Alert only — a human must decide, against Stripe, whether the
+  // charge landed before freeing the leads and handing the allowance back.
+  const pendingCutoffIso = new Date(
+    Date.now() - STUCK_PENDING_MINUTES * 60_000
+  ).toISOString()
+  const { data: stuckPending } = await supabase
+    .from('postcard_jobs')
+    .select('id, user_id, batch_id')
+    .eq('status', 'pending')
+    .lt('created_at', pendingCutoffIso)
+    .limit(MAX_ORDERS_PER_RUN)
+  if (stuckPending && stuckPending.length > 0) {
+    const ids = stuckPending.map((r) => r.id as string)
+    console.error(
+      `Release cron: ${stuckPending.length} postcard job(s) stuck 'pending' (>${STUCK_PENDING_MINUTES}m):`,
+      ids.join(', ')
+    )
+    try {
+      await sendAdminAlert(
+        `[Housepost] ${stuckPending.length} postcard job(s) stuck 'pending' — needs review`,
+        `<p><strong>${stuckPending.length}</strong> postcard job(s) have sat in <code>pending</code>
+          for over ${STUCK_PENDING_MINUTES} minutes. This points to a charge whose outcome was
+          ambiguous. Check Stripe for each batch before deciding whether to release, refund, or free
+          the leads:</p><pre>${ids.join('\n')}</pre>`
+      )
+    } catch (alertErr) {
+      console.error('Release cron: failed to send stuck-pending alert:', alertErr)
     }
   }
 

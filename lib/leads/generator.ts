@@ -4,58 +4,12 @@ import { geocodeWithCache } from '@/lib/geocoding/postcodes-io'
 import { geocodeTransactionsForMonth } from '@/lib/geocoding/postcodes-io'
 import { expandRadius } from './radius-expander'
 import { addressKey } from '@/lib/address/normalise'
+import { loadSuppressionKeys } from './suppression'
 
 interface LeadGenerationResult {
   leadsCreated: number
   hitMaxRadius: boolean
   radiusUsed: number
-}
-
-type SupabaseAdminClient = ReturnType<typeof createAdminClient>
-
-/**
- * Load every suppression (do-not-contact) address key into a Set, in bulk.
- *
- * This is read once per generation run and used to screen out properties whose
- * occupants have opted out via /opt-out. Keys are produced by
- * lib/address/normalise.ts:addressKey() on both sides so a plain Set lookup is
- * enough — no per-row queries.
- *
- * Fails soft ONLY for a genuinely-absent table: if suppression_list does not
- * yet exist (Postgres 42P01 undefined_table — the migration hasn't been applied,
- * so there legitimately are no opt-outs), we log and return an empty set so lead
- * generation still works. An empty table likewise yields an empty set. For ANY
- * OTHER error we THROW: a transient read failure must NOT silently disable
- * do-not-contact screening (that would post to people who opted out). The thrown
- * error fails the generation run and fires the existing admin failure alert.
- */
-async function loadSuppressionKeys(
-  supabase: SupabaseAdminClient
-): Promise<Set<string>> {
-  const keys = new Set<string>()
-  const PAGE = 1000
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
-      .from('suppression_list')
-      .select('address_key')
-      .range(from, from + PAGE - 1)
-
-    if (error) {
-      // Only an absent table fails soft (migration not applied yet). Anything
-      // else must fail loudly so we never post to opted-out addresses.
-      if (error.code === '42P01') {
-        console.warn(`Suppression list table absent, skipping screening: ${error.message}`)
-        return keys
-      }
-      throw new Error(`Failed to load suppression list: ${error.message}`)
-    }
-    if (!data || data.length === 0) break
-    for (const row of data) {
-      if (row.address_key) keys.add(row.address_key as string)
-    }
-    if (data.length < PAGE) break
-  }
-  return keys
 }
 
 /**

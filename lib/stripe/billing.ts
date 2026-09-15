@@ -158,9 +158,13 @@ export async function chargePostcardBatch(params: {
 
   const paymentMethod = await getDefaultCardPaymentMethod(params.customerId)
   if (!paymentMethod) {
-    throw new Error(
+    // Tag this so the caller can treat "no usable card" like a decline — no money
+    // moved, so it is SAFE to unwind and refuse rather than the ambiguous path.
+    const noCard = new Error(
       'No saved card on file. Add a payment card in Billing before sending paid postcards.'
-    )
+    ) as Error & { code?: string }
+    noCard.code = 'no_payment_method'
+    throw noCard
   }
 
   try {
@@ -236,9 +240,11 @@ export async function chargeCustomDesignFee(params: {
 
   const paymentMethod = await getDefaultCardPaymentMethod(params.customerId)
   if (!paymentMethod) {
-    throw new Error(
+    const noCard = new Error(
       'No saved card on file. Add a payment card in Billing before requesting a custom design.'
-    )
+    ) as Error & { code?: string }
+    noCard.code = 'no_payment_method'
+    throw noCard
   }
 
   try {
@@ -263,12 +269,23 @@ export async function chargeCustomDesignFee(params: {
 
     return { paymentIntentId: intent.id }
   } catch (err) {
+    // PRESERVE the Stripe `type`/`code` on the thrown error, exactly like
+    // chargePostcardBatch, so the caller can tell a genuine card decline (safe to
+    // refuse, record nothing) from any other failure (where the charge may in
+    // fact have succeeded and must NOT be silently retried — a retry with a fresh
+    // idempotency key would double-charge the £75 fee).
     if (err instanceof Stripe.errors.StripeError) {
       const declineMessage =
         err.code === 'authentication_required'
           ? 'Your card needs authentication that we cannot complete for an automatic charge. Please contact support or update your card.'
           : err.message || 'Your card was declined.'
-      throw new Error(declineMessage)
+      const wrapped = new Error(declineMessage) as Error & {
+        type?: string
+        code?: string
+      }
+      wrapped.type = err.type
+      wrapped.code = err.code ?? undefined
+      throw wrapped
     }
     throw err
   }

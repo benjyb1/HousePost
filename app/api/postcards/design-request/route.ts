@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHash } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { chargeCustomDesignFee, CUSTOM_DESIGN_FEE_PENCE } from '@/lib/stripe/billing'
@@ -118,17 +118,69 @@ export async function POST(request: Request) {
 
   // ── Charge the £75 fee UP FRONT ────────────────────────────────────────────
   // Do this BEFORE we store anything so a declined card records no paid request.
+  //
+  // The idempotency key is derived from the USER + a hash of the brief, NOT from
+  // the per-request UUID. A retried submit (double click, or a client retry after
+  // a network wobble that actually reached Stripe) therefore reuses the same key,
+  // so Stripe returns the SAME PaymentIntent instead of charging £75 twice. Two
+  // genuinely different briefs hash differently and are charged independently.
+  const briefFingerprint = createHash('sha256')
+    .update(
+      [user.id, businessName, colourScheme, text, notes].join('|')
+    )
+    .digest('hex')
+    .slice(0, 40)
+  const idempotencyKey = `custom-design:${briefFingerprint}`
+
   let paymentIntentId: string
   try {
     const { paymentIntentId: pi } = await chargeCustomDesignFee({
       customerId: profile.stripe_customer_id as string,
-      idempotencyKey: `custom-design:${requestId}`,
+      idempotencyKey,
       metadata: { userId: user.id, requestId, kind: 'custom_design_fee' },
     })
     paymentIntentId = pi
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Your card was declined.'
-    return NextResponse.json({ error: msg }, { status: 402 })
+    const e = err as Error & { type?: string; code?: string }
+    const isCardDecline =
+      e.type === 'StripeCardError' ||
+      e.code === 'card_declined' ||
+      e.code === 'authentication_required' ||
+      e.code === 'no_payment_method'
+
+    if (isCardDecline) {
+      // No money moved — safe to refuse and record nothing as a paid request.
+      return NextResponse.json(
+        { error: e.message || 'Your card was declined.' },
+        { status: 402 }
+      )
+    }
+
+    // Any OTHER failure (network/timeout, Stripe API error): the charge MAY have
+    // gone through, so we must NOT tell the user it was declined (they'd resubmit
+    // and, with the stable key above, Stripe would return the same PI — no double
+    // charge — but the honest thing is to send them to support). Alert the team so
+    // a possibly-paid request is actioned, and return 500.
+    const msg = e instanceof Error ? e.message : String(e)
+    console.error(`[design-request] charge failed (non-decline) for user ${user.id}:`, msg)
+    try {
+      await sendAdminAlert(
+        `[Housepost] Custom design charge failed and needs review — ${businessName}`,
+        `<p>A £75 custom-design charge for user <strong>${escapeHtml(user.id)}</strong>
+          (<strong>${escapeHtml(businessName)}</strong>) failed with a NON-decline error. The charge
+          MAY have succeeded. The idempotency key was stable, so a customer retry cannot double-charge,
+          but please check Stripe and follow up.</p><pre>${escapeHtml(msg)}</pre>`
+      )
+    } catch (alertErr) {
+      console.error('[design-request] charge-failure alert failed:', alertErr)
+    }
+    return NextResponse.json(
+      {
+        error:
+          'Something went wrong while taking payment. Our team has been notified — please check with support before trying again.',
+      },
+      { status: 500 }
+    )
   }
 
   // ── Charge settled — store the brief + assets ──────────────────────────────

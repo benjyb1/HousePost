@@ -44,6 +44,7 @@ type PreviewData = {
   preview: true
   requested?: number
   quantity: number
+  suppressed?: number
   alreadySent: number
   used: number
   includedRemaining: number
@@ -928,6 +929,13 @@ function SendModal({
                 <p className="text-xs text-slate-500">
                   {preview.alreadySent} of your selected lead{preview.alreadySent === 1 ? ' was' : 's were'} already
                   sent and skipped.
+                </p>
+              )}
+
+              {(preview.suppressed ?? 0) > 0 && (
+                <p className="text-xs text-slate-500">
+                  {preview.suppressed} {preview.suppressed === 1 ? 'address is' : 'addresses are'} on the
+                  do-not-contact list and {preview.suppressed === 1 ? 'was' : 'were'} removed.
                 </p>
               )}
 

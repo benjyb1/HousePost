@@ -13,6 +13,12 @@ export const maxDuration = 60
 // the workflow runs a few times a day, which is ample for a multi-day pipeline.
 const BATCH_SIZE = 100
 
+// Only poll cards dispatched within this window. A postcard's fulfilment pipeline
+// plays out over a few days; anything older is effectively terminal. This also
+// stops the poller endlessly re-checking pre-Stannp legacy rows (old PostGrid
+// letter ids that the current provider can't resolve, which just error every run).
+const POLL_WINDOW_DAYS = 45
+
 function verifyCronSecret(request: Request): boolean {
   const auth = request.headers.get('authorization')
   return auth === `Bearer ${process.env.CRON_SECRET}`
@@ -31,10 +37,14 @@ export async function POST(request: Request) {
   // 'dispatched' at hand-off), so we filter on postgrid_status. A job whose
   // postgrid_status is somehow null still gets picked up defensively.
   const terminalList = (TERMINAL_STATUSES as readonly string[]).join(',')
+  const windowStartIso = new Date(
+    Date.now() - POLL_WINDOW_DAYS * 24 * 60 * 60 * 1000
+  ).toISOString()
   const { data: jobs, error } = await supabase
     .from('postcard_jobs')
     .select('id, postgrid_letter_id, status, postgrid_status')
     .not('postgrid_letter_id', 'is', null)
+    .gte('created_at', windowStartIso)
     .or(`postgrid_status.is.null,postgrid_status.not.in.(${terminalList})`)
     .order('updated_at', { ascending: true })
     .limit(BATCH_SIZE)
@@ -66,16 +76,18 @@ export async function POST(request: Request) {
       const current = (job.postgrid_status ?? job.status) as string | null
       if (next === current) continue
 
-      // Write to BOTH columns during the postgrid_status → status transition.
-      // The reading code uses `postgrid_status ?? status`, so writing
-      // postgrid_status keeps the on-screen value fresh today, while status is
-      // the single-column consolidation target the migration backfills. Once the
-      // migration has relaxed the status CHECK, both accept the full pipeline
-      // vocabulary; a job update that is somehow rejected is caught per-item
-      // below so one bad row never aborts the batch.
+      // Write ONLY the fine-grained pipeline state to postgrid_status, and NEVER
+      // touch the coarse `status` column. `status` stays 'dispatched' from
+      // hand-off onward, which is what the money paths rely on: billPendingOverage
+      // and the retry-billing sweep both key on status = 'dispatched', and the
+      // dashboard "postcards sent" count treats 'dispatched' as sent. If we also
+      // wrote `status = 'printed' / 'delivered' / ...` here it would rewind the
+      // lifecycle out from under those queries and unbilled overage would become
+      // invisible. The Tracking UI reads `postgrid_status ?? status`, so writing
+      // postgrid_status alone keeps the on-screen status fully live.
       const { error: updateError } = await supabase
         .from('postcard_jobs')
-        .update({ status: next, postgrid_status: next })
+        .update({ postgrid_status: next })
         .eq('id', job.id)
 
       if (updateError) {
