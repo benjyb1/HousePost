@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { currentMonthKey } from '@/lib/utils/date'
+import { isAddressSuppressed } from '@/lib/leads/suppression'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
@@ -44,6 +46,30 @@ export async function POST(request: Request) {
 
   if (!addressLine?.trim() || !postcode?.trim()) {
     return NextResponse.json({ error: 'Address and postcode are required' }, { status: 400 })
+  }
+
+  // Do-not-contact screening: a hand-typed custom address must be checked against
+  // the suppression list too, otherwise the opt-out is trivially bypassed. Uses
+  // the admin client (suppression_list denies all ordinary roles). Fails CLOSED —
+  // a transient read error refuses the add rather than letting it through.
+  try {
+    const suppressed = await isAddressSuppressed(
+      createAdminClient(),
+      addressLine.trim(),
+      postcode.trim()
+    )
+    if (suppressed) {
+      return NextResponse.json(
+        { error: 'This address is on our do-not-contact list and can’t be added.' },
+        { status: 422 }
+      )
+    }
+  } catch (err) {
+    console.error('Suppression screen failed for custom lead:', err)
+    return NextResponse.json(
+      { error: 'We could not verify the do-not-contact list just now. Please try again shortly.' },
+      { status: 503 }
+    )
   }
 
   const leadMonth = currentMonthKey()

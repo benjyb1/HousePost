@@ -2,10 +2,23 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { calculatePostcardCost, billPendingOverage } from '@/lib/stripe/billing'
+import {
+  calculatePostcardCost,
+  chargePostcardBatch,
+  refundPostcardCharge,
+} from '@/lib/stripe/billing'
 import { sendPostcard, buildRecipient } from '@/lib/postcards/stannp'
+import { sendAdminAlert } from '@/lib/email/resend'
 import { currentMonthKey } from '@/lib/utils/date'
+import { loadSuppressionKeys } from '@/lib/leads/suppression'
+import { addressKey } from '@/lib/address/normalise'
 import { POSTCARD_OVERAGE_PENCE, MONTHLY_POSTCARD_CAP } from '@/types/profile'
+
+// Only a card that has actually been posted may be re-sent. Anything else
+// (in-flight OR dead) is refused: resending a pending/held/dispatching card
+// would print a second one, and resending a failed/cancelled card whose lead has
+// since been freed back to New leads could be sent twice via two paths.
+const RESENDABLE_SOURCE_STATUSES = ['dispatched', 'delivered']
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -27,12 +40,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Job not found' }, { status: 404 })
   }
 
-  // Only a job that has actually been SENT can be re-sent. Resending a job that
-  // is still in-flight (pending / held in cool-off / dispatching) would create a
-  // second card and could double-send, so refuse those with a 409.
-  if (['pending', 'held', 'dispatching'].includes(job.status as string)) {
+  // Enforce the allow-list at the API, not just in the UI. A failed/cancelled or
+  // still-in-flight source is refused so a card can never be sent twice.
+  if (!RESENDABLE_SOURCE_STATUSES.includes(job.status as string)) {
     return NextResponse.json(
-      { error: 'This postcard is still being processed and cannot be re-sent yet.' },
+      { error: 'Only a postcard that has already been sent can be re-sent.' },
       { status: 409 }
     )
   }
@@ -61,15 +73,30 @@ export async function POST(request: Request) {
     )
   }
 
-  const used = profile.postcards_used_this_period as number
-  const { included } = calculatePostcardCost(1, used)
-  const isIncluded = included > 0
-
-  if (!isIncluded && !profile.stripe_customer_id) {
-    return NextResponse.json({ error: 'No Stripe customer found' }, { status: 403 })
-  }
-
   const adminSupabase = createAdminClient()
+
+  // Do-not-contact screening: if the recipient opted out AFTER the first card
+  // went out, refuse the resend. Fails CLOSED (503 on a transient read error).
+  try {
+    const suppressionKeys = await loadSuppressionKeys(adminSupabase)
+    if (
+      suppressionKeys.size > 0 &&
+      suppressionKeys.has(
+        addressKey(job.recipient_address_line as string, job.recipient_postcode as string)
+      )
+    ) {
+      return NextResponse.json(
+        { error: 'This address is now on our do-not-contact list and can’t be posted to.' },
+        { status: 409 }
+      )
+    }
+  } catch (err) {
+    console.error('Suppression screen failed for resend:', err)
+    return NextResponse.json(
+      { error: 'We could not verify the do-not-contact list just now. Please try again shortly.' },
+      { status: 503 }
+    )
+  }
 
   // Deterministic idempotency key for this (user, job, month). Stannp has no
   // idempotency-key header, so we claim the send at OUR layer first: insert a
@@ -103,17 +130,32 @@ export async function POST(request: Request) {
   }
   const newJobId = pending.id as string
 
-  // Reserve one postcard against the hard monthly cap BEFORE we dispatch. The
-  // capped RPC (service-role only, hence the admin client) atomically increments
-  // the period counter and returns the PRE-increment usage, or -1 if the send
-  // would breach the cap. Doing this before Stannp means an over-cap resend never
-  // prints a card.
+  // Unwind helper: hand back the reserved allowance (optional), mark the row and
+  // — crucially — NULL the idempotency key so the card becomes eligible to retry.
+  // Leaving the key set on a failed row is what previously wedged resend: the
+  // unique index made every later attempt that month dedupe to a silent no-op.
+  const unwind = async (
+    status: 'failed' | 'cancelled',
+    { giveBackAllowance }: { giveBackAllowance: boolean }
+  ) => {
+    if (giveBackAllowance) {
+      await adminSupabase.rpc('decrement_postcards_used', { p_user_id: user.id, p_amount: 1 })
+    }
+    await adminSupabase
+      .from('postcard_jobs')
+      .update({ status, dispatch_idempotency_key: null })
+      .eq('id', newJobId)
+  }
+
+  // Reserve one postcard against the hard monthly cap BEFORE we charge or
+  // dispatch. The capped RPC atomically increments the period counter and returns
+  // the PRE-increment usage, or -1 if the send would breach the cap.
   const { data: preUsedRaw, error: reserveErr } = await adminSupabase.rpc(
     'increment_postcards_used_capped',
     { p_user_id: user.id, p_amount: 1, p_cap: MONTHLY_POSTCARD_CAP }
   )
   if (reserveErr) {
-    await adminSupabase.from('postcard_jobs').update({ status: 'failed' }).eq('id', newJobId)
+    await unwind('failed', { giveBackAllowance: false })
     return NextResponse.json(
       { error: 'Could not reserve your postcard allowance. Please try again.' },
       { status: 500 }
@@ -121,7 +163,7 @@ export async function POST(request: Request) {
   }
   const preUsed = preUsedRaw as number
   if (preUsed < 0) {
-    await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).eq('id', newJobId)
+    await unwind('cancelled', { giveBackAllowance: false })
     return NextResponse.json(
       { error: `This would exceed your monthly limit of ${MONTHLY_POSTCARD_CAP} postcards.` },
       { status: 403 }
@@ -130,7 +172,63 @@ export async function POST(request: Request) {
   // Authoritative included/paid split from the reserved pre-usage value.
   const reservedIncluded = calculatePostcardCost(1, preUsed).included > 0
 
-  // We own the slot and the allowance — print and post.
+  // Charge the overage UP FRONT (matching the main send flow), not via the old
+  // deferred meter. A paid resend that isn't charged here would be a free card.
+  let paymentIntentId: string | null = null
+  if (!reservedIncluded) {
+    try {
+      const { paymentIntentId: pi } = await chargePostcardBatch({
+        customerId: (profile.stripe_customer_id as string) ?? '',
+        amountPence: POSTCARD_OVERAGE_PENCE,
+        idempotencyKey: `postcard-resend:${newJobId}`,
+        metadata: { userId: user.id, resendOf: jobId, kind: 'postcard_resend' },
+      })
+      paymentIntentId = pi
+    } catch (err) {
+      const e = err as Error & { type?: string; code?: string }
+      const isDecline =
+        e.type === 'StripeCardError' ||
+        e.code === 'card_declined' ||
+        e.code === 'authentication_required' ||
+        e.code === 'no_payment_method'
+
+      if (isDecline) {
+        // No money moved — hand the allowance back and refuse cleanly.
+        await unwind('cancelled', { giveBackAllowance: true })
+        return NextResponse.json(
+          { error: e.message || 'Your card was declined.' },
+          { status: 402 }
+        )
+      }
+
+      // Ambiguous: the charge MAY have succeeded. Do NOT dispatch, do NOT give the
+      // allowance back, and deliberately KEEP the idempotency key so an automatic
+      // retry dedupes instead of risking a second charge. Mark failed, alert, 500.
+      const msg = e instanceof Error ? e.message : String(e)
+      console.error(`Resend charge failed (non-decline) for job ${newJobId}, user ${user.id}:`, msg)
+      await adminSupabase.from('postcard_jobs').update({ status: 'failed' }).eq('id', newJobId)
+      try {
+        await sendAdminAlert(
+          `[Housepost] Postcard resend charge failed and needs review — job ${newJobId}`,
+          `<p>A £${(POSTCARD_OVERAGE_PENCE / 100).toFixed(2)} resend charge for user
+            <strong>${user.id}</strong> failed with a NON-decline error. The charge may have
+            succeeded, so the card was NOT posted and the allowance was left counted. Please
+            reconcile against Stripe.</p><pre>${msg}</pre>`
+        )
+      } catch (alertErr) {
+        console.error(`Failed to send resend charge-ambiguous alert for job ${newJobId}:`, alertErr)
+      }
+      return NextResponse.json(
+        {
+          error:
+            'Something went wrong while taking payment. Our team has been notified — please check with support before trying again.',
+        },
+        { status: 500 }
+      )
+    }
+  }
+
+  // We own the slot, the allowance and (if paid) the charge — print and post.
   let postcardId = ''
   let status = ''
   try {
@@ -145,38 +243,51 @@ export async function POST(request: Request) {
       tag: idempotencyKey,
     }))
   } catch (err) {
-    // Dispatch failed: hand back the allowance we reserved and release the
-    // pending row so the card becomes eligible to retry rather than being stuck
-    // "pending".
-    await adminSupabase.rpc('decrement_postcards_used', { p_user_id: user.id, p_amount: 1 })
-    await adminSupabase.from('postcard_jobs').update({ status: 'failed' }).eq('id', newJobId)
+    // Dispatch failed: the card was NOT posted, so refund any up-front charge,
+    // hand the allowance back and release the row (key nulled) so it can retry.
+    if (paymentIntentId) {
+      try {
+        await refundPostcardCharge({
+          paymentIntentId,
+          amountPence: POSTCARD_OVERAGE_PENCE,
+          idempotencyKey: `postcard-resend-refund:${newJobId}`,
+        })
+      } catch (refundErr) {
+        const rmsg = refundErr instanceof Error ? refundErr.message : String(refundErr)
+        console.error(`Resend refund failed for job ${newJobId}:`, rmsg)
+        try {
+          await sendAdminAlert(
+            `[Housepost] Postcard resend failed AND refund failed — job ${newJobId}`,
+            `<p>Resend job <strong>${newJobId}</strong> failed to post and the automatic refund of
+              ${POSTCARD_OVERAGE_PENCE}p against PaymentIntent <strong>${paymentIntentId}</strong>
+              also failed. Please refund manually in Stripe.</p><pre>${rmsg}</pre>`
+          )
+        } catch (alertErr) {
+          console.error(`Failed to alert on resend refund failure for job ${newJobId}:`, alertErr)
+        }
+      }
+    }
+    await unwind('failed', { giveBackAllowance: true })
     const msg = err instanceof Error ? err.message : 'Dispatch failed'
     return NextResponse.json({ error: msg }, { status: 502 })
   }
 
-  // Card is away — record the Stannp id/status and the real charge.
+  // Card is away — record the Stannp id/status, the real charge and the PI so a
+  // future refund path can find it.
   await adminSupabase.from('postcard_jobs').update({
     postgrid_letter_id: postcardId,
     postgrid_status: status,
     was_included_in_subscription: reservedIncluded,
     charge_amount_pence: reservedIncluded ? 0 : POSTCARD_OVERAGE_PENCE,
+    stripe_payment_intent_id: paymentIntentId,
     status: 'dispatched',
     dispatched_at: new Date().toISOString(),
   }).eq('id', newJobId)
 
-  // Bill any unbilled overage (this card plus anything left pending earlier).
-  // Idempotent and self-healing — nothing to reconcile by hand.
-  let overageBilled = 0
-  if (profile.stripe_customer_id) {
-    try {
-      overageBilled = await billPendingOverage(user.id, profile.stripe_customer_id as string)
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`Resend overage billing sweep failed for user ${user.id} (will retry on next activity):`, msg)
-    }
-  }
-
-  // Usage was already counted by the capped reservation above (before dispatch),
-  // so there is nothing to increment here.
-  return NextResponse.json({ success: true, overageBilled })
+  // Usage was counted by the capped reservation, and any overage was charged
+  // up front, so there is nothing to bill or increment here.
+  return NextResponse.json({
+    success: true,
+    charged: reservedIncluded ? 0 : POSTCARD_OVERAGE_PENCE,
+  })
 }
