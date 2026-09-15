@@ -15,7 +15,7 @@ const OPTIONS: {
   {
     id: 'template',
     title: 'Use a template',
-    blurb: 'Start from a ready-made postcard, personalise it, and download a print-ready PDF.',
+    blurb: 'Start from a ready-made design and personalise it in the browser — no downloads.',
     icon: LayoutTemplate,
   },
   {

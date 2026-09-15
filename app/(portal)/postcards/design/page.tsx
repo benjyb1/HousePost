@@ -4,14 +4,14 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { DesignOptionChooser, type DesignOption } from '@/components/postcards/DesignOptionChooser'
-import { TemplateGallery } from '@/components/postcards/TemplateGallery'
+import { SvgTemplateEditor } from '@/components/postcards/SvgTemplateEditor'
 import { UploadCustomDesign } from '@/components/postcards/UploadCustomDesign'
 import { CustomDesignBrief } from '@/components/postcards/CustomDesignBrief'
 
 const HEADINGS: Record<DesignOption, { title: string; subtitle: string }> = {
   template: {
     title: 'Use a template',
-    subtitle: 'Pick a design, personalise it in Canva, then upload the print-ready PDF.',
+    subtitle: 'Pick a design, personalise it in the browser, and save it as your postcard front.',
   },
   upload: {
     title: 'Upload custom design',
@@ -56,7 +56,7 @@ export default function PostcardDesignPage() {
             </div>
           </div>
 
-          {option === 'template' && <TemplateGallery onUseUpload={() => setOption('upload')} />}
+          {option === 'template' && <SvgTemplateEditor onUseUpload={() => setOption('upload')} />}
           {option === 'upload' && <UploadCustomDesign />}
           {option === 'request' && <CustomDesignBrief />}
         </>
