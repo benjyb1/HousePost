@@ -245,14 +245,14 @@ export async function POST(request: Request) {
         }
       }
 
-      // Free the lead (scoped to this job) so it goes back to New leads rather
-      // than staying attached to a failed order.
+      // Free the lead (scoped to this job) so it goes back to New leads — or,
+      // for a re-send, back to its previous finished job — rather than staying
+      // attached to a failed order.
       if (job.lead_id) {
-        await supabase
-          .from('leads')
-          .update({ postcard_job_id: null, selected_for_dispatch: false })
-          .eq('id', job.lead_id as string)
-          .eq('postcard_job_id', jobId)
+        await supabase.rpc('relink_lead_after_unwind', {
+          p_lead_id: job.lead_id as string,
+          p_job_id: jobId,
+        })
       }
 
       // Hand back the reserved allowance for this un-sent card (mirrors cancel),

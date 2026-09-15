@@ -77,11 +77,15 @@ function SvgFrame({ svgString, className }: { svgString: string; className?: str
 
 export function SvgTemplateEditor({
   onUseUpload,
+  onAddBack,
   onBackToOptions,
 }: {
   onUseUpload?: () => void
+  /** Open the uploader on the BACK side (falls back to onUseUpload). */
+  onAddBack?: () => void
   onBackToOptions?: () => void
 }) {
+  const addBack = onAddBack ?? onUseUpload
   const supabase = createClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -199,25 +203,25 @@ export function SvgTemplateEditor({
               This is now your active postcard
             </h3>
             <p className="text-sm text-green-700/90">
-              Here&apos;s how it will print. Templates set the front only — the back shows the reserved
-              address area until you add a back design.
+              Here&apos;s how it will print. Templates set the front only — without a back design the back
+              prints blank apart from the address area, and you can send straight away.
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardContent className="p-5">
-            <PostcardPreview frontUrl={confirmFrontUrl} backUrl={savedBackUrl} onAddBack={onUseUpload} />
+            <PostcardPreview frontUrl={confirmFrontUrl} backUrl={savedBackUrl} onAddBack={addBack} />
           </CardContent>
         </Card>
 
         {!savedBackUrl && (
           <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-            No back design yet. The back will print as the reserved address area only.{' '}
-            {onUseUpload && (
+            No back design yet. The back will print blank apart from the address area.{' '}
+            {addBack && (
               <button
                 type="button"
-                onClick={onUseUpload}
+                onClick={addBack}
                 className="font-medium underline underline-offset-2"
               >
                 Add a back design

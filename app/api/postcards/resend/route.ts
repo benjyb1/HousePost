@@ -10,9 +10,9 @@ import {
 import { sendPostcard, buildRecipient } from '@/lib/postcards/stannp'
 import { sendAdminAlert } from '@/lib/email/resend'
 import { currentMonthKey } from '@/lib/utils/date'
-import { loadSuppressionKeys } from '@/lib/leads/suppression'
-import { addressKey } from '@/lib/address/normalise'
+import { loadSuppressionKeys, isSuppressed } from '@/lib/leads/suppression'
 import { POSTCARD_OVERAGE_PENCE, MONTHLY_POSTCARD_CAP } from '@/types/profile'
+import { resolveBackUrl } from '@/lib/postcards/defaults'
 
 // Only a card that has actually been posted may be re-sent. Anything else
 // (in-flight OR dead) is refused: resending a pending/held/dispatching card
@@ -65,10 +65,11 @@ export async function POST(request: Request) {
   }
 
   const frontUrl = profile.postcard_design_url as string | null
-  const backUrl = profile.postcard_design_back_url as string | null
-  if (!frontUrl || !backUrl) {
+  // No back design → the blank default back (see lib/postcards/defaults.ts).
+  const backUrl = resolveBackUrl(profile.postcard_design_back_url as string | null)
+  if (!frontUrl) {
     return NextResponse.json(
-      { error: 'Add a front and back postcard design before re-sending.' },
+      { error: 'Add a postcard design before re-sending.' },
       { status: 400 }
     )
   }
@@ -80,10 +81,7 @@ export async function POST(request: Request) {
   try {
     const suppressionKeys = await loadSuppressionKeys(adminSupabase)
     if (
-      suppressionKeys.size > 0 &&
-      suppressionKeys.has(
-        addressKey(job.recipient_address_line as string, job.recipient_postcode as string)
-      )
+      isSuppressed(suppressionKeys, job.recipient_address_line as string, job.recipient_postcode as string)
     ) {
       return NextResponse.json(
         { error: 'This address is now on our do-not-contact list and can’t be posted to.' },

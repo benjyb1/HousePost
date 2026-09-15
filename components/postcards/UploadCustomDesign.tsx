@@ -220,14 +220,21 @@ async function getCroppedImg(imageSrc: string, cropArea: Area, addBleed: boolean
   return canvasToBlob(full)
 }
 
-export function UploadCustomDesign({ onBackToOptions }: { onBackToOptions?: () => void }) {
+export function UploadCustomDesign({
+  onBackToOptions,
+  initialSide = 'front',
+}: {
+  onBackToOptions?: () => void
+  /** Which side to open on (the template editor sends people straight to the back). */
+  initialSide?: Side
+}) {
   const supabase = createClient()
   const frontFileInputRef = useRef<HTMLInputElement>(null)
   const backFileInputRef = useRef<HTMLInputElement>(null)
   const frontOriginalFile = useRef<File | null>(null)
   const backOriginalFile = useRef<File | null>(null)
 
-  const [activeSide, setActiveSide] = useState<Side>('front')
+  const [activeSide, setActiveSide] = useState<Side>(initialSide)
   const [userId, setUserId] = useState<string | null>(null)
 
   // Front side state

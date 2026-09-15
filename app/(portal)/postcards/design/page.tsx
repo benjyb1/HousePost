@@ -26,6 +26,14 @@ const HEADINGS: Record<DesignOption, { title: string; subtitle: string }> = {
 
 export default function PostcardDesignPage() {
   const [option, setOption] = useState<DesignOption | null>(null)
+  // Which side the uploader opens on. "Add a back design" from the template
+  // editor lands straight on the Back tab instead of the Front one.
+  const [uploadSide, setUploadSide] = useState<'front' | 'back'>('front')
+
+  function goToUpload(side: 'front' | 'back' = 'front') {
+    setUploadSide(side)
+    setOption('upload')
+  }
 
   return (
     <div className="max-w-6xl space-y-6">
@@ -38,7 +46,7 @@ export default function PostcardDesignPage() {
             </p>
           </div>
           <DesignOptionChooser onSelect={setOption} />
-          <DesignLibrary onGoToUpload={() => setOption('upload')} />
+          <DesignLibrary onGoToUpload={() => goToUpload('front')} />
         </>
       ) : (
         <>
@@ -60,11 +68,14 @@ export default function PostcardDesignPage() {
 
           {option === 'template' && (
             <SvgTemplateEditor
-              onUseUpload={() => setOption('upload')}
+              onUseUpload={() => goToUpload('front')}
+              onAddBack={() => goToUpload('back')}
               onBackToOptions={() => setOption(null)}
             />
           )}
-          {option === 'upload' && <UploadCustomDesign onBackToOptions={() => setOption(null)} />}
+          {option === 'upload' && (
+            <UploadCustomDesign initialSide={uploadSide} onBackToOptions={() => setOption(null)} />
+          )}
           {option === 'request' && <CustomDesignBrief />}
         </>
       )}

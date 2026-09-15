@@ -26,11 +26,20 @@ export default function ForgotPasswordPage() {
       redirectTo: `${appUrl}/reset-password`,
     })
 
-    // Deliberately don't reveal whether the email is registered. We only
-    // surface an error if something genuinely went wrong on our side
-    // (e.g. network or rate limiting), never a "no such user" hint.
+    // Deliberately don't reveal whether the email is registered: Supabase
+    // answers 200 for an unknown address, so any error here is OUR problem
+    // (rate limit, or the mail relay refusing to send) and must not be dressed
+    // up as "check your email" — that would strand the user waiting for a
+    // message that never left.
     if (error && error.status === 429) {
       setError('Too many attempts. Please wait a moment and try again.')
+      setLoading(false)
+      return
+    }
+    if (error) {
+      setError(
+        'We could not send the reset email just now. Please try again in a few minutes, or contact info@housepost.co.uk.'
+      )
       setLoading(false)
       return
     }
