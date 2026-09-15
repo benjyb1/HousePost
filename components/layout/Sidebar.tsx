@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, MapPin, Mail, Palette, CreditCard, Settings, UserCog, LogOut, Menu, X } from 'lucide-react'
+import { LayoutDashboard, MapPin, Mail, Palette, Bell, Settings, UserCog, LogOut, Menu, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
@@ -14,8 +14,8 @@ const navItems = [
   { href: '/leads', label: 'Leads', icon: MapPin },
   { href: '/postcards', label: 'Tracking', icon: Mail },
   { href: '/postcards/design', label: 'Postcard Design', icon: Palette },
-  { href: '/billing', label: 'Billing', icon: CreditCard },
-  { href: '/settings', label: 'Preferences', icon: Settings },
+  { href: '/notifications', label: 'Notifications', icon: Bell },
+  { href: '/settings', label: 'Settings', icon: Settings },
   { href: '/account', label: 'Account', icon: UserCog },
 ]
 

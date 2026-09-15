@@ -3,6 +3,7 @@ import { isWithinRunWindow, toMonthKey } from '@/lib/cron/schedule'
 import { generateLeadsForAllUsers } from '@/lib/leads/generator'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendLeadsReadyEmail, sendAdminAlert } from '@/lib/email/resend'
+import { createNotification } from '@/lib/notifications'
 
 export const maxDuration = 60
 
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
   const now = new Date()
   const leadMonth = toMonthKey(now)
 
-  if (!isWithinRunWindow(22, now)) {
+  if (!isWithinRunWindow(6, now)) {
     return NextResponse.json({
       skipped: true,
       reason: 'Outside the run window',
@@ -106,6 +107,17 @@ export async function POST(request: Request) {
       } catch (e) {
         console.error(`Failed to send email to ${profile.email}:`, e)
       }
+
+      // Record an in-app notification for the drop. sendEmail:false because the
+      // dedicated leads-ready email above already covers the email side.
+      const leadCount = count ?? 0
+      await createNotification({
+        userId: profile.id as string,
+        type: 'leads_dropped',
+        title: `${leadCount} new lead${leadCount === 1 ? '' : 's'} just dropped`,
+        href: '/leads',
+        sendEmail: false,
+      })
     }
 
     await supabase

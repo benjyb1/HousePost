@@ -1,0 +1,35 @@
+name: Leads Data Retention
+
+on:
+  schedule:
+    # Once a day at 03:15 UTC — off-peak, and retention windows are measured in
+    # months so the exact time of day is immaterial.
+    - cron: '15 3 * * *'
+  workflow_dispatch: # Allow manual trigger from the Actions UI
+
+# One retention sweep at a time; a skipped tick is swept by the next day's run.
+concurrency:
+  group: retention
+  cancel-in-progress: false
+
+jobs:
+  retention:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger the retention endpoint
+        run: |
+          code=$(curl -sS -o /tmp/retention-body -w '%{http_code}' \
+            -X POST "${APP_URL%/}/api/cron/retention" \
+            -H "Authorization: Bearer ${CRON_SECRET}")
+          echo "HTTP $code"
+          cat /tmp/retention-body || true
+          echo
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            echo "Retention endpoint returned $code"
+            exit 1
+          fi
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

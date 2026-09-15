@@ -17,7 +17,7 @@ async function main() {
   const forceRun = process.env.FORCE_RUN === 'true'
   console.log(`🗓  Today: ${now.toISOString().slice(0, 10)}${forceRun ? ' (forced)' : ''}`)
 
-  if (!forceRun && !isWithinRunWindow(21, now)) {
+  if (!forceRun && !isWithinRunWindow(5, now)) {
     console.log('⏭  Outside the run window — skipping.')
     process.exit(0)
   }

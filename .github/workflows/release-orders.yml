@@ -1,0 +1,40 @@
+name: Release Held Postcard Orders
+
+on:
+  schedule:
+    # Every 5 minutes. NOTE: GitHub Actions scheduled runs are best-effort and
+    # are frequently delayed (commonly 5-15+ minutes, longer under load), and
+    # runs can be dropped entirely during busy periods. Combined with the
+    # 15-minute cool-off, a card typically posts ~15-25 minutes after the user
+    # confirms — acceptable for direct mail. If tighter timing ever matters,
+    # move this to a platform cron (e.g. Vercel Cron) hitting the same endpoint.
+    - cron: '*/5 * * * *'
+  workflow_dispatch: # Allow manual trigger from the Actions UI
+
+# Avoid overlapping runs piling up if one is slow; a skipped tick just gets
+# swept by the next.
+concurrency:
+  group: release-orders
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Trigger the release-orders endpoint
+        run: |
+          code=$(curl -sS -o /tmp/release-body -w '%{http_code}' \
+            -X POST "${APP_URL%/}/api/cron/release-orders" \
+            -H "Authorization: Bearer ${CRON_SECRET}")
+          echo "HTTP $code"
+          cat /tmp/release-body || true
+          echo
+          if [ "$code" -lt 200 ] || [ "$code" -ge 300 ]; then
+            echo "Release endpoint returned $code"
+            exit 1
+          fi
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

@@ -1,3 +1,4 @@
+import Stripe from 'stripe'
 import { createHash } from 'crypto'
 import { getStripe } from './client'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -101,6 +102,197 @@ export function calculatePostcardCost(
     overage,
     overageCostPence: overage * POSTCARD_OVERAGE_PENCE,
   }
+}
+
+/**
+ * Resolve the customer's saved card to charge off-session. Prefers the
+ * invoice_settings default payment method, falling back to their most recent
+ * saved card. Returns null when the customer has no usable card on file.
+ */
+async function getDefaultCardPaymentMethod(
+  customerId: string
+): Promise<string | null> {
+  const stripe = getStripe()
+
+  const customer = await stripe.customers.retrieve(customerId)
+  // A deleted customer comes back as { deleted: true } with no fields.
+  if (!customer || customer.deleted) return null
+
+  const defaultPm = customer.invoice_settings?.default_payment_method
+  if (defaultPm) {
+    return typeof defaultPm === 'string' ? defaultPm : defaultPm.id
+  }
+
+  // No explicit default — fall back to the newest saved card.
+  const methods = await stripe.paymentMethods.list({
+    customer: customerId,
+    type: 'card',
+    limit: 1,
+  })
+  return methods.data[0]?.id ?? null
+}
+
+/**
+ * Charge the customer's SAVED card off-session for a batch of paid postcards
+ * (feature 8.6). Used to take payment UP FRONT, before an order is held, so a
+ * decline aborts the send and nothing is dispatched.
+ *
+ * Throws a clear, user-facing error when there is no saved card or the card is
+ * declined. `idempotencyKey` must be stable for the logical send (we key it on
+ * the batch id) so a retried confirm never double-charges.
+ *
+ * Returns the succeeded PaymentIntent id, which is recorded on the order for a
+ * later refund if the user cancels within the cool-off window.
+ */
+export async function chargePostcardBatch(params: {
+  customerId: string
+  amountPence: number
+  idempotencyKey: string
+  metadata?: Record<string, string>
+}): Promise<{ paymentIntentId: string }> {
+  const stripe = getStripe()
+
+  if (params.amountPence <= 0) {
+    throw new Error('Refusing to charge a non-positive amount')
+  }
+
+  const paymentMethod = await getDefaultCardPaymentMethod(params.customerId)
+  if (!paymentMethod) {
+    throw new Error(
+      'No saved card on file. Add a payment card in Billing before sending paid postcards.'
+    )
+  }
+
+  try {
+    const intent = await stripe.paymentIntents.create(
+      {
+        amount: params.amountPence,
+        currency: 'gbp',
+        customer: params.customerId,
+        payment_method: paymentMethod,
+        // Off-session: the user has confirmed the send but there is no card-entry
+        // step, so Stripe charges the stored card immediately.
+        off_session: true,
+        confirm: true,
+        metadata: params.metadata,
+      },
+      { idempotencyKey: params.idempotencyKey }
+    )
+
+    if (intent.status !== 'succeeded') {
+      // e.g. requires_action (3-D Secure) — off-session we cannot prompt for it,
+      // so treat anything short of success as a failed charge and abort the send.
+      throw new Error(
+        `Card charge did not complete (status: ${intent.status}). Please update your card in Billing and try again.`
+      )
+    }
+
+    return { paymentIntentId: intent.id }
+  } catch (err) {
+    // Stripe surfaces off-session declines as a card error carrying the failed
+    // PaymentIntent. Bubble up a clean message; the caller aborts the send.
+    if (err instanceof Stripe.errors.StripeError) {
+      const declineMessage =
+        err.code === 'authentication_required'
+          ? 'Your card needs authentication that we cannot complete for an automatic charge. Please contact support or update your card.'
+          : err.message || 'Your card was declined.'
+      throw new Error(declineMessage)
+    }
+    throw err
+  }
+}
+
+/** One-off "design my postcard for me" service fee: £75 (feature 10.5). */
+export const CUSTOM_DESIGN_FEE_PENCE = 7500
+
+/**
+ * Charge the customer's SAVED card off-session for the one-off £75 custom-design
+ * service fee (feature 10.5). Mirrors `chargePostcardBatch`: the user has already
+ * confirmed by submitting their brief, so there is no card-entry step and we
+ * charge the stored card immediately.
+ *
+ * Throws a clear, user-facing error when there is no saved card or the card is
+ * declined, so the caller can abort and record NOTHING as a paid request.
+ *
+ * `idempotencyKey` should be stable for the logical request (we key it on the
+ * design-request id) so a retried submit never double-charges. Returns the
+ * succeeded PaymentIntent id to store on the request row.
+ */
+export async function chargeCustomDesignFee(params: {
+  customerId: string
+  idempotencyKey: string
+  metadata?: Record<string, string>
+}): Promise<{ paymentIntentId: string }> {
+  const stripe = getStripe()
+
+  const paymentMethod = await getDefaultCardPaymentMethod(params.customerId)
+  if (!paymentMethod) {
+    throw new Error(
+      'No saved card on file. Add a payment card in Billing before requesting a custom design.'
+    )
+  }
+
+  try {
+    const intent = await stripe.paymentIntents.create(
+      {
+        amount: CUSTOM_DESIGN_FEE_PENCE,
+        currency: 'gbp',
+        customer: params.customerId,
+        payment_method: paymentMethod,
+        off_session: true,
+        confirm: true,
+        metadata: params.metadata,
+      },
+      { idempotencyKey: params.idempotencyKey }
+    )
+
+    if (intent.status !== 'succeeded') {
+      throw new Error(
+        `Card charge did not complete (status: ${intent.status}). Please update your card in Billing and try again.`
+      )
+    }
+
+    return { paymentIntentId: intent.id }
+  } catch (err) {
+    if (err instanceof Stripe.errors.StripeError) {
+      const declineMessage =
+        err.code === 'authentication_required'
+          ? 'Your card needs authentication that we cannot complete for an automatic charge. Please contact support or update your card.'
+          : err.message || 'Your card was declined.'
+      throw new Error(declineMessage)
+    }
+    throw err
+  }
+}
+
+/**
+ * Refund a postcard charge (feature 6.4) when a held order is cancelled inside
+ * the cool-off window. `amountPence` lets us refund only the cards actually
+ * cancelled when a batch is partially released. `idempotencyKey` (keyed on the
+ * batch) makes a double-clicked cancel safe — Stripe returns the same refund
+ * rather than issuing a second one.
+ */
+export async function refundPostcardCharge(params: {
+  paymentIntentId: string
+  amountPence: number
+  idempotencyKey: string
+}): Promise<{ refundId: string }> {
+  const stripe = getStripe()
+
+  if (params.amountPence <= 0) {
+    // Nothing payable was cancelled (all cancelled cards were free allowance).
+    return { refundId: '' }
+  }
+
+  const refund = await stripe.refunds.create(
+    {
+      payment_intent: params.paymentIntentId,
+      amount: params.amountPence,
+    },
+    { idempotencyKey: params.idempotencyKey }
+  )
+
+  return { refundId: refund.id }
 }
 
 /**

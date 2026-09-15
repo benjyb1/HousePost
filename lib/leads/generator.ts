@@ -3,11 +3,52 @@ import { geocodeSingleWithCache } from '@/lib/geocoding/postcodes-io'
 import { geocodeWithCache } from '@/lib/geocoding/postcodes-io'
 import { geocodeTransactionsForMonth } from '@/lib/geocoding/postcodes-io'
 import { expandRadius } from './radius-expander'
+import { addressKey } from '@/lib/address/normalise'
 
 interface LeadGenerationResult {
   leadsCreated: number
   hitMaxRadius: boolean
   radiusUsed: number
+}
+
+type SupabaseAdminClient = ReturnType<typeof createAdminClient>
+
+/**
+ * Load every suppression (do-not-contact) address key into a Set, in bulk.
+ *
+ * This is read once per generation run and used to screen out properties whose
+ * occupants have opted out via /opt-out. Keys are produced by
+ * lib/address/normalise.ts:addressKey() on both sides so a plain Set lookup is
+ * enough — no per-row queries.
+ *
+ * Fails soft: if the suppression_list table does not yet exist (migration not
+ * applied) or the read errors for any reason, we log and return an empty set so
+ * lead generation continues to work. An empty table likewise yields an empty
+ * set. Screening then simply excludes nothing.
+ */
+async function loadSuppressionKeys(
+  supabase: SupabaseAdminClient
+): Promise<Set<string>> {
+  const keys = new Set<string>()
+  const PAGE = 1000
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('suppression_list')
+      .select('address_key')
+      .range(from, from + PAGE - 1)
+
+    if (error) {
+      // Table missing / transient error — proceed without suppression.
+      console.warn(`Suppression list unavailable, skipping screening: ${error.message}`)
+      return keys
+    }
+    if (!data || data.length === 0) break
+    for (const row of data) {
+      if (row.address_key) keys.add(row.address_key as string)
+    }
+    if (data.length < PAGE) break
+  }
+  return keys
 }
 
 /**
@@ -103,7 +144,18 @@ export async function generateLeadsForUser(
     lead_month: importMonth,
   }))
 
-  if (leadRows.length === 0) {
+  // Suppression screening: drop any property whose normalised address key is on
+  // the do-not-contact list. Load the whole set once and filter in memory (no
+  // per-row queries). If the list is empty/absent this is a no-op.
+  const suppressionKeys = await loadSuppressionKeys(supabase)
+  const allowedLeads =
+    suppressionKeys.size === 0
+      ? leadRows
+      : leadRows.filter(
+          (r) => !suppressionKeys.has(addressKey(r.address_line, r.postcode))
+        )
+
+  if (allowedLeads.length === 0) {
     return { leadsCreated: 0, hitMaxRadius, radiusUsed }
   }
 
@@ -141,7 +193,7 @@ export async function generateLeadsForUser(
     for (const r of existing) existingIds.add(r.transaction_id as string)
     if (existing.length < DEDUP_PAGE) break
   }
-  const newLeads = leadRows.filter((r) => !existingIds.has(r.transaction_id))
+  const newLeads = allowedLeads.filter((r) => !existingIds.has(r.transaction_id))
 
   if (newLeads.length === 0) {
     return { leadsCreated: 0, hitMaxRadius, radiusUsed }

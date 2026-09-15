@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server'
-import { createHash } from 'crypto'
+import { randomUUID } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { calculatePostcardCost, billPendingOverage } from '@/lib/stripe/billing'
-import { sendPostcard, buildRecipient } from '@/lib/postcards/stannp'
+import { calculatePostcardCost, chargePostcardBatch } from '@/lib/stripe/billing'
 import { currentMonthKey } from '@/lib/utils/date'
-import { INCLUDED_POSTCARDS_PER_MONTH, POSTCARD_OVERAGE_PENCE } from '@/types/profile'
+import { createNotification } from '@/lib/notifications'
+import {
+  INCLUDED_POSTCARDS_PER_MONTH,
+  POSTCARD_OVERAGE_PENCE,
+  MONTHLY_POSTCARD_CAP,
+  POSTCARD_COOL_OFF_MINUTES,
+} from '@/types/profile'
 
 // GET: list postcard jobs for the authenticated user
 export async function GET(request: Request) {
@@ -27,14 +32,67 @@ export async function GET(request: Request) {
   return NextResponse.json({ jobs: data })
 }
 
-// POST: dispatch selected leads as postcards
+// Format pence as a UK-style price string, e.g. 150 -> "£1.50".
+function formatPounds(pence: number): string {
+  return `£${(pence / 100).toFixed(2)}`
+}
+
+/**
+ * POST: two actions.
+ *
+ *   action: 'preview'  — cost preview only. NOTHING is charged or dispatched.
+ *   action: 'confirm'  — (the default) charge the saved card up front for any
+ *                        payable cards, then create HELD orders that a cron
+ *                        posts after a 15-minute cool-off (feature 6.4).
+ *
+ * ── Preview request  ────────────────────────────────────────────────────────
+ *   { action: 'preview', leadIds: string[] }
+ * ── Preview response  ───────────────────────────────────────────────────────
+ *   {
+ *     preview: true,
+ *     requested,          // leadIds.length
+ *     quantity,           // eligible cards (already-sent leads excluded)
+ *     alreadySent,        // requested - quantity
+ *     used,               // postcards_used_this_period
+ *     includedRemaining,  // max(0, 5 - used)
+ *     includedApplied,    // min(quantity, includedRemaining)
+ *     payable,            // max(0, quantity - includedRemaining)
+ *     unitPricePence: 150,
+ *     costPence,          // payable * 150
+ *     costFormatted,      // "£X.XX"
+ *     cap: 50,
+ *     capRemaining,       // max(0, 50 - used)
+ *     wouldExceedCap,     // used + quantity > 50
+ *     designsReady,       // both postcard designs uploaded?
+ *   }
+ *
+ * ── Confirm request  ────────────────────────────────────────────────────────
+ *   { action: 'confirm', leadIds: string[] }   // action omitted == confirm
+ * ── Confirm response (201)  ─────────────────────────────────────────────────
+ *   {
+ *     success: true,
+ *     orderId,            // batch id — pass to POST /api/postcards/cancel
+ *     jobIds: string[],
+ *     quantity,           // cards held
+ *     included,           // free cards in this order
+ *     payable,            // paid cards in this order
+ *     costPence,          // amount charged now
+ *     costFormatted,
+ *     paymentIntentId,    // null when nothing was charged
+ *     releaseAt,          // ISO — when the cron will post the order
+ *     coolOffMinutes: 15,
+ *   }
+ *   On a declined card the response is 402 with { error } and NOTHING is held or
+ *   dispatched. Over-cap sends return 403; no eligible leads 409.
+ */
 export async function POST(request: Request) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await request.json()
-  const { leadIds } = body as { leadIds: string[] }
+  const body = await request.json().catch(() => ({}))
+  const { leadIds, action } = body as { leadIds?: string[]; action?: string }
+  const isPreview = action === 'preview'
 
   if (!Array.isArray(leadIds) || leadIds.length === 0) {
     return NextResponse.json({ error: 'No leads selected' }, { status: 400 })
@@ -55,19 +113,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Active subscription required' }, { status: 403 })
   }
 
-  // Stannp prints whatever artwork we hand it, so both sides must exist before we
-  // post anything — no generic fallback card goes out under the user's name.
   const frontUrl = profile.postcard_design_url as string | null
   const backUrl = profile.postcard_design_back_url as string | null
-  if (!frontUrl || !backUrl) {
-    return NextResponse.json(
-      { error: 'Add a front and back postcard design before sending. Open Postcard Design to upload them.' },
-      { status: 400 }
-    )
-  }
+  const designsReady = Boolean(frontUrl && backUrl)
 
-  // Fetch the selected leads. Exclude any that already have a postcard job —
-  // this is the guard against a double-submit dispatching (and billing) twice.
+  // Fetch the selected leads. Exclude any that already have a postcard job so
+  // the quantity (and therefore the cost) reflects only what will really be
+  // sent — the atomic claim below is the true double-send guard.
   const { data: leads, error: leadsError } = await supabase
     .from('leads')
     .select('*')
@@ -78,179 +130,246 @@ export async function POST(request: Request) {
   if (leadsError) {
     return NextResponse.json({ error: leadsError.message }, { status: 500 })
   }
-  if (!leads?.length) {
+
+  const used = (profile.postcards_used_this_period as number) ?? 0
+  const eligible = leads ?? []
+  const quantity = eligible.length
+
+  // ── PREVIEW ──────────────────────────────────────────────────────────────
+  if (isPreview) {
+    const { included, overage, overageCostPence } = calculatePostcardCost(quantity, used)
+    return NextResponse.json({
+      preview: true,
+      requested: leadIds.length,
+      quantity,
+      alreadySent: leadIds.length - quantity,
+      used,
+      includedRemaining: Math.max(0, INCLUDED_POSTCARDS_PER_MONTH - used),
+      includedApplied: included,
+      payable: overage,
+      unitPricePence: POSTCARD_OVERAGE_PENCE,
+      costPence: overageCostPence,
+      costFormatted: formatPounds(overageCostPence),
+      cap: MONTHLY_POSTCARD_CAP,
+      capRemaining: Math.max(0, MONTHLY_POSTCARD_CAP - used),
+      wouldExceedCap: used + quantity > MONTHLY_POSTCARD_CAP,
+      designsReady,
+    })
+  }
+
+  // ── CONFIRM ──────────────────────────────────────────────────────────────
+
+  // Stannp prints whatever artwork we hand it, so both sides must exist before
+  // we hold anything — no generic fallback card goes out under the user's name.
+  if (!designsReady) {
+    return NextResponse.json(
+      { error: 'Add a front and back postcard design before sending. Open Postcard Design to upload them.' },
+      { status: 400 }
+    )
+  }
+
+  if (quantity === 0) {
     return NextResponse.json(
       { error: 'No eligible leads — they may already have been sent.' },
       { status: 409 }
     )
   }
 
-  // Work out how many are included vs overage, but DON'T bill yet — we only
-  // charge for postcards that actually dispatch (see after the loop).
-  const used = profile.postcards_used_this_period as number
-  const { overage } = calculatePostcardCost(leads.length, used)
-
-  if (overage > 0 && !profile.stripe_customer_id) {
-    return NextResponse.json({ error: 'No Stripe customer found' }, { status: 403 })
+  // Feature 6.3 — hard monthly cap. Fast, friendly rejection before we do any
+  // work; the real enforcement is the atomic capped reservation below, which is
+  // safe under concurrent sends.
+  if (used + quantity > MONTHLY_POSTCARD_CAP) {
+    return NextResponse.json(
+      {
+        error: `This would exceed your monthly limit of ${MONTHLY_POSTCARD_CAP} postcards. You have ${Math.max(0, MONTHLY_POSTCARD_CAP - used)} remaining this billing period.`,
+      },
+      { status: 403 }
+    )
   }
 
-  // Dispatch postcards via Stannp and insert job records
   const adminSupabase = createAdminClient()
-  const dispatched: { leadId: string; jobId: string; isOverage: boolean }[] = []
-  const failed: string[] = []
-  const failReasons: string[] = []
-  // Counts cards that actually went out this request, so the included/overage
-  // split is based on real dispatches rather than the original loop index — a
-  // lead that loses the claim race must not push another lead into overage.
-  let dispatchedSoFar = 0
+  const batchId = randomUUID()
 
-  for (let i = 0; i < leads.length; i++) {
-    const lead = leads[i]
+  // 1. Create a pending job row per eligible lead and atomically claim the lead.
+  //    Pending rows carry no release_at, so the cron never touches them; they
+  //    only become live 'held' orders after the card charge succeeds. Leads that
+  //    lose the claim race are skipped so we never charge for a card we can't
+  //    send.
+  type Claimed = { jobId: string; leadId: string; lead: Record<string, unknown> }
+  const claimed: Claimed[] = []
+
+  for (const lead of eligible) {
     let jobId: string | null = null
-
     try {
-      // 1. Create a pending job row first so we have an id to claim the lead
-      //    with. The included/overage flag is set later, once the card actually
-      //    dispatches (a pending row is never billed).
-      const { data: jobRow, error: jobErr } = await adminSupabase.from('postcard_jobs').insert({
-        user_id: user.id,
-        lead_id: lead.id,
-        lead_month: lead.lead_month,
-        recipient_address_line: lead.address_line,
-        recipient_postcode: lead.postcode,
-        was_included_in_subscription: true,
-        charge_amount_pence: 0,
-        status: 'pending',
-      }).select('id').single()
-      if (jobErr || !jobRow) {
-        throw new Error(jobErr?.message ?? 'Could not create postcard job')
-      }
+      const { data: jobRow, error: jobErr } = await adminSupabase
+        .from('postcard_jobs')
+        .insert({
+          user_id: user.id,
+          lead_id: lead.id,
+          lead_month: lead.lead_month,
+          recipient_address_line: lead.address_line,
+          recipient_postcode: lead.postcode,
+          batch_id: batchId,
+          was_included_in_subscription: true,
+          charge_amount_pence: 0,
+          status: 'pending',
+        })
+        .select('id')
+        .single()
+      if (jobErr || !jobRow) throw new Error(jobErr?.message ?? 'Could not create postcard job')
       jobId = jobRow.id as string
 
-      // 2. Atomically claim the lead. The conditional UPDATE only succeeds if the
-      //    lead isn't already linked to a job, so a concurrent double-submit
-      //    can't both win — the loser gets zero rows back and skips.
-      const { data: claimed, error: claimErr } = await adminSupabase
+      const { data: claimRows, error: claimErr } = await adminSupabase
         .from('leads')
         .update({ postcard_job_id: jobId, selected_for_dispatch: true })
         .eq('id', lead.id)
         .is('postcard_job_id', null)
         .select('id')
       if (claimErr) throw new Error(claimErr.message)
-      if (!claimed || claimed.length === 0) {
-        // Lost the race — another request already claimed this lead. Cancel our
-        // pending job and move on without sending, counting, or billing.
+      if (!claimRows || claimRows.length === 0) {
+        // Lost the race — cancel our pending row, send/charge nothing for it.
         await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).eq('id', jobId)
         continue
       }
 
-      // 3. We own the lead — print and post. The atomic lead claim above is the
-      //    real double-send guard (Stannp has no idempotency-key header); we still
-      //    tag the order with a deterministic per-(user, lead, batch) hash so a
-      //    duplicate is traceable in the Stannp dashboard.
-      const recipient = buildRecipient(
-        lead.address_line as string,
-        lead.postcode as string
-      )
-
-      const idempotencyKey = createHash('sha256')
-        .update(`postcard:${user.id}:${lead.id}:${lead.lead_month}`)
-        .digest('hex')
-        .slice(0, 40)
-
-      const { id: postcardId, status } = await sendPostcard({
-        to: recipient,
-        frontUrl,
-        backUrl,
-        tag: idempotencyKey,
-      })
-
-      // Only now that the card is actually going out do we decide whether it's
-      // an included or an overage card, based on how many have dispatched so far.
-      const isIncluded = used + dispatchedSoFar < INCLUDED_POSTCARDS_PER_MONTH
-      dispatchedSoFar++
-
-      await adminSupabase.from('postcard_jobs').update({
-        postgrid_letter_id: postcardId,
-        postgrid_status: status,
-        was_included_in_subscription: isIncluded,
-        charge_amount_pence: isIncluded ? 0 : POSTCARD_OVERAGE_PENCE,
-        status: 'dispatched',
-        dispatched_at: new Date().toISOString(),
-      }).eq('id', jobId)
-
-      dispatched.push({ leadId: lead.id as string, jobId, isOverage: !isIncluded })
+      claimed.push({ jobId, leadId: lead.id as string, lead })
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`Stannp dispatch failed for lead ${lead.id}:`, msg)
-      // Release the lead and mark the pending job failed so the lead becomes
-      // eligible to retry rather than being stuck "dispatched".
+      console.error(`Failed to reserve postcard job for lead ${lead.id}:`, err)
       if (jobId) {
-        await adminSupabase.from('postcard_jobs').update({ status: 'failed' }).eq('id', jobId)
+        await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).eq('id', jobId)
         await adminSupabase.from('leads').update({ postcard_job_id: null }).eq('id', lead.id)
       }
-      failed.push(lead.id as string)
-      failReasons.push(msg)
     }
   }
 
-  // If everything failed, nothing dispatched and nothing to bill.
-  if (dispatched.length === 0 && failed.length > 0) {
-    return NextResponse.json({
-      error: `All ${failed.length} postcard${failed.length === 1 ? '' : 's'} failed to dispatch`,
-      dispatched: 0,
-      failed: failed.length,
-      reasons: failReasons,
-    }, { status: 502 })
+  const q = claimed.length
+  if (q === 0) {
+    return NextResponse.json(
+      { error: 'No eligible leads — they may already have been sent.' },
+      { status: 409 }
+    )
   }
 
-  const overageCount = dispatched.filter((d) => d.isOverage).length
+  // Helper to undo everything reserved above (used on any failure past here).
+  const releaseReservation = async () => {
+    const jobIds = claimed.map((c) => c.jobId)
+    const leadIdsToFree = claimed.map((c) => c.leadId)
+    await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).in('id', jobIds)
+    await adminSupabase.from('leads').update({ postcard_job_id: null, selected_for_dispatch: false }).in('id', leadIdsToFree)
+  }
 
-  // Bill any unbilled overage for this user — the cards just dispatched plus any
-  // left pending by an earlier failed attempt. Per-job idempotency keeps this
-  // safe to retry; if Stripe is momentarily down the cards stay pending and the
-  // next dispatch or resend sweeps them up, so there's nothing to reconcile by
-  // hand.
-  let overageBilled = 0
-  if (profile.stripe_customer_id) {
+  // 2. Reserve q postcards against the period counter AND the hard cap, in one
+  //    atomic, row-locked step. This is where usage is counted — at hold
+  //    creation, never at release, so a released order is not double-counted and
+  //    a cancelled one is cleanly given back. Returns the pre-increment usage so
+  //    the included/paid split is deterministic and race-free.
+  const { data: preUsedRaw, error: reserveErr } = await adminSupabase.rpc(
+    'increment_postcards_used_capped',
+    { p_user_id: user.id, p_amount: q, p_cap: MONTHLY_POSTCARD_CAP }
+  )
+  if (reserveErr) {
+    await releaseReservation()
+    console.error('Capped reservation RPC failed:', reserveErr)
+    return NextResponse.json({ error: 'Could not reserve your postcard allowance. Please try again.' }, { status: 500 })
+  }
+  const preUsed = preUsedRaw as number
+  if (preUsed < 0) {
+    // Cap would be breached (e.g. a concurrent send got in first).
+    await releaseReservation()
+    return NextResponse.json(
+      {
+        error: `This would exceed your monthly limit of ${MONTHLY_POSTCARD_CAP} postcards. You have ${Math.max(0, MONTHLY_POSTCARD_CAP - used)} remaining this billing period.`,
+      },
+      { status: 403 }
+    )
+  }
+
+  // 3. Split included vs paid from the reserved pre-usage value.
+  const includedRemaining = Math.max(0, INCLUDED_POSTCARDS_PER_MONTH - preUsed)
+  const includedCount = Math.min(q, includedRemaining)
+  const payableCount = q - includedCount
+  const costPence = payableCount * POSTCARD_OVERAGE_PENCE
+
+  // 4. Charge the saved card UP FRONT for the paid cards (feature 8.6). A
+  //    decline aborts the whole send: reservation released, holds cancelled,
+  //    leads freed, nothing dispatched.
+  let paymentIntentId: string | null = null
+  if (payableCount > 0) {
+    if (!profile.stripe_customer_id) {
+      await adminSupabase.rpc('decrement_postcards_used', { p_user_id: user.id, p_amount: q })
+      await releaseReservation()
+      return NextResponse.json(
+        { error: 'No payment method on file. Add a card in Billing before sending paid postcards.' },
+        { status: 402 }
+      )
+    }
     try {
-      overageBilled = await billPendingOverage(user.id, profile.stripe_customer_id as string)
+      const { paymentIntentId: pi } = await chargePostcardBatch({
+        customerId: profile.stripe_customer_id as string,
+        amountPence: costPence,
+        // Stable per send: a retried confirm reuses the same batch id, so Stripe
+        // dedupes and never double-charges.
+        idempotencyKey: `postcard-batch:${batchId}`,
+        metadata: { userId: user.id, batchId, payableCount: String(payableCount) },
+      })
+      paymentIntentId = pi
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error(`Overage billing sweep failed for user ${user.id} (will retry on next activity):`, msg)
+      const msg = err instanceof Error ? err.message : 'Your card was declined.'
+      await adminSupabase.rpc('decrement_postcards_used', { p_user_id: user.id, p_amount: q })
+      await releaseReservation()
+      return NextResponse.json({ error: msg }, { status: 402 })
     }
   }
 
-  // Increment the usage counter atomically. Falls back to read-modify-write if
-  // the increment_postcards_used function hasn't been applied to the DB yet.
-  if (dispatched.length > 0) {
-    const { error: incErr } = await adminSupabase.rpc('increment_postcards_used', {
-      p_user_id: user.id,
-      p_amount: dispatched.length,
-    })
-    if (incErr) {
-      const { data: fresh } = await adminSupabase
-        .from('profiles')
-        .select('postcards_used_this_period')
-        .eq('id', user.id)
-        .single()
-      await adminSupabase
-        .from('profiles')
-        .update({
-          postcards_used_this_period:
-            ((fresh?.postcards_used_this_period as number) ?? used) + dispatched.length,
-        })
-        .eq('id', user.id)
-    }
+  // 5. Charge is settled (or there was nothing to pay). Promote the pending rows
+  //    to HELD with a release_at, tagging the paid cards with the PaymentIntent
+  //    so cancel can refund them. Stannp is NOT called here — the release cron
+  //    does that once the cool-off expires.
+  const releaseAt = new Date(Date.now() + POSTCARD_COOL_OFF_MINUTES * 60_000).toISOString()
+  const heldJobIds: string[] = []
+  for (let i = 0; i < claimed.length; i++) {
+    const { jobId } = claimed[i]
+    const isIncluded = i < includedCount
+    await adminSupabase
+      .from('postcard_jobs')
+      .update({
+        status: 'held',
+        release_at: releaseAt,
+        was_included_in_subscription: isIncluded,
+        charge_amount_pence: isIncluded ? 0 : POSTCARD_OVERAGE_PENCE,
+        stripe_payment_intent_id: isIncluded ? null : paymentIntentId,
+      })
+      .eq('id', jobId)
+    heldJobIds.push(jobId)
   }
 
-  return NextResponse.json({
-    success: true,
-    dispatched: dispatched.length,
-    failed: failed.length,
-    included: Math.max(0, dispatched.length - overageCount),
-    overage: overageCount,
-    overageCostPence: overageCount * POSTCARD_OVERAGE_PENCE,
-    overageBilled,
+  // Record the purchase as an in-app notification (and email, per the user's
+  // preference). Best-effort — never block the send response on it.
+  await createNotification({
+    userId: user.id,
+    type: 'leads_purchased',
+    title: `${q} postcard${q === 1 ? '' : 's'} on the way`,
+    body:
+      payableCount > 0
+        ? `${includedCount} included and ${payableCount} paid (${formatPounds(costPence)}). You can cancel within ${POSTCARD_COOL_OFF_MINUTES} minutes.`
+        : `All ${q} from your free monthly allowance. You can cancel within ${POSTCARD_COOL_OFF_MINUTES} minutes.`,
+    href: '/postcards',
   })
+
+  return NextResponse.json(
+    {
+      success: true,
+      orderId: batchId,
+      jobIds: heldJobIds,
+      quantity: q,
+      included: includedCount,
+      payable: payableCount,
+      costPence,
+      costFormatted: formatPounds(costPence),
+      paymentIntentId,
+      releaseAt,
+      coolOffMinutes: POSTCARD_COOL_OFF_MINUTES,
+    },
+    { status: 201 }
+  )
 }

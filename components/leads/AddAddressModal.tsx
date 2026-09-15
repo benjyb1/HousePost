@@ -78,7 +78,7 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="e.g. 10 Downing Street, London"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-blue-900 focus:ring-2 focus:ring-blue-900"
             />
           </div>
 
@@ -89,7 +89,7 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
               value={postcode}
               onChange={(e) => setPostcode(formatPostcode(e.target.value))}
               placeholder="e.g. SW1A 1AA"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-blue-900 focus:ring-2 focus:ring-blue-900"
             />
           </div>
 
@@ -108,7 +108,7 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
           <button
             onClick={handleAdd}
             disabled={!canSubmit || adding}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg bg-blue-900 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 disabled:opacity-50"
           >
             {adding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
             Add to Leads

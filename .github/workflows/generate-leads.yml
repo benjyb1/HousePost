@@ -2,10 +2,10 @@ name: Generate Leads
 
 on:
   schedule:
-    # Runs on 22nd, 23rd, 24th at 8am UTC.
-    # The script's isScheduledRunDay(22) handles weekend deferral logic
+    # Runs on 6th, 7th, 8th at 8am UTC.
+    # The script's isScheduledRunDay(6) handles weekend deferral logic
     # so only the correct day will actually execute the generation.
-    - cron: '0 8 22,23,24 * *'
+    - cron: '0 8 6,7,8 * *'
   workflow_dispatch: # Allow manual trigger from GitHub Actions UI
 
 jobs:

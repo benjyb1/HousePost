@@ -7,7 +7,9 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { MapPin, Mail, CreditCard, Building, CalendarDays } from 'lucide-react'
 import { currentMonthKey, formatMonthKey } from '@/lib/utils/date'
-import { INCLUDED_POSTCARDS_PER_MONTH } from '@/types/profile'
+import { INCLUDED_POSTCARDS_PER_MONTH, POSTCARD_OVERAGE_PENCE } from '@/types/profile'
+import { listNotifications } from '@/lib/notifications'
+import { RecentActivity } from '@/components/dashboard/RecentActivity'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -36,7 +38,7 @@ export default async function DashboardPage() {
   const latestLeadMonth = latestLead?.lead_month ?? prevMonthKey
 
   // Our "month" runs on the leads cycle, not the calendar: a fresh batch drops
-  // on the 22nd and postcards get sent against that batch until the next one
+  // on the 6th and postcards get sent against that batch until the next one
   // arrives. So "postcards sent" and "untapped" are both measured against the
   // latest batch (postcard_jobs.lead_month = the batch the lead came from), and
   // the "vs last month" delta compares it to the batch before that.
@@ -81,14 +83,25 @@ export default async function DashboardPage() {
   const progressPercent = Math.min((used / INCLUDED_POSTCARDS_PER_MONTH) * 100, 100)
   const overLimit = used > INCLUDED_POSTCARDS_PER_MONTH
 
+  // Spend this month. Derived from usage: the payable overage so far this period
+  // is every postcard beyond the included allowance, charged at the overage rate.
+  // (A later change could sum actual Stripe charges instead of deriving from usage.)
+  const overageCount = Math.max(0, used - INCLUDED_POSTCARDS_PER_MONTH)
+  const spendPence = overageCount * POSTCARD_OVERAGE_PENCE
+  const spendLabel = `£${(spendPence / 100).toFixed(2)}`
+
+  // Recent activity feed (leads drops + postcard sends). Fetch a few extra so the
+  // responsive feed can show up to ~5 on large screens.
+  const notifications = await listNotifications(user.id, 5)
+
   // Untapped leads
   const untappedLeads = (leadCount ?? 0) - (postcardCount ?? 0)
 
-  // Next leads drop is the 22nd. Before the 22nd it's this month's 22nd;
-  // from the 22nd onward it's next month's 22nd.
+  // Next leads drop is the 6th. Before the 6th it's this month's 6th;
+  // from the 6th onward it's next month's 6th.
   const now = new Date()
-  const nextDropMonth = now.getDate() >= 22 ? now.getMonth() + 1 : now.getMonth()
-  const nextDropDate = new Date(now.getFullYear(), nextDropMonth, 22)
+  const nextDropMonth = now.getDate() >= 6 ? now.getMonth() + 1 : now.getMonth()
+  const nextDropDate = new Date(now.getFullYear(), nextDropMonth, 6)
   // Handle year rollover automatically via Date constructor
   const daysUntilDrop = Math.ceil((nextDropDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
   const nextDropLabel = nextDropDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
@@ -102,7 +115,7 @@ export default async function DashboardPage() {
         <p className="mt-1 text-sm text-slate-500">{formatMonthKey(monthKey)} overview</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Card className="flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-500">Latest leads</CardTitle>
@@ -138,7 +151,7 @@ export default async function DashboardPage() {
 
         <Card className="flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Allowance used</CardTitle>
+            <CardTitle className="text-sm font-medium text-slate-500">Free postcards used</CardTitle>
             <CreditCard className="h-4 w-4 text-slate-400" />
           </CardHeader>
           <CardContent className="flex-1">
@@ -150,6 +163,21 @@ export default async function DashboardPage() {
               />
             </div>
             <p className="text-xs text-slate-500 mt-1">included postcards</p>
+          </CardContent>
+        </Card>
+
+        <Card className="flex flex-col">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-slate-500">Spend this month</CardTitle>
+            <CreditCard className="h-4 w-4 text-slate-400" />
+          </CardHeader>
+          <CardContent className="flex-1">
+            <p className="text-3xl font-bold">{spendLabel}</p>
+            <p className="text-xs text-slate-500 mt-1">
+              {overageCount > 0
+                ? `${overageCount} postcard${overageCount === 1 ? '' : 's'} over your free allowance`
+                : 'within your free allowance'}
+            </p>
           </CardContent>
         </Card>
 
@@ -189,7 +217,7 @@ export default async function DashboardPage() {
         <Card className="border-dashed">
           <CardContent className="py-6 text-center">
             <p className="font-medium text-slate-600">{daysUntilDrop} day{daysUntilDrop !== 1 ? 's' : ''} until new leads</p>
-            <p className="text-sm text-slate-400 mt-1">Your next batch arrives on the 22nd</p>
+            <p className="text-sm text-slate-400 mt-1">Your next batch arrives on the 6th</p>
           </CardContent>
         </Card>
       ) : null}
@@ -200,7 +228,7 @@ export default async function DashboardPage() {
             <Image src="/logo-icon.png" alt="" width={40} height={40} className="mx-auto h-10 w-10 opacity-20 mb-3" />
             <p className="font-medium text-slate-600">No leads yet for {formatMonthKey(monthKey)}</p>
             <p className="text-sm text-slate-400 mt-1">
-              Leads are generated on the 22nd of each month from Land Registry data.
+              Leads are generated on the 6th of each month from Land Registry data.
             </p>
           </CardContent>
         </Card>
@@ -211,6 +239,9 @@ export default async function DashboardPage() {
         <CalendarDays className="h-4 w-4 text-slate-400 shrink-0" />
         <p className="text-sm text-slate-500">Your next leads drop on {nextDropLabel}</p>
       </div>
+
+      {/* Recent activity feed */}
+      <RecentActivity notifications={notifications} />
     </div>
   )
 }

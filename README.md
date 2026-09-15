@@ -4,9 +4,9 @@ Automated UK property lead generation from HM Land Registry data with Stannp pos
 
 ## How it works
 
-1. **21st of each month** (deferred to Monday if weekend): streams the 100MB+ Land Registry monthly CSV straight from the download response into the parser — never buffers the whole file — filters to standard sales (category A), and batch-upserts into the database.
-2. **22nd of each month**: generates leads for each active subscriber — querying properties within their office radius, auto-expanding by 5-mile steps (up to 50 miles) until 15+ leads are found. A notification email is sent.
-3. **Clients** log in, review leads, select properties, and confirm postcard dispatch. The first 5/month are included in the £10/month subscription; additional postcards cost £1.50 each via Stripe.
+1. **5th of each month** (deferred to Monday if weekend): streams the 100MB+ Land Registry monthly CSV straight from the download response into the parser — never buffers the whole file — filters to standard sales (category A), and batch-upserts into the database.
+2. **6th of each month**: generates leads for each active subscriber — querying properties within their office radius, auto-expanding by 5-mile steps (up to 50 miles) until 15+ leads are found. A notification email is sent.
+3. **Clients** log in, review leads, select properties, and confirm postcard dispatch. The first 5/month are included in the £15/month subscription; additional postcards cost £1.50 each via Stripe.
 
 ## Engineering details worth a second look
 
@@ -134,7 +134,7 @@ Visit `/admin` — enter `ADMIN_PASSWORD`. Shows all clients with lead counts, p
 
 ## Architecture notes
 
-- **Cron guards**: Both crons run daily but skip unless today is the target day (21st/22nd, deferred to Monday if weekend).
+- **Cron guards**: Both crons run daily but skip unless today is the target day (5th/6th, deferred to Monday if weekend).
 - **CSV streaming**: Uses `fetch().body` (ReadableStream) piped into `csv-parse`. Never buffers the full 100MB+ file.
 - **Radius expansion**: SQL bounding-box pre-filter + Haversine in-app on the smaller result set.
 - **Stripe webhooks**: `request.text()` for raw body — required for signature verification.

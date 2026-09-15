@@ -1,0 +1,28 @@
+name: Poll Postcard Status
+
+on:
+  schedule:
+    # Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC) — four times a day. The
+    # fulfilment pipeline plays out over several days, so this is ample to keep
+    # each card's status fresh without hammering the provider's API.
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # Allow manual trigger from the GitHub Actions UI
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      # The route is guarded by the same CRON_SECRET bearer the other cron
+      # endpoints use, so we simply call the deployed endpoint. It loads the
+      # non-terminal postcard jobs, refreshes each one's status and writes the
+      # neutral status back to the database itself.
+      - name: Trigger postcard status poll
+        run: |
+          curl --fail --show-error --silent \
+            -X POST "${APP_URL%/}/api/cron/poll-postcard-status" \
+            -H "Authorization: Bearer ${CRON_SECRET}"
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

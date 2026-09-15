@@ -19,9 +19,9 @@ export async function POST(request: Request) {
   const now = new Date()
   const importMonth = toMonthKey(now)
 
-  // Run on the 21st (deferred to Monday if weekend) or any of the following
+  // Run on the 5th (deferred to Monday if weekend) or any of the following
   // days in the window, so a failed run retries instead of skipping the month.
-  if (!isWithinRunWindow(21, now)) {
+  if (!isWithinRunWindow(5, now)) {
     return NextResponse.json({
       skipped: true,
       reason: 'Outside the run window',

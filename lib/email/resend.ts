@@ -72,6 +72,69 @@ export async function sendLeadsReadyEmail(params: {
 }
 
 /**
+ * Send a general notification email.
+ *
+ * This is the email side of the in-app notifications feed: when
+ * `createNotification` writes a row and the target user has
+ * `email_notifications` enabled, this sends a matching email. Styled to match
+ * `sendLeadsReadyEmail` (same header band + primary button).
+ *
+ * The subject is derived from the notification title (e.g. "25 new leads just
+ * dropped"), and the button links to the notification's `href` (falling back to
+ * the dashboard). A quiet footer line reminds the user they can turn these
+ * emails off in Settings.
+ */
+export async function sendNotificationEmail(params: {
+  to: string
+  name: string
+  title: string
+  body?: string | null
+  href?: string | null
+}): Promise<void> {
+  const { to, name, title, body, href } = params
+  const resend = getResend()
+
+  // Resolve the button target and its label. Relative hrefs (e.g. '/leads')
+  // are joined onto APP_URL; anything else falls back to the dashboard.
+  const path = href && href.startsWith('/') ? href : '/dashboard'
+  const buttonHref = `${APP_URL}${path}`
+  const buttonLabel = path === '/dashboard' ? 'Go to dashboard' : 'View in Housepost'
+
+  const bodyHtml = body
+    ? `<p>${body}</p>`
+    : ''
+
+  await resend.emails.send({
+    from: FROM,
+    to,
+    subject: title,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333;">
+        <div style="background:#152452;color:white;padding:24px;border-radius:8px 8px 0 0;">
+          <h1 style="margin:0;font-size:24px;">${title}</h1>
+        </div>
+        <div style="padding:24px;background:#fff;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px;">
+          <p>Hi ${name},</p>
+          ${bodyHtml}
+          <div style="text-align:center;margin:32px 0;">
+            <a href="${buttonHref}"
+               style="background:#152452;color:white;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:bold;display:inline-block;">
+              ${buttonLabel}
+            </a>
+          </div>
+          <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0;"/>
+          <p style="color:#999;font-size:12px;">
+            You're receiving this because email notifications are switched on.
+            You can turn these emails off any time in your
+            <a href="${APP_URL}/settings" style="color:#999;">settings</a>.
+          </p>
+        </div>
+      </div>
+    `,
+  })
+}
+
+/**
  * Send an alert to the admin email when the Land Registry import fails.
  */
 export async function sendAdminImportFailureAlert(

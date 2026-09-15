@@ -33,6 +33,7 @@ export async function PATCH(request: Request) {
     postcard_design_url,
     postcard_design_back_url,
     company_name,
+    email_notifications,
   } = body
 
   const updates: Record<string, unknown> = {}
@@ -45,6 +46,7 @@ export async function PATCH(request: Request) {
   if (postcard_design_url !== undefined) updates.postcard_design_url = postcard_design_url
   if (postcard_design_back_url !== undefined) updates.postcard_design_back_url = postcard_design_back_url
   if (company_name !== undefined) updates.company_name = company_name
+  if (email_notifications !== undefined) updates.email_notifications = email_notifications
 
   // Re-geocode if postcode changed
   if (office_postcode !== undefined) {

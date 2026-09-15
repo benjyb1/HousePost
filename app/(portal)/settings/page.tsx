@@ -19,6 +19,7 @@ interface Profile {
   min_price: number | null
   max_price: number | null
   property_types: string[]
+  email_notifications: boolean
 }
 
 export default function SettingsPage() {
@@ -32,6 +33,8 @@ export default function SettingsPage() {
         ...profile,
         min_price: profile.min_price ? profile.min_price / 100 : null,
         max_price: profile.max_price ? profile.max_price / 100 : null,
+        // Default to opted-in when the column is absent/null (matches the DB default).
+        email_notifications: profile.email_notifications ?? true,
       }))
   }, [])
 
@@ -50,11 +53,12 @@ export default function SettingsPage() {
         min_price: profile.min_price ? profile.min_price * 100 : null,
         max_price: profile.max_price ? profile.max_price * 100 : null,
         property_types: profile.property_types,
+        email_notifications: profile.email_notifications,
       }),
     })
     const data = await res.json()
     if (!res.ok) toast.error(data.error ?? 'Failed to save')
-    else toast.success('Preferences saved')
+    else toast.success('Settings saved')
     setSaving(false)
   }
 
@@ -76,7 +80,7 @@ export default function SettingsPage() {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Preferences</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Settings</h1>
         <p className="text-sm text-slate-500">Configure your lead search settings</p>
       </div>
 
@@ -184,8 +188,36 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        <Card>
+          <CardHeader>
+            <CardTitle>Notifications</CardTitle>
+            <CardDescription>Choose whether we email you about account activity</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <Checkbox
+                checked={profile.email_notifications}
+                onCheckedChange={(checked) =>
+                  setProfile({ ...profile, email_notifications: !!checked })
+                }
+              />
+              <span className="space-y-1">
+                <span className="block text-sm font-medium text-slate-700">
+                  Email me about new notifications
+                </span>
+                <span className="block text-xs text-slate-400">
+                  Get an email whenever something happens in your account — such as a new
+                  batch of leads or a postcard order. You&apos;ll still see everything in the
+                  app, and we&apos;ll always send essential emails like receipts. Switch this
+                  off any time.
+                </span>
+              </span>
+            </label>
+          </CardContent>
+        </Card>
+
         <Button type="submit" disabled={saving}>
-          {saving ? 'Saving…' : 'Save preferences'}
+          {saving ? 'Saving…' : 'Save settings'}
         </Button>
       </form>
     </div>

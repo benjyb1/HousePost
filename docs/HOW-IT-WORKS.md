@@ -8,10 +8,10 @@ Housepost is a tool that automatically finds properties in your area that have r
 
 ## What happens every month, automatically
 
-### Step 1 — Data collection (21st of every month)
+### Step 1 — Data collection (5th of every month)
 The system downloads the latest data from the official HM Land Registry — a government database of every property sold in England and Wales. This happens automatically, you don't need to do anything.
 
-### Step 2 — Your leads are generated (22nd of every month)
+### Step 2 — Your leads are generated (6th of every month)
 The system looks through the new sales data and finds properties within your chosen radius of your office. It picks the ones that match your preferences (property type, price range, etc.) and saves them as your leads for that month.
 
 You'll receive an email notification when your leads are ready.
@@ -20,7 +20,7 @@ You'll receive an email notification when your leads are ready.
 Log in to your portal and go to the **Leads** page. You'll see a list of recently sold properties near you, showing the address, sale price, property type, and distance from your office.
 
 ### Step 4 — You select who to contact
-Tick the checkboxes next to the properties you want to target. Your subscription includes **10 free postcards per month**. Additional postcards are charged at **£1 each**.
+Tick the checkboxes next to the properties you want to target. Your subscription includes **5 free postcards per month**. Additional postcards are charged at **£1.50 each**.
 
 ### Step 5 — Postcards are dispatched
 Click **Dispatch Postcards**. The system shows you the cost breakdown, then sends your personalised postcards to print and post automatically via our print partner.
@@ -44,8 +44,8 @@ Go to the **Postcards** page to see the status of every postcard — from printi
 
 ## Subscription
 
-- **£10/month** — includes 10 postcards per month
-- **£1 per postcard** above the 10 included
+- **£15/month** — includes 5 postcards per month
+- **£1.50 per postcard** above the 5 included
 - Cancel anytime from the Billing page
 
 ---
@@ -53,7 +53,7 @@ Go to the **Postcards** page to see the status of every postcard — from printi
 ## Frequently asked questions
 
 **When will I see new leads?**
-New leads appear on the 22nd of each month (or the following Monday if the 22nd falls on a weekend).
+New leads appear on the 6th of each month (or the following Monday if the 6th falls on a weekend).
 
 **What if I want properties further away?**
 Go to Settings and increase your search radius (up to 50 miles). The system will automatically expand the search if fewer than 15 properties are found within your initial radius.
