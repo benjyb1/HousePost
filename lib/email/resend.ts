@@ -170,7 +170,10 @@ export async function sendAdminAlert(
   bodyHtml: string
 ): Promise<void> {
   const resend = getResend()
-  const adminEmail = process.env.ADMIN_ALERT_EMAIL ?? FROM
+  // Never default to the sender address: with the Resend sandbox sender that is
+  // onboarding@resend.dev, i.e. nobody. Money-path alerts and design briefs
+  // must reach a human.
+  const adminEmail = process.env.ADMIN_ALERT_EMAIL ?? 'info@housepost.co.uk'
 
   await resend.emails.send({
     from: FROM,

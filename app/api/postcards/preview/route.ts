@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createPostcardPreview, buildRecipient } from '@/lib/postcards/stannp'
+import { resolveBackUrl } from '@/lib/postcards/defaults'
 
 /**
  * POST: render an exact print proof of the user's current postcard design.
@@ -33,10 +34,12 @@ export async function POST() {
   }
 
   const frontUrl = profile.postcard_design_url as string | null
-  const backUrl = profile.postcard_design_back_url as string | null
-  if (!frontUrl || !backUrl) {
+  // Without a back design the proof shows the blank default back, which is
+  // exactly what would print.
+  const backUrl = resolveBackUrl(profile.postcard_design_back_url as string | null)
+  if (!frontUrl) {
     return NextResponse.json(
-      { error: 'Upload a front and back design first, then preview the exact printed card.' },
+      { error: 'Add a front design first, then preview the exact printed card.' },
       { status: 400 }
     )
   }

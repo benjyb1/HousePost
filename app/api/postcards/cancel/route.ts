@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { refundPostcardCharge } from '@/lib/stripe/billing'
 import { sendAdminAlert } from '@/lib/email/resend'
+import { createNotification } from '@/lib/notifications'
 import { POSTCARD_OVERAGE_PENCE } from '@/types/profile'
 
 /**
@@ -66,13 +67,15 @@ export async function POST(request: Request) {
 
   const cancelledCount = cancelledRows.length
 
-  // 1. Free the leads so they can be selected and sent again.
-  const leadIds = cancelledRows.map((r) => r.lead_id).filter(Boolean) as string[]
-  if (leadIds.length > 0) {
-    await adminSupabase
-      .from('leads')
-      .update({ postcard_job_id: null, selected_for_dispatch: false })
-      .in('id', leadIds)
+  // 1. Free the leads so they can be selected and sent again. A lead that was
+  //    being RE-sent goes back to its previous finished job (so it stays in
+  //    "Send again" with its history intact) rather than being orphaned.
+  for (const r of cancelledRows) {
+    if (!r.lead_id) continue
+    await adminSupabase.rpc('relink_lead_after_unwind', {
+      p_lead_id: r.lead_id as string,
+      p_job_id: r.id as string,
+    })
   }
 
   // 2. Hand back the reserved usage. Guarded/clamped at the DB level, and safe
@@ -156,6 +159,20 @@ export async function POST(request: Request) {
       )
     }
   }
+
+  // Record the cancellation as an in-app notification (and email, per the user's
+  // preference), mirroring the "on the way" one the send creates. Best-effort —
+  // never block the cancel response on it.
+  await createNotification({
+    userId: user.id,
+    type: 'order_cancelled',
+    title: `Order cancelled — ${cancelledCount} postcard${cancelledCount === 1 ? '' : 's'} held back`,
+    body:
+      refundedPence > 0
+        ? `£${(refundedPence / 100).toFixed(2)} has been refunded to your card.`
+        : 'No charge was taken, so there is nothing to refund.',
+    href: '/postcards',
+  })
 
   return NextResponse.json({
     success: true,

@@ -18,6 +18,10 @@ export default function ResendButton({ jobId }: { jobId: string }) {
       const data = await res.json()
       if (!res.ok) {
         toast.error(data.error ?? 'Failed to re-send')
+      } else if (data.deduped) {
+        // One re-send per card per month; a second click sends (and charges)
+        // nothing, so say so rather than claiming another card went out.
+        toast.info('This postcard has already been re-sent this month.')
       } else {
         toast.success('Postcard re-sent!')
       }

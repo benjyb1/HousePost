@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { geocodeSingleWithCache } from '@/lib/geocoding/postcodes-io'
 import { haversineDistanceMiles, boundingBox } from '@/lib/geocoding/haversine'
+import { normalisePostcode } from '@/lib/address/normalise'
 
 // Reads the service-role client + external geocoding — must run on Node and never
 // be statically cached (results depend on the query string and live data).
@@ -149,7 +150,9 @@ export async function lookupHousesSold(
 
   return {
     ok: true,
-    postcode: geo.postcode,
+    // Royal-Mail-formatted ("HP20 1BB"), not the compact geocoder form, so the
+    // public page and API echo it back the way a person writes it.
+    postcode: normalisePostcode(geo.postcode),
     radiusMiles,
     month,
     count,

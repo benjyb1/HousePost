@@ -156,6 +156,66 @@ export function addressKey(
   return `${addressPart}|${normalisePostcode(postcode)}`
 }
 
+/**
+ * A coarser "premises" key for do-not-contact matching.
+ *
+ * HM Land Registry lines always end in ", Locality, Town" but a member of the
+ * public filling in the opt-out form very often leaves the town (or locality)
+ * out, so the full addressKey() under-matches. Within a single full postcode
+ * (~15 addresses) the building identifiers plus the street are enough to pin
+ * the property down, so this key keeps only the segments that identify the
+ * premises and folds in the postcode:
+ *
+ *   • every comma segment containing a digit ("FLAT 2", "10 HIGH STREET", "5");
+ *   • when such a segment is a bare number ("5", "10A", "FLAT 2") the segment
+ *     that follows it (the street or building name), because the Land Registry
+ *     puts the number and the street in separate segments while a person
+ *     usually types "5 Grasslands" in one;
+ *   • for a named house with no numbers at all, just the first segment.
+ *
+ *   premisesKey('5, GRASSLANDS, AYLESBURY', 'HP20 1XE')
+ *     === premisesKey('5 Grasslands', 'hp201xe')
+ *     === '5 GRASSLANDS|HP20 1XE'
+ *
+ * Screening code checks BOTH keys (see lib/leads/suppression.ts), so a match on
+ * either the exact address or the premises suppresses the property.
+ */
+export function premisesKey(
+  addressLines: string | Array<string | null | undefined>,
+  postcode: string
+): string {
+  const rawLines = Array.isArray(addressLines) ? addressLines : [addressLines]
+  const segments: string[][] = []
+  for (const line of rawLines) {
+    if (!line) continue
+    for (const segment of line.split(',')) {
+      const tokens = normaliseSegment(segment)
+      if (tokens.length > 0) segments.push(tokens)
+    }
+  }
+
+  const hasDigit = (tok: string) => /\d/.test(tok)
+  const include = new Set<number>()
+  segments.forEach((seg, i) => {
+    if (!seg.some(hasDigit)) return
+    include.add(i)
+    // "5" / "10A" / "FLAT 2": nothing alphabetic after the last number, so the
+    // street or building name must be in the next segment.
+    const lastDigitIdx = seg.map(hasDigit).lastIndexOf(true)
+    const alphaAfterNumber = seg.slice(lastDigitIdx + 1).length > 0
+    const next = segments[i + 1]
+    if (!alphaAfterNumber && next && !next.some(hasDigit)) include.add(i + 1)
+  })
+  if (include.size === 0 && segments.length > 0) include.add(0)
+
+  const addressPart = [...include]
+    .sort((a, b) => a - b)
+    .map((i) => segments[i].join(' '))
+    .join(' ')
+    .trim()
+  return `${addressPart}|${normalisePostcode(postcode)}`
+}
+
 /*
  * ── Known limitations / edge cases (owner should review before go-live) ──
  *

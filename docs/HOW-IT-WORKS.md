@@ -23,7 +23,9 @@ Log in to your portal and go to the **Leads** page. You'll see a list of recentl
 Tick the checkboxes next to the properties you want to target. Your subscription includes **5 free postcards per month**. Additional postcards are charged at **£1.50 each**.
 
 ### Step 5 — Postcards are dispatched
-Click **Dispatch Postcards**. The system shows you the cost breakdown, then sends your personalised postcards to print and post automatically via our print partner.
+Click **Send Postcards**. The system shows you the cost breakdown and takes payment for any postcards beyond your free allowance. Your order is then **held for 15 minutes** before it goes to print, so you can still cancel it for a full refund from the Postcards page. After the cool-off it is sent to print and post automatically via our print partner.
+
+There is a hard limit of **50 postcards per billing period** (5 free plus up to 45 paid) as a spend safeguard.
 
 ### Step 6 — Track delivery
 Go to the **Postcards** page to see the status of every postcard — from printing through to delivery.
@@ -64,8 +66,11 @@ Yes — go to Settings to set your preferences. You can filter by house type (de
 **What does my postcard look like?**
 Your postcard design is set up when your account is created. Contact your account manager to update the design.
 
-**What if I don't use all 10 postcards in a month?**
+**What if I don't use all 5 included postcards in a month?**
 Unused postcards don't roll over — the allowance resets each billing period.
+
+**I changed my mind after sending — can I stop a postcard?**
+Yes, within the 15-minute cool-off window. Go to the **Postcards** page and cancel the order; any charge for it is refunded in full. Once the cool-off passes the card is on its way and can't be recalled.
 
 **How do I cancel?**
 Go to Billing → Manage Subscription. You can cancel at any time and you'll retain access until the end of your current billing period.

@@ -7,6 +7,12 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { Sparkles, Upload, X, CheckCircle2 } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
+
+// Assets go straight from the browser into this PRIVATE bucket (per-user-folder
+// RLS), never through our API: Vercel caps a function's request body at 4.5MB,
+// which a brief with a couple of logos in it blew straight past.
+const ASSET_BUCKET = 'design-request-assets'
 
 const CUSTOM_DESIGN_FEE = '£75'
 const MAX_FILES = 10
@@ -67,23 +73,40 @@ export function CustomDesignBrief() {
 
     setSubmitting(true)
     try {
-      const form = new FormData()
-      form.set('businessName', businessName.trim())
-      form.set('colourScheme', colourScheme.trim())
-      form.set('text', text.trim())
-      form.set('notes', notes.trim())
-      files.forEach((f) => form.append('assets', f))
+      // 1. Upload the assets directly to storage, into this user's own folder.
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Please sign in again and retry.')
+      const uploadId = crypto.randomUUID()
+      const assets: { path: string; name: string; type: string; size: number }[] = []
+      for (const f of files) {
+        const safe = f.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100) || 'file'
+        const path = `${user.id}/design-requests/${uploadId}/${safe}`
+        const { error: uploadError } = await supabase.storage
+          .from(ASSET_BUCKET)
+          .upload(path, f, { upsert: true, contentType: f.type })
+        if (uploadError) throw new Error(`Could not upload “${f.name}”: ${uploadError.message}`)
+        assets.push({ path, name: f.name, type: f.type, size: f.size })
+      }
 
+      // 2. Send the brief (with the asset paths) — the fee is charged here.
       const res = await fetch('/api/postcards/design-request', {
         method: 'POST',
-        body: form,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          businessName: businessName.trim(),
+          colourScheme: colourScheme.trim(),
+          text: text.trim(),
+          notes: notes.trim(),
+          assets,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         throw new Error(data.error ?? 'Something went wrong. Please try again.')
       }
       setDone(true)
-      toast.success('Design request received')
+      toast.success(data.duplicate ? 'We already have this brief — no second charge was taken' : 'Design request received')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to submit your request')
     } finally {

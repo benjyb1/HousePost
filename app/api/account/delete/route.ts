@@ -37,6 +37,24 @@ import { getStripe } from '@/lib/stripe/client'
  * This is destructive and MUST be reviewed by a human before it is relied on in
  * production. See the migration note in the PR/report.
  */
+/** Every object path under `${prefix}/` in a bucket, recursing into folders. */
+async function listAllObjects(
+  admin: ReturnType<typeof createAdminClient>,
+  bucket: string,
+  prefix: string
+): Promise<string[]> {
+  const out: string[] = []
+  const { data, error } = await admin.storage.from(bucket).list(prefix, { limit: 1000 })
+  if (error) throw new Error(error.message)
+  for (const entry of data ?? []) {
+    const path = `${prefix}/${entry.name}`
+    // Folders come back without an id; files carry one.
+    if (entry.id) out.push(path)
+    else out.push(...(await listAllObjects(admin, bucket, path)))
+  }
+  return out
+}
+
 export async function POST() {
   const supabase = await createClient()
   const {
@@ -50,11 +68,13 @@ export async function POST() {
   //    been charged and is waiting out its cool-off; a 'dispatching' one is
   //    mid-send. Deleting now would strand that charge (and detach the history it
   //    belongs to) — the user must let these finish or cancel them first.
+  //    A 'pending' row is a charge whose outcome was ambiguous and is awaiting
+  //    operator reconciliation, so it blocks deletion too.
   const { count: inFlightCount, error: inFlightErr } = await admin
     .from('postcard_jobs')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id)
-    .in('status', ['held', 'dispatching'])
+    .in('status', ['pending', 'held', 'dispatching'])
 
   if (inFlightErr) {
     console.error('Account deletion: failed to check in-flight orders:', inFlightErr.message)
@@ -127,6 +147,22 @@ export async function POST() {
       deleted_at: new Date().toISOString(),
     })
     .eq('id', user.id)
+
+  // 4b. Remove the person's uploaded files (postcard artwork, design-brief
+  //     assets). Storage objects are not covered by the database cascade, so
+  //     without this every deleted account leaves orphaned files behind.
+  //     Best-effort: a storage error must not trap the user in their account.
+  for (const bucket of ['postcard-designs', 'design-request-assets']) {
+    try {
+      const paths = await listAllObjects(admin, bucket, user.id)
+      if (paths.length > 0) {
+        const { error: removeErr } = await admin.storage.from(bucket).remove(paths)
+        if (removeErr) console.error(`Account deletion: failed to remove ${bucket} files:`, removeErr.message)
+      }
+    } catch (err) {
+      console.error(`Account deletion: failed to list ${bucket} files:`, err)
+    }
+  }
 
   // 5. Delete the auth login. Cascades to the (anonymised) profile row.
   const { error: authError } = await admin.auth.admin.deleteUser(user.id)

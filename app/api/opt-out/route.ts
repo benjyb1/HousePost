@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { addressKey, normalisePostcode } from '@/lib/address/normalise'
+import { addressKey, premisesKey, normalisePostcode } from '@/lib/address/normalise'
 
 // Writes via the service-role client — must run on Node and never be cached.
 export const runtime = 'nodejs'
@@ -52,11 +52,15 @@ export async function recordOptOut(input: OptOutInput): Promise<OptOutResult> {
   const rawAddress = lines.join(', ')
 
   const key = addressKey(lines, postcodeRaw)
+  // Coarser second key so an entry typed without the town still matches the
+  // Land Registry form of the address (see premisesKey).
+  const premises = premisesKey(lines, postcodeRaw)
   const postcode = normalisePostcode(postcodeRaw)
 
   const supabase = createAdminClient()
   const { error } = await supabase.from('suppression_list').insert({
     address_key: key,
+    premises_key: premises,
     raw_address: rawAddress,
     postcode,
     source: 'opt_out_form',

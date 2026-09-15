@@ -6,8 +6,8 @@ import { calculatePostcardCost, chargePostcardBatch } from '@/lib/stripe/billing
 import { currentMonthKey } from '@/lib/utils/date'
 import { createNotification } from '@/lib/notifications'
 import { sendAdminAlert } from '@/lib/email/resend'
-import { loadSuppressionKeys } from '@/lib/leads/suppression'
-import { addressKey } from '@/lib/address/normalise'
+import { loadSuppressionKeys, isSuppressed } from '@/lib/leads/suppression'
+import { resolveBackUrl } from '@/lib/postcards/defaults'
 import {
   INCLUDED_POSTCARDS_PER_MONTH,
   POSTCARD_OVERAGE_PENCE,
@@ -40,6 +40,10 @@ function formatPounds(pence: number): string {
   return `£${(pence / 100).toFixed(2)}`
 }
 
+// A lead whose current job is still in one of these states can never be
+// re-targeted: the card is queued to post or inside its cool-off window.
+const IN_FLIGHT_STATUSES = new Set(['pending', 'held', 'dispatching'])
+
 /**
  * POST: two actions.
  *
@@ -48,8 +52,21 @@ function formatPounds(pence: number): string {
  *                        payable cards, then create HELD orders that a cron
  *                        posts after a 15-minute cool-off (feature 6.4).
  *
+ * Both accept `resend: true` ("Send again"): leads that already carry a
+ * FINISHED postcard job are then eligible too, and are re-claimed from that old
+ * job at confirm time. Nothing is detached up front, so closing the modal
+ * leaves the lead exactly as it was (still in "Send again", still linked to
+ * its history). Leads whose job is still in flight are never re-sendable.
+ *
+ * Confirm also accepts `expectedCostPence` / `expectedQuantity` — the figures
+ * the user was shown. If the real cost or card count differs at confirm time
+ * (another tab used up the free allowance, a lead lost a claim race, an address
+ * was opted out in between) NOTHING is charged: the reservation is unwound and
+ * a 409 with `costChanged: true` and a fresh preview is returned so the user
+ * can confirm the new figures.
+ *
  * ── Preview request  ────────────────────────────────────────────────────────
- *   { action: 'preview', leadIds: string[] }
+ *   { action: 'preview', leadIds: string[], resend?: boolean }
  * ── Preview response  ───────────────────────────────────────────────────────
  *   {
  *     preview: true,
@@ -94,8 +111,15 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json().catch(() => ({}))
-  const { leadIds, action } = body as { leadIds?: string[]; action?: string }
+  const { leadIds, action, resend, expectedCostPence, expectedQuantity } = body as {
+    leadIds?: string[]
+    action?: string
+    resend?: boolean
+    expectedCostPence?: number
+    expectedQuantity?: number
+  }
   const isPreview = action === 'preview'
+  const allowResend = resend === true
 
   if (!Array.isArray(leadIds) || leadIds.length === 0) {
     return NextResponse.json({ error: 'No leads selected' }, { status: 400 })
@@ -117,22 +141,48 @@ export async function POST(request: Request) {
   }
 
   const frontUrl = profile.postcard_design_url as string | null
-  const backUrl = profile.postcard_design_back_url as string | null
-  const designsReady = Boolean(frontUrl && backUrl)
+  // A template sets the front only; the back then prints as the blank default
+  // (the printer adds the address over its right half), exactly as the design
+  // page promises. So only the FRONT is required to send.
+  const backUrl = resolveBackUrl(profile.postcard_design_back_url as string | null)
+  const designsReady = Boolean(frontUrl)
 
-  // Fetch the selected leads. Exclude any that already have a postcard job so
-  // the quantity (and therefore the cost) reflects only what will really be
-  // sent — the atomic claim below is the true double-send guard.
-  const { data: leads, error: leadsError } = await supabase
+  // Fetch the selected leads. A lead is eligible when it has no postcard job,
+  // or — for "Send again" — when its job has FINISHED. In-flight jobs are
+  // excluded so the quantity (and therefore the cost) reflects only what will
+  // really be sent; the atomic claim below is the true double-send guard.
+  const { data: leadRows, error: leadsError } = await supabase
     .from('leads')
     .select('*')
     .eq('user_id', user.id)
     .in('id', leadIds)
-    .is('postcard_job_id', null)
 
   if (leadsError) {
     return NextResponse.json({ error: leadsError.message }, { status: 500 })
   }
+
+  const linkedJobIds = (leadRows ?? [])
+    .map((l) => l.postcard_job_id as string | null)
+    .filter((id): id is string => Boolean(id))
+  const jobStatus = new Map<string, string>()
+  if (allowResend && linkedJobIds.length > 0) {
+    const { data: jobs, error: jobsError } = await supabase
+      .from('postcard_jobs')
+      .select('id, status')
+      .in('id', linkedJobIds)
+    if (jobsError) {
+      return NextResponse.json({ error: jobsError.message }, { status: 500 })
+    }
+    for (const j of jobs ?? []) jobStatus.set(j.id as string, j.status as string)
+  }
+
+  const leads = (leadRows ?? []).filter((l) => {
+    const jobId = l.postcard_job_id as string | null
+    if (!jobId) return true
+    if (!allowResend) return false
+    const status = jobStatus.get(jobId)
+    return status !== undefined && !IN_FLIGHT_STATUSES.has(status)
+  })
 
   const used = (profile.postcards_used_this_period as number) ?? 0
 
@@ -153,46 +203,48 @@ export async function POST(request: Request) {
       { status: 503 }
     )
   }
-  const notSuppressed = (leads ?? []).filter(
-    (l) =>
-      suppressionKeys.size === 0 ||
-      !suppressionKeys.has(addressKey(l.address_line as string, l.postcode as string))
+  const notSuppressed = leads.filter(
+    (l) => !isSuppressed(suppressionKeys, l.address_line as string, l.postcode as string)
   )
-  const suppressedCount = (leads ?? []).length - notSuppressed.length
+  const suppressedCount = leads.length - notSuppressed.length
 
   const eligible = notSuppressed
   const quantity = eligible.length
 
-  // ── PREVIEW ──────────────────────────────────────────────────────────────
-  if (isPreview) {
-    const { included, overage, overageCostPence } = calculatePostcardCost(quantity, used)
-    return NextResponse.json({
-      preview: true,
+  const buildPreview = (qty: number, usedNow: number, suppressedNow: number) => {
+    const { included, overage, overageCostPence } = calculatePostcardCost(qty, usedNow)
+    return {
+      preview: true as const,
       requested: leadIds.length,
-      quantity,
-      suppressed: suppressedCount,
-      alreadySent: leadIds.length - quantity - suppressedCount,
-      used,
-      includedRemaining: Math.max(0, INCLUDED_POSTCARDS_PER_MONTH - used),
+      quantity: qty,
+      suppressed: suppressedNow,
+      alreadySent: leadIds.length - qty - suppressedNow,
+      used: usedNow,
+      includedRemaining: Math.max(0, INCLUDED_POSTCARDS_PER_MONTH - usedNow),
       includedApplied: included,
       payable: overage,
       unitPricePence: POSTCARD_OVERAGE_PENCE,
       costPence: overageCostPence,
       costFormatted: formatPounds(overageCostPence),
       cap: MONTHLY_POSTCARD_CAP,
-      capRemaining: Math.max(0, MONTHLY_POSTCARD_CAP - used),
-      wouldExceedCap: used + quantity > MONTHLY_POSTCARD_CAP,
+      capRemaining: Math.max(0, MONTHLY_POSTCARD_CAP - usedNow),
+      wouldExceedCap: usedNow + qty > MONTHLY_POSTCARD_CAP,
       designsReady,
-    })
+    }
+  }
+
+  // ── PREVIEW ──────────────────────────────────────────────────────────────
+  if (isPreview) {
+    return NextResponse.json(buildPreview(quantity, used, suppressedCount))
   }
 
   // ── CONFIRM ──────────────────────────────────────────────────────────────
 
   // Stannp prints whatever artwork we hand it, so both sides must exist before
   // we hold anything — no generic fallback card goes out under the user's name.
-  if (!designsReady) {
+  if (!designsReady || !frontUrl) {
     return NextResponse.json(
-      { error: 'Add a front and back postcard design before sending. Open Postcard Design to upload them.' },
+      { error: 'Add a postcard design before sending. Open Postcard Design to create or upload one.' },
       { status: 400 }
     )
   }
@@ -226,6 +278,7 @@ export async function POST(request: Request) {
   //    send.
   type Claimed = { jobId: string; leadId: string; lead: Record<string, unknown> }
   const claimed: Claimed[] = []
+  let lostClaimRace = 0
 
   for (const lead of eligible) {
     let jobId: string | null = null
@@ -248,16 +301,24 @@ export async function POST(request: Request) {
       if (jobErr || !jobRow) throw new Error(jobErr?.message ?? 'Could not create postcard job')
       jobId = jobRow.id as string
 
-      const { data: claimRows, error: claimErr } = await adminSupabase
+      // Claim the lead from exactly the state we evaluated it in: unlinked, or
+      // (for a re-send) still linked to the finished job we saw. A concurrent
+      // order that got in first changes that link, so its claim wins and ours
+      // fails cleanly.
+      const previousJobId = lead.postcard_job_id as string | null
+      let claimQuery = adminSupabase
         .from('leads')
         .update({ postcard_job_id: jobId, selected_for_dispatch: true })
         .eq('id', lead.id)
-        .is('postcard_job_id', null)
-        .select('id')
+      claimQuery = previousJobId
+        ? claimQuery.eq('postcard_job_id', previousJobId)
+        : claimQuery.is('postcard_job_id', null)
+      const { data: claimRows, error: claimErr } = await claimQuery.select('id')
       if (claimErr) throw new Error(claimErr.message)
       if (!claimRows || claimRows.length === 0) {
         // Lost the race — cancel our pending row, send/charge nothing for it.
         await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).eq('id', jobId)
+        lostClaimRace++
         continue
       }
 
@@ -267,12 +328,9 @@ export async function POST(request: Request) {
       if (jobId) {
         await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).eq('id', jobId)
         // Scope the unclaim to OUR job so a concurrent request that successfully
-        // claimed the same lead isn't accidentally unlinked.
-        await adminSupabase
-          .from('leads')
-          .update({ postcard_job_id: null })
-          .eq('id', lead.id)
-          .eq('postcard_job_id', jobId)
+        // claimed the same lead isn't accidentally unlinked; a re-sent lead goes
+        // back to its previous finished job.
+        await adminSupabase.rpc('relink_lead_after_unwind', { p_lead_id: lead.id, p_job_id: jobId })
       }
     }
   }
@@ -291,12 +349,9 @@ export async function POST(request: Request) {
     await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).in('id', jobIds)
     // Free each lead scoped to the job that claimed it, so we can never unlink a
     // lead that a concurrent request has since claimed under a different job.
+    // A re-sent lead is pointed back at its previous finished job.
     for (const c of claimed) {
-      await adminSupabase
-        .from('leads')
-        .update({ postcard_job_id: null, selected_for_dispatch: false })
-        .eq('id', c.leadId)
-        .eq('postcard_job_id', c.jobId)
+      await adminSupabase.rpc('relink_lead_after_unwind', { p_lead_id: c.leadId, p_job_id: c.jobId })
     }
   }
 
@@ -331,6 +386,28 @@ export async function POST(request: Request) {
   const includedCount = Math.min(q, includedRemaining)
   const payableCount = q - includedCount
   const costPence = payableCount * POSTCARD_OVERAGE_PENCE
+
+  // 3b. The figures the user confirmed must still be true. If the free
+  //     allowance was used up in another tab, an address was opted out, or a
+  //     lead lost its claim race, the cost or count has changed — so charge
+  //     NOTHING, hand everything back and let the user confirm the new figures.
+  const costChanged = typeof expectedCostPence === 'number' && expectedCostPence !== costPence
+  const quantityChanged = typeof expectedQuantity === 'number' && expectedQuantity !== q
+  if (costChanged || quantityChanged) {
+    await adminSupabase.rpc('decrement_postcards_used', { p_user_id: user.id, p_amount: q })
+    await releaseReservation()
+    const fresh = buildPreview(q, preUsed, suppressedCount + lostClaimRace)
+    return NextResponse.json(
+      {
+        error: costChanged
+          ? `The price has changed since you previewed this order: it is now ${fresh.costFormatted} for ${q} card${q === 1 ? '' : 's'}. Please check and confirm again.`
+          : `${q} of your selected lead${q === 1 ? '' : 's'} can now be sent (some were sent elsewhere or opted out). Please check and confirm again.`,
+        costChanged: true,
+        preview: fresh,
+      },
+      { status: 409 }
+    )
+  }
 
   // 4. Charge the saved card UP FRONT for the paid cards (feature 8.6). A
   //    decline aborts the whole send: reservation released, holds cancelled,

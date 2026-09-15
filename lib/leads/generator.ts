@@ -3,8 +3,7 @@ import { geocodeSingleWithCache } from '@/lib/geocoding/postcodes-io'
 import { geocodeWithCache } from '@/lib/geocoding/postcodes-io'
 import { geocodeTransactionsForMonth } from '@/lib/geocoding/postcodes-io'
 import { expandRadius } from './radius-expander'
-import { addressKey } from '@/lib/address/normalise'
-import { loadSuppressionKeys } from './suppression'
+import { loadSuppressionKeys, isSuppressed } from './suppression'
 
 interface LeadGenerationResult {
   leadsCreated: number
@@ -113,7 +112,7 @@ export async function generateLeadsForUser(
     suppressionKeys.size === 0
       ? leadRows
       : leadRows.filter(
-          (r) => !suppressionKeys.has(addressKey(r.address_line, r.postcode))
+          (r) => !isSuppressed(suppressionKeys, r.address_line, r.postcode)
         )
 
   if (allowedLeads.length === 0) {

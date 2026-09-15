@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -109,6 +109,8 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
   const [cancelInfo, setCancelInfo] = useState<string | null>(null)
   // Whether the pending send re-targets already-sent leads ("Send again").
   const [pendingReactivate, setPendingReactivate] = useState(false)
+  // Job links the held leads had before this order, for reverting on cancel.
+  const previousJobLinks = useRef<Map<string, string | null>>(new Map())
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'trialing'
 
@@ -263,9 +265,12 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
   }
 
   async function selectAll() {
+    // Only the leads on the tab in front of the user — "Select All" on New
+    // leads must not silently sweep up (and bill for) every Previous lead too.
+    const tabLeads = tab === 'previous' ? previousLeads : newLeads
     const toSelect = isSubscribed
-      ? activeLeads.filter((l) => !l.selected_for_dispatch)
-      : activeLeads.filter((l) => !l.selected_for_dispatch).slice(0, 5 - selected.length)
+      ? tabLeads.filter((l) => !l.selected_for_dispatch)
+      : tabLeads.filter((l) => !l.selected_for_dispatch).slice(0, 5 - selected.length)
 
     if (toSelect.length === 0) return
 
@@ -358,8 +363,9 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
   }
 
   // Fetch the cost preview and open the confirmation modal. For "Send again"
-  // (reactivate=true) we first detach the selected already-sent leads from their
-  // old jobs so the normal send flow treats them as sendable again.
+  // (reactivate=true) the server treats already-sent leads as eligible and
+  // re-claims them from their old job only when the order is confirmed —
+  // nothing is detached up front, so closing this modal changes nothing.
   async function beginSend(leadIds: string[], reactivate = false) {
     if (leadIds.length === 0) {
       toast.error('No leads selected')
@@ -370,45 +376,22 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
     setOrder(null)
     setPendingReactivate(reactivate)
     setSendState('previewing')
-
-    let ids = leadIds
-    if (reactivate) {
-      try {
-        const res = await fetch('/api/leads/reactivate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids: leadIds }),
-        })
-        const data = await res.json()
-        if (!res.ok) {
-          toast.error(data.error ?? 'Could not prepare those leads')
-          resetSend()
-          return
-        }
-        ids = (data.ids as string[]) ?? []
-        if (ids.length === 0) {
-          toast.error('Those leads are still being sent and cannot be re-sent yet.')
-          resetSend()
-          return
-        }
-      } catch {
-        toast.error('Could not prepare those leads')
-        resetSend()
-        return
-      }
-    }
-
-    setPendingLeadIds(ids)
+    setPendingLeadIds(leadIds)
 
     try {
       const res = await fetch('/api/postcards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'preview', leadIds: ids }),
+        body: JSON.stringify({ action: 'preview', leadIds, resend: reactivate }),
       })
       const data = await res.json()
       if (!res.ok) {
         toast.error(data.error ?? 'Could not prepare your order')
+        resetSend()
+        return
+      }
+      if (reactivate && data.quantity === 0) {
+        toast.error('Those leads are still being sent and cannot be re-sent yet.')
         resetSend()
         return
       }
@@ -421,29 +404,47 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
   }
 
   // Confirm the order: charge the saved card and hold for the cool-off window.
+  // The previewed cost and card count go with the request; if either has
+  // changed by the time the server gets there, nothing is charged and we show
+  // the fresh figures for the user to confirm again.
   async function confirmSend() {
-    if (pendingLeadIds.length === 0) return
+    if (pendingLeadIds.length === 0 || !preview) return
     setSendError(null)
     setSendState('confirming')
     try {
       const res = await fetch('/api/postcards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ leadIds: pendingLeadIds }),
+        body: JSON.stringify({
+          leadIds: pendingLeadIds,
+          resend: pendingReactivate,
+          expectedCostPence: preview.costPence,
+          expectedQuantity: preview.quantity,
+        }),
       })
       const data = await res.json()
+      if (res.status === 409 && data.costChanged && data.preview) {
+        setPreview(data.preview as PreviewData)
+        setSendError(data.error ?? 'Your order has changed. Please check the new figures and confirm again.')
+        setSendState('confirm')
+        return
+      }
       if (res.status === 201 && data.success) {
         setOrder(data as OrderResult)
         setSendState('held')
         // Optimistically move the held leads into "Send again" (they now carry a
-        // job) and clear any selection state. Cancelling reverts this.
-        setLeads((prev) =>
-          prev.map((l) =>
+        // job) and clear any selection state. Cancelling reverts this, so
+        // remember what each lead pointed at before.
+        setLeads((prev) => {
+          previousJobLinks.current = new Map(
+            prev.filter((l) => pendingLeadIds.includes(l.id)).map((l) => [l.id, l.postcard_job_id])
+          )
+          return prev.map((l) =>
             pendingLeadIds.includes(l.id)
               ? { ...l, postcard_job_id: data.orderId, selected_for_dispatch: false }
               : l
           )
-        )
+        })
         setAgainSelected(new Set())
       } else {
         // 402 declined, 403 over cap, 409 no eligible leads, 400 designs missing.
@@ -468,11 +469,16 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
       })
       const data = await res.json()
       if (res.ok && data.success) {
-        // Free the leads again (revert the optimistic hold).
+        // Revert the optimistic hold. A re-sent lead keeps its old job link
+        // (it goes back to "Send again"); a fresh one is freed.
         setLeads((prev) =>
           prev.map((l) =>
             pendingLeadIds.includes(l.id)
-              ? { ...l, postcard_job_id: null, selected_for_dispatch: false }
+              ? {
+                  ...l,
+                  postcard_job_id: pendingReactivate ? (previousJobLinks.current.get(l.id) ?? null) : null,
+                  selected_for_dispatch: false,
+                }
               : l
           )
         )
@@ -948,7 +954,7 @@ function SendModal({
 
               {!preview.designsReady && (
                 <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-                  You need to upload a front and back postcard design before sending. Open Postcard Design to add them.
+                  You need a postcard design before sending. Open Postcard Design to create or upload one.
                 </p>
               )}
 
