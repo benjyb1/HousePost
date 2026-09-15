@@ -3,6 +3,30 @@
 A map of the look-and-feel of the site, so a design change lands on-brand and in
 the right place first time. Pairs with the guardrails in `/CLAUDE.md`.
 
+## Quick edit map — "to change X, open Y"
+
+Go straight to the file. No need to search the repo (that wastes usage).
+
+| To change… | Open |
+|---|---|
+| Any brand colour, theme, dark mode | `app/globals.css` |
+| Homepage (hero, sections, copy) | `app/page.tsx`, `components/marketing/` |
+| Left sidebar / top nav | `components/layout/Sidebar.tsx` |
+| Footer | `components/layout/SiteFooter.tsx` |
+| "Subscription issue" banner | `components/layout/SubscriptionBanner.tsx` |
+| Leads table (columns, tabs, buttons, send modal) | `components/leads/LeadsTable.tsx` |
+| "Add address" popup | `components/leads/AddAddressModal.tsx` |
+| Dashboard cards + activity feed | `app/(portal)/dashboard/page.tsx`, `components/dashboard/RecentActivity.tsx` |
+| Postcard tracking table | `app/(portal)/postcards/page.tsx` |
+| Postcard design / upload / preview screens | `components/postcards/` |
+| Settings form | `app/(portal)/settings/page.tsx` |
+| Account page | `app/(portal)/account/page.tsx` |
+| Login / signup / reset pages | `app/(auth)/*/page.tsx` |
+| Houses-sold public page | `app/houses-sold/page.tsx` |
+| Opt-out public page | `app/opt-out/page.tsx` |
+| Confirmation / password-reset emails | `lib/email/resend.ts` |
+| Base button / card / input styles | `components/ui/` |
+
 ## Colours — change them in ONE place
 
 All brand colours are CSS variables in `app/globals.css` under `@theme`. Change
