@@ -63,7 +63,7 @@ function JobRow({ job }: { job: Job }) {
   const label = statusLabels[displayStatus] ?? displayStatus.replace(/_/g, ' ')
 
   return (
-    <tr className="hover:bg-slate-50 transition-colours">
+    <tr className="hover:bg-slate-50 transition-colors">
       <td className="px-4 py-3 align-top">
         <p className="font-medium text-slate-800 break-words">{job.recipient_address_line}</p>
         <p className="text-xs text-slate-400">{job.recipient_postcode}</p>
@@ -184,7 +184,7 @@ export default async function PostcardsPage() {
                     Pure CSS via <details> keeps this a server component. */}
                 {hasMore && (
                   <details className="group border-t">
-                    <summary className="flex cursor-pointer items-center justify-center gap-1 px-4 py-2.5 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colours list-none [&::-webkit-details-marker]:hidden">
+                    <summary className="flex cursor-pointer items-center justify-center gap-1 px-4 py-2.5 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors list-none [&::-webkit-details-marker]:hidden">
                       <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
                       <span className="group-open:hidden">Show more ({overflow.length} remaining)</span>
                       <span className="hidden group-open:inline">Show fewer</span>

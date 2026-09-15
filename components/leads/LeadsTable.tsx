@@ -536,7 +536,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
           type="button"
           onClick={() => cycleSort(field)}
           title={`Sort by ${label.toLowerCase()}`}
-          className={`group inline-flex items-center gap-1 ${justify} cursor-pointer select-none transition-colours ${
+          className={`group inline-flex items-center gap-1 ${justify} cursor-pointer select-none transition-colors ${
             active ? 'font-semibold text-slate-900' : 'text-slate-600 hover:font-semibold hover:text-slate-900'
           }`}
         >
@@ -566,7 +566,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
 
     return (
       <tr
-        className={`hover:bg-slate-50 transition-colours ${isBlurred ? 'blur-sm pointer-events-none select-none' : ''}`}
+        className={`hover:bg-slate-50 transition-colors ${isBlurred ? 'blur-sm pointer-events-none select-none' : ''}`}
       >
         {showCheckbox && (
           <td className="px-4 py-3">
@@ -620,7 +620,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
           <button
             key={key}
             onClick={() => switchTab(key)}
-            className={`whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 transition-colours ${
+            className={`whitespace-nowrap px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               tab === key
                 ? 'border-slate-900 text-slate-900'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -781,7 +781,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
                         {hasMore ? (
                           <button
                             onClick={() => revealMore(month, monthLeads.length)}
-                            className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colours"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
                           >
                             <ChevronDown className="h-3.5 w-3.5" />
                             Show more ({monthLeads.length - visible} remaining)
@@ -789,7 +789,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
                         ) : (
                           <button
                             onClick={() => collapseMonth(month)}
-                            className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colours"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
                           >
                             <ChevronUp className="h-3.5 w-3.5" />
                             Collapse
@@ -813,7 +813,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
               <p className="text-sm font-medium text-slate-700">Subscribe to view all leads</p>
               <Link
                 href="/billing"
-                className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colours"
+                className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
               >
                 View plans
               </Link>
