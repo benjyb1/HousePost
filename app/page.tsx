@@ -9,8 +9,18 @@ import {
   CheckCircle,
   ArrowRight,
 } from 'lucide-react'
+import type { Metadata } from 'next'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import { HeroBackground } from '@/components/marketing/HeroBackground'
+import { HeroTradeHeadline } from '@/components/marketing/HeroTradeHeadline'
+
+// Trade terms live in the title/description so queries like
+// "leads for builders" / "leads for plumbers" have something to match.
+export const metadata: Metadata = {
+  title: 'Local leads for builders, plumbers, electricians & more | Housepost',
+  description:
+    'Housepost finds the new homeowners near you and posts your marketing postcards to them. Local leads made easy for builders, decorators, plumbers, architects, electricians, landscapers, interior designers and carpenters.',
+}
 
 // Fully static marketing page — no Supabase calls needed
 // Logged-in users navigating to /dashboard are handled by middleware
@@ -88,31 +98,23 @@ export default function HomePage() {
         </div>
 
         <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-24 text-left">
-          <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-sm text-white mb-6">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-signal opacity-75"></span>
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-signal"></span>
-            </span>
-            Monthly leads, automated
+          <div className="max-w-3xl">
+            <HeroTradeHeadline />
           </div>
-          <h1 className="max-w-3xl text-5xl font-extrabold leading-tight tracking-tight text-white">
-            Turn recent house sales data into{' '}
-            <span
-              className="bg-clip-text text-transparent"
-              style={{
-                backgroundImage: 'linear-gradient(135deg, #cfe3fe, #93c5fd, #5b9bf5)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.25))',
-              }}
-            >
-              leads worth your time
-            </span>
-          </h1>
-          <p className="mt-6 max-w-2xl text-xl text-white/80 leading-relaxed">
-            Every month, Housepost scans the recently sold homes in your local area
-            and delivers your postcard through their letterbox. You pick the targets,
-            we handle the rest.
+          <p
+            className="mt-5 text-2xl font-semibold sm:text-3xl"
+            style={{
+              backgroundImage: 'linear-gradient(135deg, #f1f5f9, #cbd5e1, #94a3b8)',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              color: 'transparent',
+            }}
+          >
+            Local leads made easy.
+          </p>
+          <p className="mt-6 max-w-xl text-lg text-white/80 leading-relaxed sm:text-xl">
+            We find the new homeowners near you. You pick who gets a postcard.
           </p>
           <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row">
             <Link
@@ -148,10 +150,10 @@ export default function HomePage() {
                 step: '01',
                 title: (
                   <>
-                    We scan for recent <span className="font-bold text-slate-700">sales</span>
+                    We find new <span className="font-bold text-slate-700">homeowners</span>
                   </>
                 ),
-                body: 'Every month we scan recent house sales in your local area and assemble a list of all the newly-owned homes near you.',
+                body: 'Every month we find the newly bought homes in your local area and build a list of the new homeowners near you.',
               },
               {
                 icon: MapPin,
@@ -209,7 +211,7 @@ export default function HomePage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
               { icon: Clock, title: 'Runs by itself', body: 'Fires automatically every month, you just select and send.' },
-              { icon: Shield, title: 'Fresh data, every month', body: 'We use the official UK house sales register, updated monthly.' },
+              { icon: Shield, title: 'Fresh data, every month', body: 'We use official UK property records, updated monthly.' },
               { icon: CheckCircle, title: 'Filter your way', body: 'Sort leads by distance, price, or property type.' },
               { icon: Mail, title: 'Printed and posted', body: 'Professionally printed on 300gsm card and delivered by Royal Mail.' },
               { icon: TrendingUp, title: 'Live tracking', body: 'Keep an eye on every postcard, from printer to postbox.' },
@@ -273,7 +275,8 @@ export default function HomePage() {
         <div className="mx-auto max-w-2xl px-6">
           <h2 className="text-3xl font-bold text-white mb-4">
             Ready to reach{' '}
-            <span className="text-brand-accent">new homeowners near you</span>?
+            <span className="font-bold text-brand-accent">new homeowners</span> near
+            you?
           </h2>
           <p className="text-white/70 mb-8">
             Local leads, automated. Direct marketing couldn&apos;t be easier.

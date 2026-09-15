@@ -129,7 +129,7 @@ function AddressHalf() {
         <div className="mt-1 h-3 w-20 bg-[repeating-linear-gradient(90deg,#94a3b8_0,#94a3b8_2px,transparent_2px,transparent_4px)]" />
       </div>
       <p className="text-[8px] font-medium uppercase tracking-wide text-amber-600">
-        Address &amp; postage · added by Stannp
+        Address &amp; postage added automatically
       </p>
     </div>
   )
@@ -515,7 +515,7 @@ export default function PostcardDesignPage() {
               <CardTitle>{config.label} Design</CardTitle>
               <CardDescription>
                 Red dashed line is the cut; anything outside it is trimmed off.
-                {!isFront && ' The right half is where Stannp prints the address.'}
+                {!isFront && ' The right half is where the address is printed.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -650,7 +650,7 @@ export default function PostcardDesignPage() {
                       <Sparkles className="h-3.5 w-3.5" /> Send my PDF as-is — maximum quality
                     </span>
                     <span className="mt-0.5 block text-xs text-indigo-700/80">
-                      Skips cropping and rasterising — Stannp prints straight from your vector PDF, zero quality loss.{' '}
+                      Skips cropping and rasterising — your vector PDF prints straight through, zero quality loss.{' '}
                       {isFront
                         ? 'Use when your file is already a full A6 card, 154×111mm with 3mm bleed.'
                         : 'Use when your file is already a full A6 back (154×111mm, 3mm bleed) with the right half kept clear for the address.'}
@@ -680,7 +680,7 @@ export default function PostcardDesignPage() {
 
                     {lowRes && (
                       <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                        This crop is about {effectiveDpi} DPI, below the {MIN_PRINT_DPI} DPI Stannp prints at — it may
+                        This crop is about {effectiveDpi} DPI, below the {MIN_PRINT_DPI} DPI we print at — it may
                         look soft. Zoom out, or upload a higher-resolution PDF.
                       </div>
                     )}
@@ -710,7 +710,7 @@ export default function PostcardDesignPage() {
             <Eye className="h-4 w-4" /> Exact printed postcard
           </CardTitle>
           <CardDescription>
-            The real print-ready PDF, rendered by Stannp from both sides of your card with a sample address. Nothing is
+            The real print-ready PDF, rendered from both sides of your card with a sample address. Nothing is
             printed, posted or charged — this is exactly what lands on the doormat.
           </CardDescription>
         </CardHeader>

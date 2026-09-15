@@ -107,7 +107,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Location & Radius</CardTitle>
-            <CardDescription>We search for property sales within this radius of your office</CardDescription>
+            <CardDescription>We search for newly bought homes within this radius of your office</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-1.5">

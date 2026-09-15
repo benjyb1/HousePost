@@ -1,0 +1,171 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { createClient } from '@/lib/supabase/client'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { toast } from 'sonner'
+
+type Status = 'verifying' | 'ready' | 'invalid'
+
+export default function ResetPasswordPage() {
+  // A single client instance so the recovery session detected from the URL
+  // (detectSessionInUrl) is the same one we later call updateUser on.
+  const [supabase] = useState(() => createClient())
+
+  const [status, setStatus] = useState<Status>('verifying')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    // If Supabase bounced us back with an error (most often an expired or
+    // already-used link), it arrives in the URL hash. Surface it plainly.
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    if (hash.get('error')) {
+      setStatus('invalid')
+      return
+    }
+
+    // The browser client exchanges the recovery code/token in the URL for a
+    // session automatically on load. Listen for that, and also check whether
+    // it already happened before this listener attached.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || session) {
+        setStatus('ready')
+      }
+    })
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) {
+        setStatus('ready')
+      } else {
+        // Give the automatic code exchange a moment to complete; if there's
+        // still no session, the link was invalid or has expired.
+        setTimeout(() => {
+          setStatus((current) => (current === 'verifying' ? 'invalid' : current))
+        }, 2000)
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [supabase])
+
+  async function handleUpdate(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError(null)
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters')
+      return
+    }
+    if (password !== confirm) {
+      setError('Those passwords don’t match')
+      return
+    }
+
+    setLoading(true)
+    const { error } = await supabase.auth.updateUser({ password })
+
+    if (error) {
+      // A stale recovery session (e.g. the link was left too long) shows up here.
+      if (error.status === 401 || error.status === 403) {
+        setError('That reset link has expired. Please request a new one.')
+      } else if (/weak|should be|at least|characters/i.test(error.message)) {
+        setError('Please choose a stronger password (at least 8 characters).')
+      } else {
+        setError(error.message)
+      }
+      setLoading(false)
+      return
+    }
+
+    toast.success('Password updated. Taking you to your dashboard…')
+    // Full navigation so the server reliably picks up the session cookie,
+    // matching how sign-in redirects.
+    window.location.assign('/dashboard')
+  }
+
+  if (status === 'verifying') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Just a moment</CardTitle>
+          <CardDescription>Checking your reset link…</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  if (status === 'invalid') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Link expired</CardTitle>
+          <CardDescription>
+            This password reset link is invalid or has expired. Reset links can
+            only be used once, and don&apos;t last forever.
+          </CardDescription>
+        </CardHeader>
+        <CardFooter>
+          <p className="text-sm text-slate-500">
+            <Link href="/forgot-password" className="text-primary hover:underline">
+              Request a new link
+            </Link>
+          </p>
+        </CardFooter>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Set a new password</CardTitle>
+        <CardDescription>Choose a new password for your account.</CardDescription>
+      </CardHeader>
+      <form onSubmit={handleUpdate} className="flex flex-col gap-6">
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="password">New password</Label>
+            <Input
+              id="password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={8}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="confirm">Confirm new password</Label>
+            <Input
+              id="confirm"
+              type="password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              required
+              minLength={8}
+            />
+          </div>
+          {error && (
+            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 border border-red-200">
+              {error}
+            </p>
+          )}
+        </CardContent>
+        <CardFooter>
+          <Button type="submit" className="w-full" disabled={loading}>
+            {loading ? 'Saving…' : 'Save new password'}
+          </Button>
+        </CardFooter>
+      </form>
+    </Card>
+  )
+}

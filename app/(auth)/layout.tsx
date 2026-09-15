@@ -17,7 +17,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               className="h-14 w-auto"
               priority
             />
-            <p className="text-sm text-slate-500">UK property lead generation</p>
+            <p className="text-sm text-slate-500">Local leads made easy</p>
           </div>
           {children}
         </div>

@@ -44,7 +44,7 @@ export default function LoginPage() {
     <Card>
       <CardHeader>
         <CardTitle>Sign in</CardTitle>
-        <CardDescription>Enter your credentials to access your portal</CardDescription>
+        <CardDescription>Enter your details to access your account</CardDescription>
       </CardHeader>
       <form onSubmit={handleLogin} className="flex flex-col gap-6">
         <CardContent className="space-y-4">
@@ -60,7 +60,15 @@ export default function LoginPage() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+              <Link
+                href="/forgot-password"
+                className="text-sm text-slate-500 hover:text-primary hover:underline"
+              >
+                Forgot your password?
+              </Link>
+            </div>
             <Input
               id="password"
               type="password"
