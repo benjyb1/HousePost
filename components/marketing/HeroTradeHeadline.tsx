@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 
 /**
  * The big hero headline: "For <trade>" where the trade word cycles through the
- * list every 2.5s with a smooth cross-fade.
+ * list every 2.5s. Each word rolls over and flattens as if pressed under a
+ * steamroller, and the next word un-squashes back up on the other side.
  *
  * SEO / accessibility notes:
  *  - Every trade is rendered in the server HTML (no words are injected by JS
@@ -44,7 +45,7 @@ const BLUE_GRADIENT: React.CSSProperties = {
 }
 
 export function HeroTradeHeadline() {
-  const [active, setActive] = useState(0)
+  const [tick, setTick] = useState(0)
 
   useEffect(() => {
     // Respect users who'd rather not have motion — leave the first trade shown.
@@ -52,10 +53,13 @@ export function HeroTradeHeadline() {
     if (mq.matches) return
 
     const id = setInterval(() => {
-      setActive((i) => (i + 1) % TRADES.length)
+      setTick((t) => t + 1)
     }, FLIP_MS)
     return () => clearInterval(id)
   }, [])
+
+  const active = tick % TRADES.length
+  const leaving = (active - 1 + TRADES.length) % TRADES.length
 
   return (
     <h1 className="text-white">
@@ -71,25 +75,35 @@ export function HeroTradeHeadline() {
         className="block font-extrabold leading-[1.05] tracking-tight text-5xl sm:text-6xl lg:text-7xl"
       >
         <span className="block">For</span>
-        <span className="relative mt-1 block">
+        <span className="relative mt-1 block" style={{ perspective: '400px' }}>
           {/* Invisible sizer reserves space for the longest trade (and its
               two-line height on narrow screens) so the line never jumps. */}
           <span className="invisible" aria-hidden="true">
             {WIDEST}
           </span>
-          {TRADES.map((trade, i) => (
-            <span
-              key={trade}
-              className="absolute inset-0 transition-all duration-500 ease-out"
-              style={{
-                ...BLUE_GRADIENT,
-                opacity: i === active ? 1 : 0,
-                transform: i === active ? 'translateY(0)' : 'translateY(0.3em)',
-              }}
-            >
-              {trade}
-            </span>
-          ))}
+          {TRADES.map((trade, i) => {
+            // Only the word rolling in and the word rolling out get an
+            // animation (and a tick-suffixed key so it restarts each cycle);
+            // every other word sits fully hidden with no transform at all.
+            const animateIn = i === active && tick > 0
+            const animateOut = i === leaving && tick > 0
+            return (
+              <span
+                key={animateIn || animateOut ? `${trade}-${tick}` : trade}
+                className={
+                  'absolute inset-0' +
+                  (animateIn ? ' trade-roll-in' : animateOut ? ' trade-roll-out' : '')
+                }
+                style={{
+                  ...BLUE_GRADIENT,
+                  backfaceVisibility: 'hidden',
+                  opacity: i === active || animateOut ? undefined : 0,
+                }}
+              >
+                {trade}
+              </span>
+            )
+          })}
         </span>
       </span>
     </h1>
