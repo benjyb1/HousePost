@@ -32,7 +32,7 @@ const TRADES = [
 // The longest label — drives the reserved space so nothing jumps as words flip.
 const WIDEST = 'interior designers'
 
-const FLIP_MS = 2500
+const FLIP_MS = 3200
 
 // Matches the existing hero accent: a soft blue gradient clipped to the text.
 const BLUE_GRADIENT: React.CSSProperties = {
@@ -75,7 +75,7 @@ export function HeroTradeHeadline() {
         className="block font-extrabold leading-[1.05] tracking-tight text-5xl sm:text-6xl lg:text-7xl"
       >
         <span className="block">For</span>
-        <span className="relative mt-1 block" style={{ perspective: '400px' }}>
+        <span className="relative mt-1 block" style={{ perspective: '260px' }}>
           {/* Invisible sizer reserves space for the longest trade (and its
               two-line height on narrow screens) so the line never jumps. */}
           <span className="invisible" aria-hidden="true">
