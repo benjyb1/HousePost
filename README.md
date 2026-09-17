@@ -23,13 +23,13 @@ Automated UK property lead generation from HM Land Registry data with Stannp pos
 |---|---|
 | Framework | Next.js 16 (App Router, TypeScript) |
 | Database | Supabase (PostgreSQL + Auth + RLS) |
-| Scheduling | Vercel Cron Jobs |
+| Scheduling | pg_cron + pg_net inside Supabase (GitHub Actions as a secondary) |
 | Payments | Stripe (subscriptions + one-off charges) |
 | Postcards | Stannp API (A6, Royal Mail) |
 | Geocoding | Postcodes.io (free UK API) |
 | Email | Resend |
 | UI | Tailwind CSS v4 + shadcn/ui |
-| Hosting | Vercel Pro (required for 300s function timeout) |
+| Hosting | Vercel (Hobby works: the longest route sets `maxDuration = 60`) |
 
 ---
 
@@ -40,7 +40,7 @@ Automated UK property lead generation from HM Land Registry data with Stannp pos
 - [Stripe](https://stripe.com) account
 - [Stannp](https://www.stannp.com) account
 - [Resend](https://resend.com) account
-- [Vercel](https://vercel.com) **Pro** plan (for 300s cron functions)
+- [Vercel](https://vercel.com) account (Hobby is enough for the code; note Hobby is for non-commercial use, so a paying product should be on Pro)
 
 ---
 
@@ -121,8 +121,8 @@ Routes return `{ skipped: true }` unless today is the scheduled day. Comment out
 
 1. Push to GitHub, import in Vercel
 2. Add all env vars in Vercel → Settings → Environment Variables
-3. Vercel auto-detects `vercel.json` and configures cron jobs
-4. **Vercel Pro required** for the 300-second function timeout
+3. The scheduled jobs run from pg_cron inside Supabase (see `supabase/migrations/20260922000000_pg_cron_release_fallback.sql`); `vercel.json` only carries a daily keep-alive
+4. Before the first real send, work through `docs/GO-LIVE-CHECKLIST.md`
 
 ---
 
