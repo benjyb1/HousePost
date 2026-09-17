@@ -30,6 +30,14 @@ There is a hard limit of **50 postcards per billing period** (5 free plus up to 
 ### Step 6 — Track delivery
 Go to the **Postcards** page to see the status of every postcard — from printing through to delivery.
 
+### If a postcard is delayed or fails
+Two things can go wrong, and the Tracking page tells you which:
+
+- **Delayed.** Something on our side (usually the print service) is temporarily unavailable. Your card stays queued and is sent automatically once it clears, usually within the hour. You are not charged anything extra, and you can still cancel it for a full refund while it is queued. You get one email when a batch is first delayed.
+- **Failed.** The card could not be printed for a reason specific to it, most often the address or the design. It has not been sent. Any charge for it is refunded, the lead goes back into your list, and the reason is shown under the status. Fix the cause and send again. You get one email per batch with the reasons.
+
+Whatever the cause, our team is alerted at the same time. If anything looks wrong for more than a day, email info@housepost.co.uk with the address and we will sort it.
+
 ---
 
 ## Your portal pages
