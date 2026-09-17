@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import Image from 'next/image'
 import Link from 'next/link'
-import { MapPin, Mail, CreditCard, Building, CalendarDays } from 'lucide-react'
+import { MapPin, Mail, CreditCard, Building, CalendarDays, AlertTriangle } from 'lucide-react'
 import { currentMonthKey, formatMonthKey } from '@/lib/utils/date'
 import { INCLUDED_POSTCARDS_PER_MONTH, POSTCARD_OVERAGE_PENCE } from '@/types/profile'
 import { listNotifications } from '@/lib/notifications'
@@ -46,7 +46,11 @@ export default async function DashboardPage() {
   const prevBatchDate = new Date(latestLeadYear, latestLeadMonthNum - 2, 1)
   const prevLeadMonth = `${prevBatchDate.getFullYear()}-${String(prevBatchDate.getMonth() + 1).padStart(2, '0')}`
 
-  const [{ data: profile }, { count: leadCount }, { count: postcardCount }, { count: prevPostcardCount }] = await Promise.all([
+  // Cards that need the customer's attention: delayed (held, retried at least
+  // once) or failed in the last 30 days. Drives the banner below.
+  const thirtyDaysAgoIso = new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  const [{ data: profile }, { count: leadCount }, { count: postcardCount }, { count: prevPostcardCount }, { count: delayedCount }, { count: failedCount }] = await Promise.all([
     supabase.from('profiles').select('full_name, subscription_status, postcards_used_this_period, search_radius_miles, office_postcode').eq('id', user.id).single(),
     supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', latestLeadMonth).is('archived_at', null),
     // "Postcards sent" must count only cards actually sent to the provider, so we
@@ -54,6 +58,8 @@ export default async function DashboardPage() {
     // yet sent) and cancelled/failed (never sent).
     supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', latestLeadMonth).not('status', 'in', '(pending,held,dispatching,cancelled,failed)'),
     supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', prevLeadMonth).not('status', 'in', '(pending,held,dispatching,cancelled,failed)'),
+    supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'held').gt('retry_count', 0),
+    supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'failed').gte('failed_at', thirtyDaysAgoIso),
   ])
 
   const statusLabels: Record<string, string> = {
@@ -119,6 +125,27 @@ export default async function DashboardPage() {
         </h1>
         <p className="mt-1 text-sm text-slate-500">{formatMonthKey(monthKey)} overview</p>
       </div>
+
+      {((delayedCount ?? 0) > 0 || (failedCount ?? 0) > 0) && (
+        <Link
+          href="/postcards"
+          className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 transition-colors hover:bg-amber-100"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            {(delayedCount ?? 0) > 0 && (
+              <>
+                <strong>{delayedCount} postcard{delayedCount === 1 ? '' : 's'} delayed</strong> by a temporary problem on our side. They will be sent automatically.{' '}
+              </>
+            )}
+            {(failedCount ?? 0) > 0 && (
+              <>
+                <strong>{failedCount} postcard{failedCount === 1 ? '' : 's'} could not be sent</strong> recently. See why in Tracking.
+              </>
+            )}
+          </span>
+        </Link>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <Card className="flex flex-col">
