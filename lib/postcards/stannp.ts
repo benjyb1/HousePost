@@ -135,6 +135,18 @@ export function buildRecipient(
 }
 
 /**
+ * Only the production deployment may place live, billable orders. Preview
+ * deployments and local development run against the same production database
+ * and the same supplier key, so without this guard a click on a preview link
+ * would post (and pay for) a real card. Set STANNP_FORCE_LIVE=true to override
+ * deliberately, for example when proving the live path from a laptop.
+ */
+export function isLiveDispatchEnvironment(): boolean {
+  if (process.env.STANNP_FORCE_LIVE === 'true') return true
+  return process.env.VERCEL_ENV === 'production'
+}
+
+/**
  * Print and post a postcard. `tag` is stored against the order in Stannp for
  * traceability (we pass our per-(user, lead, batch) idempotency hash) — note
  * Stannp has no idempotency-key header, so the real double-send guard is the
@@ -147,10 +159,13 @@ export async function sendPostcard(params: {
   size?: StannpSize
   tag?: string
 }): Promise<{ id: string; status: string; pdfUrl: string | null }> {
-  // Deliberately DON'T send `test` here. Stannp defaults it to off (a live,
-  // billable order), and omitting the field removes any risk of a stringy
-  // 'false' being read as truthy — which would silently turn every real
-  // dispatch into a non-posted test. Only the preview path sends test=true.
+  // In production the `test` field is deliberately OMITTED: Stannp defaults it
+  // to off (a live, billable order), and omitting it removes any risk of a
+  // stringy 'false' being read as truthy, which would silently turn every real
+  // dispatch into a non-posted test. Outside production the field is set, so a
+  // preview or a laptop can exercise the whole pipeline without posting a card.
+  const live = isLiveDispatchEnvironment()
+  if (!live) console.warn('sendPostcard: non-production environment, placing a TEST order (nothing is posted)')
   const data = await stannpRequest('/postcards/create', {
     ...baseFields({
       to: params.to,
@@ -159,6 +174,7 @@ export async function sendPostcard(params: {
       size: params.size ?? 'A6',
     }),
     ...(params.tag ? { tags: params.tag } : {}),
+    ...(live ? {} : { test: 'true' }),
   })
   return { id: String(data.id), status: data.status, pdfUrl: data.pdf ?? null }
 }

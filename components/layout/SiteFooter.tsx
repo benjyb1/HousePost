@@ -15,11 +15,11 @@ export function SiteFooter({ variant = 'public' }: { variant?: 'public' | 'porta
     variant === 'portal'
       ? [
           { href: '/dashboard', label: 'Dashboard' },
-          { href: '/account', label: 'Account' },
+          { href: '/help', label: 'Help' },
         ]
       : [
           { href: '/login', label: 'Login' },
-          { href: '/signup', label: 'Sign up' },
+          { href: '/help', label: 'Help' },
         ]
 
   return (

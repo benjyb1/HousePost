@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Mail, ChevronDown } from 'lucide-react'
 import ResendButton from '@/components/postcards/ResendButton'
 import CancelOrderButton from '@/components/postcards/CancelOrderButton'
+import { StatusLegend } from '@/components/postcards/StatusLegend'
 
 // Show the first 15 rows of each month, with the rest behind a "Show more"
 // disclosure — mirrors the Previous leads table's page size.
@@ -185,7 +186,10 @@ export default async function PostcardsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-900">Postcard Tracking</h1>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <h1 className="text-2xl font-bold text-slate-900">Postcard Tracking</h1>
+        <StatusLegend />
+      </div>
 
       {monthGroups.map(([month, monthJobs]) => {
         const visible = monthJobs.slice(0, SECTION_PAGE_SIZE)
