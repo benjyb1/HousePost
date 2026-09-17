@@ -116,3 +116,27 @@ pages that need Supabase/Stripe won't fully load.
   ~390px phone width.
 - The PR description says what you changed and includes a screenshot for visual
   changes.
+
+## When something fails in production (where to look)
+
+Freddie cannot see Vercel, and the claude.ai Vercel/Supabase connectors are
+often pointed at the wrong account or project. These are the paths that work:
+
+- **Postcard failures:** from the app's admin panel, `/admin/ops` shows the print
+  balance, every failed or delayed card with its raw error, and stuck jobs. Try
+  there first. The full runbook is in `docs/OPERATIONS.md`.
+- **Cron responses:** the release/poll/retention crons are fired by pg_cron via
+  pg_net, which keeps each HTTP response body for about six hours in
+  `net._http_response`. The release cron's `reasons[]` array carries the exact
+  per-card error. Query it with the Supabase Management API using the
+  `SUPABASE_ACCESS_TOKEN` from `.env.local` (never print the token).
+- **Vercel runtime logs:** the Vercel CLI is logged in locally (`vercel ls
+  freddie-postmate --prod`, `vercel env ls production`). If the claude.ai Vercel
+  connector returns 403, use the CLI, do not keep retrying the connector.
+- **Supabase connector:** the repo's `.mcp.json` defines `housepost-supabase`,
+  pointed at the production project (PostcardMonthly, `dgscubksafqxpccjsqis`).
+  A `supabase` server inherited from a parent directory points at a different,
+  unrelated project. Use `housepost-supabase`.
+- **Print balance:** `GET https://api-eu1.stannp.com/v1/accounts/balance` with
+  the Stannp key as the Basic-auth username. A live order fails with
+  `Insufficient funds` when this is below the card cost (about £0.96 per A6).
