@@ -74,7 +74,7 @@ export function classifyDispatchError(raw: string | null | undefined): Classifie
   if (/insufficient funds|insufficient balance|no credit|top up/.test(text)) {
     category = 'print_credit'
   } else if (
-    /api key is not set|unauthori[sz]ed|forbidden|invalid api key|\b401\b|\b403\b/.test(text)
+    /api[_ ]?key is not set|unauthori[sz]ed|forbidden|invalid api[_ ]?key|\b401\b|\b403\b/.test(text)
   ) {
     // Our credentials, not this card. Operator must fix; retrying is harmless.
     category = 'printer'
