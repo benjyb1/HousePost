@@ -13,6 +13,8 @@ import { currentMonthKey } from '@/lib/utils/date'
 import { loadSuppressionKeys, isSuppressed } from '@/lib/leads/suppression'
 import { POSTCARD_OVERAGE_PENCE, MONTHLY_POSTCARD_CAP } from '@/types/profile'
 import { resolveBackUrl } from '@/lib/postcards/defaults'
+import { checkPrintCapacity } from '@/lib/postcards/stannp-account'
+import { classifyDispatchError } from '@/lib/postcards/failure'
 
 // Only a card that has actually been posted may be re-sent. Anything else
 // (in-flight OR dead) is refused: resending a pending/held/dispatching card
@@ -75,6 +77,21 @@ export async function POST(request: Request) {
   }
 
   const adminSupabase = createAdminClient()
+
+  // Pre-flight: refuse politely if the prepaid print balance positively cannot
+  // cover one more card. Nothing has been reserved or charged yet.
+  const capacity = await checkPrintCapacity(1)
+  if (!capacity.ok) {
+    console.error(`Resend refused: print balance ${capacity.balancePence}p below ${capacity.neededPence}p`)
+    return NextResponse.json(
+      {
+        error:
+          'We cannot take new postcard orders right now because of a problem on our side. Nothing has been charged. Please try again in a few hours.',
+        serviceUnavailable: true,
+      },
+      { status: 503 }
+    )
+  }
 
   // Do-not-contact screening: if the recipient opted out AFTER the first card
   // went out, refuse the resend. Fails CLOSED (503 on a transient read error).
@@ -266,8 +283,22 @@ export async function POST(request: Request) {
       }
     }
     await unwind('failed', { giveBackAllowance: true })
-    const msg = err instanceof Error ? err.message : 'Dispatch failed'
-    return NextResponse.json({ error: msg }, { status: 502 })
+    // Store why, in both the raw and customer-facing forms, and return only the
+    // customer-facing one: the supplier's name and API text never reach the UI.
+    const raw = err instanceof Error ? err.message : 'Dispatch failed'
+    const outcome = classifyDispatchError(raw)
+    console.error(`Resend dispatch failed for job ${newJobId}:`, raw)
+    await adminSupabase
+      .from('postcard_jobs')
+      .update({
+        failed_at: new Date().toISOString(),
+        failure_category: outcome.category,
+        failure_reason: outcome.failedMessage,
+        last_error: raw,
+        last_error_at: new Date().toISOString(),
+      })
+      .eq('id', newJobId)
+    return NextResponse.json({ error: outcome.failedMessage }, { status: 502 })
   }
 
   // Card is away — record the Stannp id/status, the real charge and the PI so a

@@ -8,6 +8,8 @@ import { createNotification } from '@/lib/notifications'
 import { sendAdminAlert } from '@/lib/email/resend'
 import { loadSuppressionKeys, isSuppressed } from '@/lib/leads/suppression'
 import { resolveBackUrl } from '@/lib/postcards/defaults'
+import { checkPrintCapacity } from '@/lib/postcards/stannp-account'
+import { shouldAlert } from '@/lib/ops/state'
 import {
   INCLUDED_POSTCARDS_PER_MONTH,
   POSTCARD_OVERAGE_PENCE,
@@ -270,6 +272,38 @@ export async function POST(request: Request) {
 
   const adminSupabase = createAdminClient()
   const batchId = randomUUID()
+
+  // Pre-flight: can the prepaid print balance actually cover this batch? If we
+  // positively know it cannot, refuse now — BEFORE any lead is claimed or any
+  // card charged — rather than holding the cards for fifteen minutes and then
+  // failing them. An unknown balance (supplier blip) never blocks a send.
+  const capacity = await checkPrintCapacity(eligible.length)
+  if (!capacity.ok) {
+    console.error(
+      `Send refused: print balance ${capacity.balancePence}p cannot cover ${eligible.length} card(s) (${capacity.neededPence}p)`
+    )
+    if (await shouldAlert(adminSupabase, 'send-refused-balance', 60)) {
+      try {
+        await sendAdminAlert(
+          `[Housepost] Send refused: print balance too low`,
+          `<p>A customer tried to send <strong>${eligible.length}</strong> postcard(s) but the prepaid print
+            balance is <strong>£${((capacity.balancePence ?? 0) / 100).toFixed(2)}</strong>, short of the
+            £${(capacity.neededPence / 100).toFixed(2)} needed. Nothing was charged. Top up from
+            <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.housepost.co.uk'}/admin/ops">/admin/ops</a>.</p>`
+        )
+      } catch (alertErr) {
+        console.error('Failed to send balance-refusal alert:', alertErr)
+      }
+    }
+    return NextResponse.json(
+      {
+        error:
+          'We cannot take new postcard orders right now because of a problem on our side. Nothing has been charged. Please try again in a few hours, or email info@housepost.co.uk if it keeps happening.',
+        serviceUnavailable: true,
+      },
+      { status: 503 }
+    )
+  }
 
   // 1. Create a pending job row per eligible lead and atomically claim the lead.
   //    Pending rows carry no release_at, so the cron never touches them; they

@@ -26,6 +26,7 @@ const statusColors: Record<string, string> = {
   provider_hold: 'bg-purple-100 text-purple-800',
   refund_failed: 'bg-amber-100 text-amber-800',
   error: 'bg-red-100 text-red-800',
+  delayed: 'bg-amber-100 text-amber-800',
 }
 
 // Map the pipeline's internal status keys to neutral, user-facing labels. No
@@ -45,6 +46,15 @@ const statusLabels: Record<string, string> = {
   pending: 'Pending',
   failed: 'Failed',
   cancelled: 'Cancelled',
+  delayed: 'Delayed',
+}
+
+// Plain-English line shown under a status when the customer needs more than a
+// badge. No supplier is ever named (see lib/postcards/failure.ts).
+const statusNotes: Record<string, string> = {
+  held: 'Queued. You can cancel until it goes to print.',
+  refund_failed: 'This card was cancelled. The refund is being handled by our team.',
+  error: 'Something went wrong after printing. Our team is looking into it.',
 }
 
 type Job = {
@@ -58,6 +68,8 @@ type Job = {
   batch_id: string | null
   lead_month: string
   created_at: string
+  failure_reason?: string | null
+  retry_count?: number | null
 }
 
 // A single postcard row — shared between the always-visible rows and the ones
@@ -66,9 +78,18 @@ function JobRow({ job }: { job: Job }) {
   // Stay tolerant of both columns during the postgrid_status → status
   // consolidation (see the postcard_status migration): prefer the legacy
   // column while it may still carry the freshest value.
-  const displayStatus = job.postgrid_status ?? job.status
+  const rawStatus = job.postgrid_status ?? job.status
+  // A held card that has already been retried is "Delayed": still queued, still
+  // cancellable, but the customer should know it is late and why.
+  const isDelayed = rawStatus === 'held' && (job.retry_count ?? 0) > 0
+  const displayStatus = isDelayed ? 'delayed' : rawStatus
   const colorClass = statusColors[displayStatus] ?? 'bg-slate-100 text-slate-600'
   const label = statusLabels[displayStatus] ?? displayStatus.replace(/_/g, ' ')
+  const note = isDelayed
+    ? 'There is a temporary problem on our side with printing. This card will be sent automatically. Nothing more to pay.'
+    : rawStatus === 'failed'
+      ? (job.failure_reason ?? 'This postcard was not sent. Any charge has been refunded and the lead is back in your list.')
+      : statusNotes[displayStatus]
 
   return (
     <tr className="hover:bg-slate-50 transition-colors">
@@ -90,6 +111,9 @@ function JobRow({ job }: { job: Job }) {
         <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${colorClass}`}>
           {label}
         </span>
+        {note && (
+          <p className="mt-1.5 text-left text-xs leading-snug text-slate-500">{note}</p>
+        )}
       </td>
       <td className="px-4 py-3 text-center align-top">
         {displayStatus === 'dispatched' || displayStatus === 'delivered' ? (
@@ -97,7 +121,7 @@ function JobRow({ job }: { job: Job }) {
           // in-flight states (pending/held/dispatching/…) — resending those could
           // double-send.
           <ResendButton jobId={job.id} />
-        ) : displayStatus === 'held' && job.batch_id ? (
+        ) : rawStatus === 'held' && job.batch_id ? (
           // Still in the cool-off window: let the user cancel from here.
           <CancelOrderButton orderId={job.batch_id} />
         ) : (
@@ -113,10 +137,10 @@ function JobRow({ job }: { job: Job }) {
 function ColGroup() {
   return (
     <colgroup>
-      <col className="w-[40%]" />
-      <col className="w-[14%]" />
-      <col className="w-[18%]" />
+      <col className="w-[34%]" />
+      <col className="w-[12%]" />
       <col className="w-[16%]" />
+      <col className="w-[26%]" />
       <col className="w-[12%]" />
     </colgroup>
   )

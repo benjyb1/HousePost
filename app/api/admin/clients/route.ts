@@ -1,14 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { cookies } from 'next/headers'
-import { adminToken, safeEqualHex } from '@/lib/admin/token'
-
-async function verifyAdminCookie(): Promise<boolean> {
-  const cookieStore = await cookies()
-  const adminCookie = cookieStore.get('admin-auth')?.value
-  if (!adminCookie) return false
-  return safeEqualHex(adminCookie, await adminToken())
-}
+import { verifyAdminCookie } from '@/lib/admin/verify'
 
 export async function GET() {
   if (!(await verifyAdminCookie())) {
