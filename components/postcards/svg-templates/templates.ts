@@ -51,11 +51,11 @@ function renderBold(v: TemplateValues): string {
     <text x="92" y="1025" font-family="${FONTS.sans}" font-weight="400" font-size="48" fill="#475569">${esc(
       v.tagline
     )}</text>
-    <rect x="0" y="1171" width="${CARD_W}" height="140" fill="${a}"/>
-    <text x="92" y="1258" font-family="${FONTS.sans}" font-weight="700" font-size="50" fill="${onA}">${esc(
+    <rect x="0" y="1151" width="${CARD_W}" height="160" fill="${a}"/>
+    <text x="92" y="1230" font-family="${FONTS.sans}" font-weight="700" font-size="50" fill="${onA}">${esc(
       v.phone
     )}</text>
-    <text x="1727" y="1258" text-anchor="end" font-family="${FONTS.sans}" font-weight="700" font-size="50" fill="${onA}">${esc(
+    <text x="1727" y="1230" text-anchor="end" font-family="${FONTS.sans}" font-weight="700" font-size="50" fill="${onA}">${esc(
       v.website
     )}</text>
   `)
@@ -226,7 +226,7 @@ function renderBackBold(v: TemplateValues): string {
   return backSvg(`
     <rect x="0" y="0" width="${HALF}" height="170" fill="${a}"/>
     <rect x="0" y="170" width="${HALF}" height="14" fill="${darken(a, 0.22)}"/>
-    <text x="${BACK_M}" y="116" font-family="${FONTS.sans}" font-weight="800" font-size="${brandSize}" letter-spacing="1" fill="${onA}">${esc(
+    <text x="${BACK_M}" y="124" font-family="${FONTS.sans}" font-weight="800" font-size="${brandSize}" letter-spacing="1" fill="${onA}">${esc(
       v.businessName
     )}</text>
     <text x="${BACK_M - 2}" y="360" font-family="${FONTS.sans}" font-weight="800" font-size="${headSize}" fill="#0f172a">${esc(
@@ -236,11 +236,11 @@ function renderBackBold(v: TemplateValues): string {
     <text x="${BACK_M - 2}" y="1095" font-family="${FONTS.sans}" font-weight="800" font-size="${ctaSize}" fill="${a}">${esc(
       v.backCta
     )}</text>
-    <rect x="0" y="1171" width="${HALF}" height="140" fill="${a}"/>
-    <text x="${BACK_M}" y="1258" font-family="${FONTS.sans}" font-weight="700" font-size="${phoneSize}" fill="${onA}">${esc(
+    <rect x="0" y="1151" width="${HALF}" height="160" fill="${a}"/>
+    <text x="${BACK_M}" y="1230" font-family="${FONTS.sans}" font-weight="700" font-size="${phoneSize}" fill="${onA}">${esc(
       v.phone
     )}</text>
-    <text x="${HALF - BACK_M}" y="1258" text-anchor="end" font-family="${FONTS.sans}" font-weight="700" font-size="${webSize}" fill="${onA}">${esc(
+    <text x="${HALF - BACK_M}" y="1230" text-anchor="end" font-family="${FONTS.sans}" font-weight="700" font-size="${webSize}" fill="${onA}">${esc(
       v.website
     )}</text>
   `)
@@ -266,10 +266,10 @@ function renderBackClean(v: TemplateValues): string {
       v.backCta
     )} &#8594;</text>
     <line x1="${BACK_M}" y1="1060" x2="${HALF - BACK_M}" y2="1060" stroke="#e2e8f0" stroke-width="3"/>
-    <text x="${BACK_M}" y="1168" font-family="${FONTS.sans}" font-weight="600" font-size="42" fill="#334155">${esc(
+    <text x="${BACK_M}" y="1160" font-family="${FONTS.sans}" font-weight="600" font-size="42" fill="#334155">${esc(
       v.phone
     )}</text>
-    <text x="${BACK_M}" y="1234" font-family="${FONTS.sans}" font-weight="400" font-size="40" fill="#64748b">${esc(
+    <text x="${BACK_M}" y="1224" font-family="${FONTS.sans}" font-weight="400" font-size="40" fill="#64748b">${esc(
       v.website
     )}</text>
   `)
