@@ -12,7 +12,7 @@ import { DesignLibrary } from '@/components/postcards/DesignLibrary'
 const HEADINGS: Record<DesignOption, { title: string; subtitle: string }> = {
   template: {
     title: 'Use a template',
-    subtitle: 'Pick a design, personalise it in the browser, and save it as your postcard front.',
+    subtitle: 'Pick a design, personalise it in the browser, and save a matching front and back.',
   },
   upload: {
     title: 'Upload custom design',
