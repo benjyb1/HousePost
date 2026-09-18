@@ -28,3 +28,36 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+  # Stops GitHub from auto-disabling our cron workflows. Scheduled workflows are
+  # switched off after 60 days of repository inactivity, and scheduled runs
+  # themselves don't count as activity — only commits do. This job runs every 3
+  # days alongside the Supabase ping; if the repo has been quiet for a while it
+  # pushes a one-line timestamp commit, which resets the 60-day clock for every
+  # scheduled workflow at once. On an active repo it does nothing. Commits made
+  # with GITHUB_TOKEN don't trigger further workflow runs, so there's no loop.
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push a keepalive commit if the repo has gone quiet
+        run: |
+          set -euo pipefail
+          idle_days=$(( ( $(date +%s) - $(git log -1 --format=%ct) ) / 86400 ))
+          echo "Most recent commit was ${idle_days} day(s) ago."
+          if [ "$idle_days" -lt 45 ]; then
+            echo "Repo active within 45 days — no keepalive commit needed."
+            exit 0
+          fi
+          echo "Repo idle for ${idle_days} days — pushing a keepalive commit."
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          date -u +'%Y-%m-%dT%H:%M:%SZ' > .github/keepalive.txt
+          git add .github/keepalive.txt
+          git commit -m 'chore: keepalive to keep scheduled workflows enabled [skip ci]'
+          git push
