@@ -424,7 +424,9 @@ interface BackOpts {
 /** Brand + editable headline/message/CTA + contact, styled per template. */
 function themedBack(v: TemplateValues, o: BackOpts): string {
   const a = normaliseHex(o.accent)
-  const f = o.serif ? 0.5 : 0.56
+  // Conservative glyph factors so a heading shrinks before it reaches the fold —
+  // serif/bold faces render wider than a naive 0.5 estimate assumes.
+  const f = o.serif ? 0.6 : 0.58
   const brandSize = fitSize(v.businessName, BACK_W, 46, f)
   const headSize = fitSize(v.backHeadline, BACK_W, 86, f)
   const ctaSize = fitSize(v.backCta, BACK_W, 50, f)
@@ -454,7 +456,7 @@ function themedBack(v: TemplateValues, o: BackOpts): string {
     v.website,
     BACK_W,
     38,
-    0.5
+    0.6
   )}" fill="${o.sub}">${esc(v.website)}</text>
   `)
 }
@@ -462,7 +464,7 @@ function themedBack(v: TemplateValues, o: BackOpts): string {
 /* 5. ATELIER — interior design: editorial, calm, refined ----------- */
 function frontAtelier(v: TemplateValues): string {
   const a = normaliseHex(v.accent)
-  const nameSize = fitSize(v.businessName, 1540, 156, 0.5)
+  const nameSize = fitSize(v.businessName, 1540, 156, 0.58)
   const offerSize = fitSize(v.offer, 1300, 52, 0.5)
   return svg(`
     <rect width="${CARD_W}" height="${CARD_H}" fill="#f6f4ef"/>
