@@ -28,10 +28,17 @@ export interface SvgTemplate {
   name: string
   /** One-line description of the look / who it suits. */
   description: string
+  /** The trade / audience the default content is themed for, e.g. "Florist". */
+  suits: string
   /** Sensible starting content so a template looks finished on first view. */
   defaults: TemplateValues
-  /** Build a complete, self-contained SVG string (1819×1311) from values. */
+  /** Build the FRONT: a complete, self-contained SVG string (1819×1311). */
   render: (values: TemplateValues) => string
+  /**
+   * Build the BACK: a full-card SVG (1819×1311) whose design sits in the LEFT
+   * half only — the right half stays clear for the address the printer adds.
+   */
+  renderBack: (values: TemplateValues) => string
 }
 
 /** The fields shown in the editor form, in order. */
