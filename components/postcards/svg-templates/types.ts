@@ -30,8 +30,16 @@ export interface SvgTemplate {
   description: string
   /** Sensible starting content so a template looks finished on first view. */
   defaults: TemplateValues
-  /** Build a complete, self-contained SVG string (1819×1311) from values. */
+  /** Build the FRONT as a complete, self-contained SVG string (1819×1311). */
   render: (values: TemplateValues) => string
+  /**
+   * Build the BACK as a complete SVG string (1819×1311). The printer prints the
+   * address, postage and barcode over the RIGHT half, so the back only decorates
+   * the LEFT half; the right half is left white. This matches the full-card the
+   * uploader composites for an uploaded back, so the send/proof pipeline treats a
+   * template back like any other.
+   */
+  renderBack: (values: TemplateValues) => string
 }
 
 /** The fields shown in the editor form, in order. */

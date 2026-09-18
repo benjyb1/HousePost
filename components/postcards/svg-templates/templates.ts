@@ -162,6 +162,189 @@ function renderBright(v: TemplateValues): string {
   `)
 }
 
+/* ================================================================== */
+/* BACK side                                                          */
+/*                                                                    */
+/* On a posted card the printer prints the address, postage and       */
+/* barcode over the RIGHT half, splitting dead on the centre line. So  */
+/* a template back only decorates the LEFT half (0…HALF); the right    */
+/* half is left white. That is exactly the full card the uploader      */
+/* composites for an uploaded back, so the send/proof pipeline treats  */
+/* a template back like any other. Each back echoes its front's style  */
+/* so the two sides read as one card.                                  */
+/* ================================================================== */
+const HALF = Math.round(CARD_W / 2) // 910 — the centre fold; the address sits to its right
+const BACK_M = 74 // safe margin inside the trimmed edges (≈3mm bleed + 3mm safe)
+const BACK_W = HALF - BACK_M * 2 // usable width for left-aligned text in the design half
+const BACK_CX = Math.round(HALF / 2) // horizontal centre of the design (left) half
+
+/**
+ * Wrap a back's left-half artwork on a full white card. The artwork is drawn
+ * inside a nested SVG viewport that clips at the fold (x=HALF), so even a
+ * pathologically long line can never spill into the right half where the
+ * printer prints the address — the right half always stays white.
+ */
+function backSvg(leftHalf: string): string {
+  return svg(
+    `<rect width="${CARD_W}" height="${CARD_H}" fill="#ffffff"/>` +
+      `<svg x="0" y="0" width="${HALF}" height="${CARD_H}" viewBox="0 0 ${HALF} ${CARD_H}" overflow="hidden">${leftHalf}</svg>`
+  )
+}
+
+/* 1. BOLD back — accent band, big name, contact bar (mirrors the front) */
+function renderBackBold(v: TemplateValues): string {
+  const a = normaliseHex(v.accent)
+  const onA = readableOn(a)
+  const area = v.areaServed.toUpperCase()
+  const areaSize = fitSize(area, BACK_W - 8 * area.length, 44, 0.72)
+  const nameSize = fitSize(v.businessName, BACK_W, 92, 0.58)
+  const taglineSize = fitSize(v.tagline, BACK_W, 46, 0.54)
+  const offerSize = fitSize(v.offer, BACK_W, 68, 0.6)
+  // Phone and website share the bottom bar, so cap each to its own half — a long
+  // website then shrinks rather than colliding with the phone.
+  const barHalf = (BACK_W - 40) / 2
+  const phoneSize = fitSize(v.phone, barHalf, 46, 0.56)
+  const webSize = fitSize(v.website, barHalf, 46, 0.5)
+  return backSvg(`
+    <rect x="0" y="0" width="${HALF}" height="300" fill="${a}"/>
+    <rect x="0" y="300" width="${HALF}" height="16" fill="${darken(a, 0.22)}"/>
+    <text x="${BACK_M}" y="192" font-family="${FONTS.sans}" font-weight="700" font-size="${areaSize}" letter-spacing="8" fill="${onA}" opacity="0.85">${esc(
+      area
+    )}</text>
+    <text x="${BACK_M - 2}" y="562" font-family="${FONTS.sans}" font-weight="800" font-size="${nameSize}" fill="#0f172a">${esc(
+      v.businessName
+    )}</text>
+    <text x="${BACK_M}" y="652" font-family="${FONTS.sans}" font-weight="400" font-size="${taglineSize}" fill="#475569">${esc(
+      v.tagline
+    )}</text>
+    <rect x="${BACK_M}" y="722" width="120" height="10" fill="${a}"/>
+    <text x="${BACK_M - 2}" y="902" font-family="${FONTS.sans}" font-weight="700" font-size="${offerSize}" fill="${a}">${esc(
+      v.offer
+    )}</text>
+    <rect x="0" y="1171" width="${HALF}" height="140" fill="${a}"/>
+    <text x="${BACK_M}" y="1258" font-family="${FONTS.sans}" font-weight="700" font-size="${phoneSize}" fill="${onA}">${esc(
+      v.phone
+    )}</text>
+    <text x="${HALF - BACK_M}" y="1258" text-anchor="end" font-family="${FONTS.sans}" font-weight="700" font-size="${webSize}" fill="${onA}">${esc(
+      v.website
+    )}</text>
+  `)
+}
+
+/* 2. CLEAN back — minimal, airy, hairline rule, stacked contact */
+function renderBackClean(v: TemplateValues): string {
+  const a = normaliseHex(v.accent)
+  const area = v.areaServed.toUpperCase()
+  const areaSize = fitSize(area, BACK_W - 6 * area.length, 40, 0.72)
+  const nameSize = fitSize(v.businessName, BACK_W, 92, 0.56)
+  const taglineSize = fitSize(v.tagline, BACK_W, 44, 0.54)
+  const offerSize = fitSize(v.offer, BACK_W, 60, 0.58)
+  return backSvg(`
+    <rect x="${BACK_M}" y="150" width="120" height="12" fill="${a}"/>
+    <text x="${BACK_M}" y="252" font-family="${FONTS.sans}" font-weight="600" font-size="${areaSize}" letter-spacing="6" fill="#64748b">${esc(
+      area
+    )}</text>
+    <text x="${BACK_M - 2}" y="432" font-family="${FONTS.sans}" font-weight="700" font-size="${nameSize}" fill="#0f172a">${esc(
+      v.businessName
+    )}</text>
+    <text x="${BACK_M}" y="522" font-family="${FONTS.sans}" font-weight="400" font-size="${taglineSize}" fill="#64748b">${esc(
+      v.tagline
+    )}</text>
+    <text x="${BACK_M - 2}" y="772" font-family="${FONTS.sans}" font-weight="700" font-size="${offerSize}" fill="${a}">${esc(
+      v.offer
+    )}</text>
+    <line x1="${BACK_M}" y1="1060" x2="${HALF - BACK_M}" y2="1060" stroke="#e2e8f0" stroke-width="3"/>
+    <text x="${BACK_M}" y="1168" font-family="${FONTS.sans}" font-weight="600" font-size="42" fill="#334155">${esc(
+      v.phone
+    )}</text>
+    <text x="${BACK_M}" y="1234" font-family="${FONTS.sans}" font-weight="400" font-size="40" fill="#64748b">${esc(
+      v.website
+    )}</text>
+  `)
+}
+
+/* 3. CLASSIC back — cream half, framed, centred serif */
+function renderBackClassic(v: TemplateValues): string {
+  const a = normaliseHex(v.accent)
+  const cx = BACK_CX
+  const area = v.areaServed.toUpperCase()
+  const areaSize = fitSize(area, HALF - 200 - 6 * area.length, 34, 0.72)
+  const nameSize = fitSize(v.businessName, HALF - 220, 80, 0.5)
+  const taglineSize = fitSize(v.tagline, HALF - 240, 46, 0.5)
+  const offerSize = fitSize(v.offer, HALF - 240, 52, 0.5)
+  return backSvg(`
+    <rect x="0" y="0" width="${HALF}" height="${CARD_H}" fill="#faf8f3"/>
+    <rect x="46" y="58" width="${HALF - 92}" height="${CARD_H - 116}" fill="none" stroke="${a}" stroke-width="6"/>
+    <rect x="74" y="86" width="${HALF - 148}" height="${CARD_H - 172}" fill="none" stroke="${a}" stroke-width="2"/>
+    <text x="${cx}" y="300" text-anchor="middle" font-family="${FONTS.serif}" font-weight="400" font-size="${areaSize}" letter-spacing="6" fill="${a}">${esc(
+      area
+    )}</text>
+    <text x="${cx}" y="540" text-anchor="middle" font-family="${FONTS.serif}" font-weight="700" font-size="${nameSize}" fill="#1f2937">${esc(
+      v.businessName
+    )}</text>
+    <line x1="${cx - 130}" y1="610" x2="${cx - 30}" y2="610" stroke="${a}" stroke-width="3"/>
+    <circle cx="${cx}" cy="610" r="8" fill="${a}"/>
+    <line x1="${cx + 30}" y1="610" x2="${cx + 130}" y2="610" stroke="${a}" stroke-width="3"/>
+    <text x="${cx}" y="732" text-anchor="middle" font-family="${FONTS.serif}" font-style="italic" font-weight="400" font-size="${taglineSize}" fill="#4b5563">${esc(
+      v.tagline
+    )}</text>
+    <text x="${cx}" y="932" text-anchor="middle" font-family="${FONTS.serif}" font-weight="600" font-size="${offerSize}" fill="${a}">${esc(
+      v.offer
+    )}</text>
+    <text x="${cx}" y="1150" text-anchor="middle" font-family="${FONTS.serif}" font-weight="400" font-size="40" fill="#374151">${esc(
+      v.phone
+    )}</text>
+    <text x="${cx}" y="1212" text-anchor="middle" font-family="${FONTS.serif}" font-weight="400" font-size="38" fill="#374151">${esc(
+      v.website
+    )}</text>
+  `)
+}
+
+/* 4. BRIGHT back — accent half with a rounded white card and a pill */
+function renderBackBright(v: TemplateValues): string {
+  const a = normaliseHex(v.accent)
+  const onA = readableOn(a)
+  const tint = lighten(a, 0.18)
+  const cardX = 60
+  const cardW = 800 // white card spans x 60…860 — inside the left half
+  const area = v.areaServed.toUpperCase()
+  const areaSize = fitSize(area, cardW - 180 - 5 * area.length, 40, 0.72)
+  const nameSize = fitSize(v.businessName, cardW - 200, 84, 0.58)
+  const taglineSize = fitSize(v.tagline, cardW - 200, 44, 0.54)
+  const offerSize = fitSize(v.offer, cardW - 200, 64, 0.6)
+  // Contact sits in a pill inside the card — narrower than the front's, so the
+  // phone and website stack on two centred lines rather than colliding.
+  const pillCx = cardX + 80 + (cardW - 160) / 2
+  const phoneSize = fitSize(v.phone, cardW - 260, 42, 0.56)
+  const webSize = fitSize(v.website, cardW - 260, 34, 0.5)
+  return backSvg(`
+    <rect x="0" y="0" width="${HALF}" height="${CARD_H}" fill="${a}"/>
+    <circle cx="690" cy="150" r="170" fill="${tint}" opacity="0.5"/>
+    <circle cx="120" cy="1210" r="150" fill="${tint}" opacity="0.4"/>
+    <rect x="${cardX}" y="110" width="${cardW}" height="${CARD_H - 220}" rx="52" fill="#ffffff"/>
+    <text x="${cardX + 90}" y="300" font-family="${FONTS.rounded}" font-weight="700" font-size="${areaSize}" letter-spacing="5" fill="${darken(
+      a,
+      0.1
+    )}">${esc(area)}</text>
+    <text x="${cardX + 88}" y="470" font-family="${FONTS.rounded}" font-weight="700" font-size="${nameSize}" fill="#0f172a">${esc(
+      v.businessName
+    )}</text>
+    <text x="${cardX + 90}" y="560" font-family="${FONTS.rounded}" font-weight="400" font-size="${taglineSize}" fill="#475569">${esc(
+      v.tagline
+    )}</text>
+    <text x="${cardX + 88}" y="782" font-family="${FONTS.rounded}" font-weight="700" font-size="${offerSize}" fill="${a}">${esc(
+      v.offer
+    )}</text>
+    <rect x="${cardX + 80}" y="930" width="${cardW - 160}" height="160" rx="80" fill="${a}"/>
+    <text x="${pillCx}" y="1002" text-anchor="middle" font-family="${FONTS.rounded}" font-weight="700" font-size="${phoneSize}" fill="${onA}">${esc(
+      v.phone
+    )}</text>
+    <text x="${pillCx}" y="1058" text-anchor="middle" font-family="${FONTS.rounded}" font-weight="600" font-size="${webSize}" fill="${onA}">${esc(
+      v.website
+    )}</text>
+  `)
+}
+
 export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'bold',
@@ -177,6 +360,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
       accent: '#c02b3a',
     },
     render: renderBold,
+    renderBack: renderBackBold,
   },
   {
     id: 'clean',
@@ -192,6 +376,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
       accent: '#0f766e',
     },
     render: renderClean,
+    renderBack: renderBackClean,
   },
   {
     id: 'classic',
@@ -207,6 +392,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
       accent: '#1e3a5f',
     },
     render: renderClassic,
+    renderBack: renderBackClassic,
   },
   {
     id: 'bright',
@@ -222,6 +408,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
       accent: '#f97316',
     },
     render: renderBright,
+    renderBack: renderBackBright,
   },
 ]
 

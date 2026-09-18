@@ -130,41 +130,59 @@ export function SvgTemplateEditor({
     () => (template && values ? template.render(values) : ''),
     [template, values]
   )
+  const previewBackSvg = useMemo(
+    () => (template && values ? template.renderBack(values) : ''),
+    [template, values]
+  )
 
   async function handleUse() {
     if (!template || !values || !userId) return
     setSaving(true)
     try {
-      const svgString = template.render(values)
-      const blob = await svgToPngBlob(svgString)
+      // A template is a matched pair: rasterise the front AND the coordinated
+      // back. The back keeps its design on the left half with the right half
+      // white, so the printer prints the address over it — the same full card
+      // the uploader composites for an uploaded back.
+      const [frontBlob, backBlob] = await Promise.all([
+        svgToPngBlob(template.render(values)),
+        svgToPngBlob(template.renderBack(values)),
+      ])
 
-      // Same storage key + upload options the uploader uses for the front side.
-      const path = `${userId}/design.png`
-      const { error: uploadError } = await supabase.storage
-        .from('postcard-designs')
-        .upload(path, blob, { upsert: true, contentType: 'image/png' })
-      if (uploadError) throw uploadError
+      // Same storage keys + upload options the uploader uses for each side.
+      const storage = supabase.storage.from('postcard-designs')
+      const frontPath = `${userId}/design.png`
+      const backPath = `${userId}/design-back.png`
 
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from('postcard-designs').getPublicUrl(path)
-      // Cache-bust exactly like the uploader — the storage key is fixed, so a
-      // fresh version query forces the new bytes everywhere the URL is used.
-      const versionedUrl = `${publicUrl}?v=${Date.now()}`
+      const [frontUpload, backUpload] = await Promise.all([
+        storage.upload(frontPath, frontBlob, { upsert: true, contentType: 'image/png' }),
+        storage.upload(backPath, backBlob, { upsert: true, contentType: 'image/png' }),
+      ])
+      if (frontUpload.error) throw frontUpload.error
+      if (backUpload.error) throw backUpload.error
+
+      // Cache-bust exactly like the uploader — the storage keys are fixed, so a
+      // fresh version query forces the new bytes everywhere the URLs are used.
+      const stamp = Date.now()
+      const frontUrl = `${storage.getPublicUrl(frontPath).data.publicUrl}?v=${stamp}`
+      const backUrl = `${storage.getPublicUrl(backPath).data.publicUrl}?v=${stamp}`
 
       const res = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ postcard_design_url: versionedUrl }),
+        body: JSON.stringify({
+          postcard_design_url: frontUrl,
+          postcard_design_back_url: backUrl,
+        }),
       })
       if (!res.ok) {
         const { error } = await res.json()
         throw new Error(error ?? 'Failed to save')
       }
 
-      setSavedUrl(versionedUrl)
+      setSavedUrl(frontUrl)
+      setSavedBackUrl(backUrl)
 
-      // Also record it in the saved-designs LIBRARY (templates are front-only).
+      // Also record the pair in the saved-designs LIBRARY.
       // Best-effort: a failure here must not undo the successful active save.
       try {
         await fetch('/api/postcards/designs', {
@@ -172,7 +190,8 @@ export function SvgTemplateEditor({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             source: 'template',
-            front_url: versionedUrl,
+            front_url: frontUrl,
+            back_url: backUrl,
             label: `${template.name} template · ${new Intl.DateTimeFormat('en-GB', {
               day: 'numeric',
               month: 'short',
@@ -183,8 +202,8 @@ export function SvgTemplateEditor({
         /* non-fatal — the design is already saved as active */
       }
 
-      toast.success('Front design saved from your template')
-      setConfirmFrontUrl(versionedUrl)
+      toast.success('Front and back saved from your template')
+      setConfirmFrontUrl(frontUrl)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save design')
     } finally {
@@ -203,8 +222,8 @@ export function SvgTemplateEditor({
               This is now your active postcard
             </h3>
             <p className="text-sm text-green-700/90">
-              Here&apos;s how it will print. Templates set the front only — without a back design the back
-              prints blank apart from the address area, and you can send straight away.
+              Here&apos;s how it will print, front and back. The matching back sits on the left half; the
+              right half is reserved for the address the printer adds. You can send straight away.
             </p>
           </CardContent>
         </Card>
@@ -215,18 +234,17 @@ export function SvgTemplateEditor({
           </CardContent>
         </Card>
 
-        {!savedBackUrl && (
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-            No back design yet. The back will print blank apart from the address area.{' '}
-            {addBack && (
-              <button
-                type="button"
-                onClick={addBack}
-                className="font-medium underline underline-offset-2"
-              >
-                Add a back design
-              </button>
-            )}
+        {addBack && (
+          <p className="text-sm text-slate-500">
+            Prefer your own back?{' '}
+            <button
+              type="button"
+              onClick={addBack}
+              className="font-medium text-slate-900 underline underline-offset-2"
+            >
+              Upload a back design
+            </button>{' '}
+            to replace it.
           </p>
         )}
 
@@ -250,8 +268,9 @@ export function SvgTemplateEditor({
           <CardContent className="space-y-1 p-5">
             <h3 className="text-sm font-semibold text-slate-900">Design your postcard in the browser</h3>
             <p className="text-sm text-slate-600">
-              Pick a template, edit the text and colour, and see it update live. When you&apos;re happy,
-              &ldquo;Use this design&rdquo; saves it as your postcard front — print-ready at A6 300 DPI.
+              Pick a template, edit the text and colour, and see it update live. Each one comes with a
+              matching front and back. When you&apos;re happy, &ldquo;Use this design&rdquo; saves both sides —
+              print-ready at A6 300 DPI.
             </p>
           </CardContent>
         </Card>
@@ -282,7 +301,8 @@ export function SvgTemplateEditor({
 
         {savedUrl && (
           <p className="text-xs text-slate-500">
-            You already have a front design saved. Choosing a template and using it will replace it.
+            You already have a design saved. Choosing a template and using it replaces both the front and
+            the back.
           </p>
         )}
 
@@ -330,9 +350,22 @@ export function SvgTemplateEditor({
       <div className="grid items-start gap-6 lg:grid-cols-2">
         {/* Live preview — first on mobile so edits are visible immediately. */}
         <div className="order-first space-y-3 lg:order-last lg:sticky lg:top-4">
-          <Card className="overflow-hidden">
-            <SvgFrame svgString={previewSvg} />
-          </Card>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <figure className="space-y-1.5">
+              <Card className="overflow-hidden">
+                <SvgFrame svgString={previewSvg} />
+              </Card>
+              <figcaption className="text-center text-xs font-medium text-slate-500">Front</figcaption>
+            </figure>
+            <figure className="space-y-1.5">
+              <Card className="overflow-hidden">
+                <SvgFrame svgString={previewBackSvg} />
+              </Card>
+              <figcaption className="text-center text-xs font-medium text-slate-500">
+                Back · right half kept clear for the address
+              </figcaption>
+            </figure>
+          </div>
           <p className="text-center text-xs text-slate-500">
             Live preview · {template.name} · A6 landscape ({CARD_W}×{CARD_H}px @ 300 DPI)
           </p>
@@ -351,7 +384,7 @@ export function SvgTemplateEditor({
           {savedUrl && !saving && (
             <p className="flex items-center gap-1.5 text-xs text-green-600">
               <Check className="h-3.5 w-3.5" />
-              Saved as your front design.{' '}
+              Saved as your postcard front and back.{' '}
               <a
                 href={savedUrl}
                 target="_blank"
