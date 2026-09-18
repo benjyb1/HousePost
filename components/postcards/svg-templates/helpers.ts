@@ -111,12 +111,39 @@ export function wrapText(
 
 // Web-safe font stacks — no external fetch, so preview and rasterised export
 // render identically (the whole point of avoiding a Google-font dependency).
+// Each stack degrades to a safe fallback, so a machine missing the first face
+// still renders something intentional rather than a broken box.
 export const FONTS = {
   sans: "'Helvetica Neue', Helvetica, Arial, sans-serif",
   serif: "Georgia, 'Times New Roman', Times, serif",
   rounded: "'Trebuchet MS', 'Segoe UI', Verdana, sans-serif",
+  /** Refined book serif — for elegant, editorial looks (interior design, salon). */
+  elegantSerif: "'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif",
+  /** Geometric sans — clean and modern (creative, professional). */
+  geometric: "'Century Gothic', 'Futura', 'Avenir Next', 'Trebuchet MS', sans-serif",
+  /** Monospace — technical, architectural (builders, photographers). */
+  mono: "'Courier New', Courier, monospace",
 } as const
 
 // A6 landscape + 3mm bleed at 300 DPI.
 export const CARD_W = 1819
 export const CARD_H = 1311
+
+// The postcard BACK reserves the right half for the printed address, postage and
+// barcode, so a back design only occupies the LEFT half. HALF_W is the centre
+// line; keep meaningful back content a little inside it.
+export const HALF_W = Math.round(CARD_W / 2) // 910
+
+/**
+ * First letters of up to two words in a name, for a monogram / roundel.
+ * e.g. "Harbour & Vale" → "HV", "Bloom" → "B". Skips lone "&"/"and".
+ */
+export function initials(name: string): string {
+  const words = (name ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter((w) => w && !/^(&|and)$/i.test(w))
+  if (words.length === 0) return ''
+  const letters = words.slice(0, 2).map((w) => w[0].toUpperCase())
+  return letters.join('')
+}
