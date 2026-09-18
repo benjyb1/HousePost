@@ -18,6 +18,7 @@ import {
   normaliseHex,
   escapeXml as esc,
   fitSize,
+  wrapText,
 } from './helpers'
 import type { SvgTemplate, TemplateValues } from './types'
 
@@ -170,8 +171,9 @@ function renderBright(v: TemplateValues): string {
 /* a template back only decorates the LEFT half (0…HALF); the right    */
 /* half is left white. That is exactly the full card the uploader      */
 /* composites for an uploaded back, so the send/proof pipeline treats  */
-/* a template back like any other. Each back echoes its front's style  */
-/* so the two sides read as one card.                                  */
+/* a template back like any other. Each back carries its own editable  */
+/* headline, message and call to action (plus the shared brand and     */
+/* contact), styled to match its front so the two sides read as one.    */
 /* ================================================================== */
 const HALF = Math.round(CARD_W / 2) // 910 — the centre fold; the address sits to its right
 const BACK_M = 74 // safe margin inside the trimmed edges (≈3mm bleed + 3mm safe)
@@ -191,35 +193,48 @@ function backSvg(leftHalf: string): string {
   )
 }
 
-/* 1. BOLD back — accent band, big name, contact bar (mirrors the front) */
+/** One <text> per wrapped line; `attrs` is everything after the coordinates. */
+function rows(
+  lines: string[],
+  x: number,
+  y: number,
+  lineH: number,
+  attrs: string,
+  anchor: 'start' | 'middle' = 'start'
+): string {
+  return lines
+    .map(
+      (line, i) =>
+        `<text x="${x}" y="${y + i * lineH}" text-anchor="${anchor}" ${attrs}>${esc(line)}</text>`
+    )
+    .join('')
+}
+
+/* 1. BOLD back — brand band, big headline, message, CTA, contact bar */
 function renderBackBold(v: TemplateValues): string {
   const a = normaliseHex(v.accent)
   const onA = readableOn(a)
-  const area = v.areaServed.toUpperCase()
-  const areaSize = fitSize(area, BACK_W - 8 * area.length, 44, 0.72)
-  const nameSize = fitSize(v.businessName, BACK_W, 92, 0.58)
-  const taglineSize = fitSize(v.tagline, BACK_W, 46, 0.54)
-  const offerSize = fitSize(v.offer, BACK_W, 68, 0.6)
+  const brandSize = fitSize(v.businessName, HALF - 148, 60, 0.58)
+  const headSize = fitSize(v.backHeadline, BACK_W, 92, 0.58)
+  const ctaSize = fitSize(v.backCta, BACK_W, 56, 0.58)
+  const msg = wrapText(v.backMessage, BACK_W, 44, 0.52, 5)
   // Phone and website share the bottom bar, so cap each to its own half — a long
   // website then shrinks rather than colliding with the phone.
   const barHalf = (BACK_W - 40) / 2
   const phoneSize = fitSize(v.phone, barHalf, 46, 0.56)
   const webSize = fitSize(v.website, barHalf, 46, 0.5)
   return backSvg(`
-    <rect x="0" y="0" width="${HALF}" height="300" fill="${a}"/>
-    <rect x="0" y="300" width="${HALF}" height="16" fill="${darken(a, 0.22)}"/>
-    <text x="${BACK_M}" y="192" font-family="${FONTS.sans}" font-weight="700" font-size="${areaSize}" letter-spacing="8" fill="${onA}" opacity="0.85">${esc(
-      area
-    )}</text>
-    <text x="${BACK_M - 2}" y="562" font-family="${FONTS.sans}" font-weight="800" font-size="${nameSize}" fill="#0f172a">${esc(
+    <rect x="0" y="0" width="${HALF}" height="170" fill="${a}"/>
+    <rect x="0" y="170" width="${HALF}" height="14" fill="${darken(a, 0.22)}"/>
+    <text x="${BACK_M}" y="116" font-family="${FONTS.sans}" font-weight="800" font-size="${brandSize}" letter-spacing="1" fill="${onA}">${esc(
       v.businessName
     )}</text>
-    <text x="${BACK_M}" y="652" font-family="${FONTS.sans}" font-weight="400" font-size="${taglineSize}" fill="#475569">${esc(
-      v.tagline
+    <text x="${BACK_M - 2}" y="360" font-family="${FONTS.sans}" font-weight="800" font-size="${headSize}" fill="#0f172a">${esc(
+      v.backHeadline
     )}</text>
-    <rect x="${BACK_M}" y="722" width="120" height="10" fill="${a}"/>
-    <text x="${BACK_M - 2}" y="902" font-family="${FONTS.sans}" font-weight="700" font-size="${offerSize}" fill="${a}">${esc(
-      v.offer
+    ${rows(msg, BACK_M, 470, 60, `font-family="${FONTS.sans}" font-weight="400" font-size="44" fill="#475569"`)}
+    <text x="${BACK_M - 2}" y="1095" font-family="${FONTS.sans}" font-weight="800" font-size="${ctaSize}" fill="${a}">${esc(
+      v.backCta
     )}</text>
     <rect x="0" y="1171" width="${HALF}" height="140" fill="${a}"/>
     <text x="${BACK_M}" y="1258" font-family="${FONTS.sans}" font-weight="700" font-size="${phoneSize}" fill="${onA}">${esc(
@@ -234,25 +249,22 @@ function renderBackBold(v: TemplateValues): string {
 /* 2. CLEAN back — minimal, airy, hairline rule, stacked contact */
 function renderBackClean(v: TemplateValues): string {
   const a = normaliseHex(v.accent)
-  const area = v.areaServed.toUpperCase()
-  const areaSize = fitSize(area, BACK_W - 6 * area.length, 40, 0.72)
-  const nameSize = fitSize(v.businessName, BACK_W, 92, 0.56)
-  const taglineSize = fitSize(v.tagline, BACK_W, 44, 0.54)
-  const offerSize = fitSize(v.offer, BACK_W, 60, 0.58)
+  const brandSize = fitSize(v.businessName, BACK_W, 44, 0.56)
+  const headSize = fitSize(v.backHeadline, BACK_W, 88, 0.56)
+  const ctaSize = fitSize(v.backCta, BACK_W - 60, 50, 0.56)
+  const msg = wrapText(v.backMessage, BACK_W, 42, 0.52, 5)
   return backSvg(`
-    <rect x="${BACK_M}" y="150" width="120" height="12" fill="${a}"/>
-    <text x="${BACK_M}" y="252" font-family="${FONTS.sans}" font-weight="600" font-size="${areaSize}" letter-spacing="6" fill="#64748b">${esc(
-      area
-    )}</text>
-    <text x="${BACK_M - 2}" y="432" font-family="${FONTS.sans}" font-weight="700" font-size="${nameSize}" fill="#0f172a">${esc(
+    <rect x="${BACK_M}" y="120" width="120" height="12" fill="${a}"/>
+    <text x="${BACK_M}" y="210" font-family="${FONTS.sans}" font-weight="700" font-size="${brandSize}" fill="#0f172a">${esc(
       v.businessName
     )}</text>
-    <text x="${BACK_M}" y="522" font-family="${FONTS.sans}" font-weight="400" font-size="${taglineSize}" fill="#64748b">${esc(
-      v.tagline
+    <text x="${BACK_M - 2}" y="360" font-family="${FONTS.sans}" font-weight="700" font-size="${headSize}" fill="#0f172a">${esc(
+      v.backHeadline
     )}</text>
-    <text x="${BACK_M - 2}" y="772" font-family="${FONTS.sans}" font-weight="700" font-size="${offerSize}" fill="${a}">${esc(
-      v.offer
-    )}</text>
+    ${rows(msg, BACK_M, 470, 58, `font-family="${FONTS.sans}" font-weight="400" font-size="42" fill="#64748b"`)}
+    <text x="${BACK_M}" y="940" font-family="${FONTS.sans}" font-weight="700" font-size="${ctaSize}" fill="${a}">${esc(
+      v.backCta
+    )} &#8594;</text>
     <line x1="${BACK_M}" y1="1060" x2="${HALF - BACK_M}" y2="1060" stroke="#e2e8f0" stroke-width="3"/>
     <text x="${BACK_M}" y="1168" font-family="${FONTS.sans}" font-weight="600" font-size="42" fill="#334155">${esc(
       v.phone
@@ -267,79 +279,72 @@ function renderBackClean(v: TemplateValues): string {
 function renderBackClassic(v: TemplateValues): string {
   const a = normaliseHex(v.accent)
   const cx = BACK_CX
-  const area = v.areaServed.toUpperCase()
-  const areaSize = fitSize(area, HALF - 200 - 6 * area.length, 34, 0.72)
-  const nameSize = fitSize(v.businessName, HALF - 220, 80, 0.5)
-  const taglineSize = fitSize(v.tagline, HALF - 240, 46, 0.5)
-  const offerSize = fitSize(v.offer, HALF - 240, 52, 0.5)
+  const brand = v.businessName.toUpperCase()
+  const brandSize = fitSize(brand, HALF - 260 - 4 * brand.length, 34, 0.62)
+  const headSize = fitSize(v.backHeadline, HALF - 240, 74, 0.5)
+  const ctaSize = fitSize(v.backCta, HALF - 260, 48, 0.5)
+  const msg = wrapText(v.backMessage, HALF - 300, 40, 0.5, 5)
   return backSvg(`
     <rect x="0" y="0" width="${HALF}" height="${CARD_H}" fill="#faf8f3"/>
     <rect x="46" y="58" width="${HALF - 92}" height="${CARD_H - 116}" fill="none" stroke="${a}" stroke-width="6"/>
     <rect x="74" y="86" width="${HALF - 148}" height="${CARD_H - 172}" fill="none" stroke="${a}" stroke-width="2"/>
-    <text x="${cx}" y="300" text-anchor="middle" font-family="${FONTS.serif}" font-weight="400" font-size="${areaSize}" letter-spacing="6" fill="${a}">${esc(
-      area
+    <text x="${cx}" y="280" text-anchor="middle" font-family="${FONTS.serif}" font-weight="400" font-size="${brandSize}" letter-spacing="4" fill="#1f2937">${esc(
+      brand
     )}</text>
-    <text x="${cx}" y="540" text-anchor="middle" font-family="${FONTS.serif}" font-weight="700" font-size="${nameSize}" fill="#1f2937">${esc(
-      v.businessName
+    <line x1="${cx - 120}" y1="342" x2="${cx - 28}" y2="342" stroke="${a}" stroke-width="2"/>
+    <circle cx="${cx}" cy="342" r="7" fill="${a}"/>
+    <line x1="${cx + 28}" y1="342" x2="${cx + 120}" y2="342" stroke="${a}" stroke-width="2"/>
+    <text x="${cx}" y="500" text-anchor="middle" font-family="${FONTS.serif}" font-weight="700" font-size="${headSize}" fill="#1f2937">${esc(
+      v.backHeadline
     )}</text>
-    <line x1="${cx - 130}" y1="610" x2="${cx - 30}" y2="610" stroke="${a}" stroke-width="3"/>
-    <circle cx="${cx}" cy="610" r="8" fill="${a}"/>
-    <line x1="${cx + 30}" y1="610" x2="${cx + 130}" y2="610" stroke="${a}" stroke-width="3"/>
-    <text x="${cx}" y="732" text-anchor="middle" font-family="${FONTS.serif}" font-style="italic" font-weight="400" font-size="${taglineSize}" fill="#4b5563">${esc(
-      v.tagline
+    ${rows(msg, cx, 620, 56, `font-family="${FONTS.serif}" font-style="italic" font-weight="400" font-size="40" fill="#4b5563"`, 'middle')}
+    <text x="${cx}" y="1030" text-anchor="middle" font-family="${FONTS.serif}" font-weight="600" font-size="${ctaSize}" fill="${a}">${esc(
+      v.backCta
     )}</text>
-    <text x="${cx}" y="932" text-anchor="middle" font-family="${FONTS.serif}" font-weight="600" font-size="${offerSize}" fill="${a}">${esc(
-      v.offer
-    )}</text>
-    <text x="${cx}" y="1150" text-anchor="middle" font-family="${FONTS.serif}" font-weight="400" font-size="40" fill="#374151">${esc(
+    <text x="${cx}" y="1150" text-anchor="middle" font-family="${FONTS.serif}" font-weight="400" font-size="38" fill="#374151">${esc(
       v.phone
     )}</text>
-    <text x="${cx}" y="1212" text-anchor="middle" font-family="${FONTS.serif}" font-weight="400" font-size="38" fill="#374151">${esc(
+    <text x="${cx}" y="1206" text-anchor="middle" font-family="${FONTS.serif}" font-weight="400" font-size="34" fill="#374151">${esc(
       v.website
     )}</text>
   `)
 }
 
-/* 4. BRIGHT back — accent half with a rounded white card and a pill */
+/* 4. BRIGHT back — accent half with a rounded white card and a CTA pill */
 function renderBackBright(v: TemplateValues): string {
   const a = normaliseHex(v.accent)
   const onA = readableOn(a)
   const tint = lighten(a, 0.18)
   const cardX = 60
   const cardW = 800 // white card spans x 60…860 — inside the left half
-  const area = v.areaServed.toUpperCase()
-  const areaSize = fitSize(area, cardW - 180 - 5 * area.length, 40, 0.72)
-  const nameSize = fitSize(v.businessName, cardW - 200, 84, 0.58)
-  const taglineSize = fitSize(v.tagline, cardW - 200, 44, 0.54)
-  const offerSize = fitSize(v.offer, cardW - 200, 64, 0.6)
-  // Contact sits in a pill inside the card — narrower than the front's, so the
-  // phone and website stack on two centred lines rather than colliding.
+  const brandSize = fitSize(v.businessName, cardW - 200, 46, 0.58)
+  const headSize = fitSize(v.backHeadline, cardW - 200, 80, 0.58)
+  const ctaSize = fitSize(v.backCta, cardW - 300, 46, 0.56)
+  const msg = wrapText(v.backMessage, cardW - 200, 40, 0.54, 5)
   const pillCx = cardX + 80 + (cardW - 160) / 2
-  const phoneSize = fitSize(v.phone, cardW - 260, 42, 0.56)
-  const webSize = fitSize(v.website, cardW - 260, 34, 0.5)
+  const phoneSize = fitSize(v.phone, cardW - 240, 34, 0.56)
+  const webSize = fitSize(v.website, cardW - 240, 30, 0.5)
   return backSvg(`
     <rect x="0" y="0" width="${HALF}" height="${CARD_H}" fill="${a}"/>
     <circle cx="690" cy="150" r="170" fill="${tint}" opacity="0.5"/>
     <circle cx="120" cy="1210" r="150" fill="${tint}" opacity="0.4"/>
     <rect x="${cardX}" y="110" width="${cardW}" height="${CARD_H - 220}" rx="52" fill="#ffffff"/>
-    <text x="${cardX + 90}" y="300" font-family="${FONTS.rounded}" font-weight="700" font-size="${areaSize}" letter-spacing="5" fill="${darken(
+    <text x="${cardX + 90}" y="250" font-family="${FONTS.rounded}" font-weight="700" font-size="${brandSize}" letter-spacing="2" fill="${darken(
       a,
       0.1
-    )}">${esc(area)}</text>
-    <text x="${cardX + 88}" y="470" font-family="${FONTS.rounded}" font-weight="700" font-size="${nameSize}" fill="#0f172a">${esc(
-      v.businessName
+    )}">${esc(v.businessName)}</text>
+    <text x="${cardX + 88}" y="380" font-family="${FONTS.rounded}" font-weight="700" font-size="${headSize}" fill="#0f172a">${esc(
+      v.backHeadline
     )}</text>
-    <text x="${cardX + 90}" y="560" font-family="${FONTS.rounded}" font-weight="400" font-size="${taglineSize}" fill="#475569">${esc(
-      v.tagline
+    ${rows(msg, cardX + 90, 480, 54, `font-family="${FONTS.rounded}" font-weight="400" font-size="40" fill="#475569"`)}
+    <rect x="${cardX + 80}" y="900" width="${cardW - 160}" height="150" rx="75" fill="${a}"/>
+    <text x="${pillCx}" y="992" text-anchor="middle" font-family="${FONTS.rounded}" font-weight="700" font-size="${ctaSize}" fill="${onA}">${esc(
+      v.backCta
     )}</text>
-    <text x="${cardX + 88}" y="782" font-family="${FONTS.rounded}" font-weight="700" font-size="${offerSize}" fill="${a}">${esc(
-      v.offer
-    )}</text>
-    <rect x="${cardX + 80}" y="930" width="${cardW - 160}" height="160" rx="80" fill="${a}"/>
-    <text x="${pillCx}" y="1002" text-anchor="middle" font-family="${FONTS.rounded}" font-weight="700" font-size="${phoneSize}" fill="${onA}">${esc(
+    <text x="${pillCx}" y="1132" text-anchor="middle" font-family="${FONTS.rounded}" font-weight="600" font-size="${phoneSize}" fill="#334155">${esc(
       v.phone
     )}</text>
-    <text x="${pillCx}" y="1058" text-anchor="middle" font-family="${FONTS.rounded}" font-weight="600" font-size="${webSize}" fill="${onA}">${esc(
+    <text x="${pillCx}" y="1178" text-anchor="middle" font-family="${FONTS.rounded}" font-weight="400" font-size="${webSize}" fill="#64748b">${esc(
       v.website
     )}</text>
   `)
@@ -358,6 +363,10 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
       phone: '020 1234 5678',
       website: 'harbourvale.co.uk',
       accent: '#c02b3a',
+      backHeadline: 'Just sold on your street',
+      backMessage:
+        'We recently sold a home near you. Curious what yours could fetch in today’s market? We’ll tell you, free.',
+      backCta: 'Book your free valuation',
     },
     render: renderBold,
     renderBack: renderBackBold,
@@ -374,6 +383,10 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
       phone: '020 8765 4321',
       website: 'www.meridianhomes.co.uk',
       accent: '#0f766e',
+      backHeadline: 'Thinking of selling?',
+      backMessage:
+        'A quick, honest valuation from a local team that knows your area. No pressure and no obligation.',
+      backCta: 'Arrange your free valuation',
     },
     render: renderClean,
     renderBack: renderBackClean,
@@ -390,6 +403,10 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
       phone: '020 3456 7890',
       website: 'ashworthandco.co.uk',
       accent: '#1e3a5f',
+      backHeadline: 'A considered move',
+      backMessage:
+        'For over twenty years we have guided local homeowners through their next move with care and discretion.',
+      backCta: 'Request a market appraisal',
     },
     render: renderClassic,
     renderBack: renderBackClassic,
@@ -406,6 +423,10 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
       phone: '020 2468 1357',
       website: 'sunnysidemove.co.uk',
       accent: '#f97316',
+      backHeadline: 'Let’s get you moving',
+      backMessage:
+        'Friendly, straight-talking advice and a free valuation whenever you are ready. We would love to help.',
+      backCta: 'Get your free valuation',
     },
     render: renderBright,
     renderBack: renderBackBright,

@@ -13,6 +13,7 @@ import {
   SVG_TEMPLATES,
   getTemplate,
   TEMPLATE_FIELDS,
+  TEMPLATE_BACK_FIELDS,
   CARD_W,
   CARD_H,
   type TemplateValues,
@@ -268,9 +269,9 @@ export function SvgTemplateEditor({
           <CardContent className="space-y-1 p-5">
             <h3 className="text-sm font-semibold text-slate-900">Design your postcard in the browser</h3>
             <p className="text-sm text-slate-600">
-              Pick a template, edit the text and colour, and see it update live. Each one comes with a
-              matching front and back. When you&apos;re happy, &ldquo;Use this design&rdquo; saves both sides —
-              print-ready at A6 300 DPI.
+              Pick a template, then edit both sides — the front and its own matching back — and see them
+              update live. When you&apos;re happy, &ldquo;Use this design&rdquo; saves both sides, print-ready
+              at A6 300 DPI.
             </p>
           </CardContent>
         </Card>
@@ -399,43 +400,87 @@ export function SvgTemplateEditor({
 
         {/* Edit form */}
         <Card>
-          <CardContent className="space-y-4 p-5">
-            <div className="grid gap-4">
-              {TEMPLATE_FIELDS.map((field) => (
-                <div key={field.key} className="space-y-1.5">
-                  <Label htmlFor={`field-${field.key}`}>{field.label}</Label>
-                  <Input
-                    id={`field-${field.key}`}
-                    value={values[field.key]}
-                    placeholder={field.placeholder}
-                    onChange={(e) => setValues({ ...values, [field.key]: e.target.value })}
-                  />
-                </div>
-              ))}
+          <CardContent className="space-y-6 p-5">
+            {/* Front + shared brand */}
+            <div className="space-y-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Front &amp; brand
+              </h4>
+              <div className="grid gap-4">
+                {TEMPLATE_FIELDS.map((field) => (
+                  <div key={field.key} className="space-y-1.5">
+                    <Label htmlFor={`field-${field.key}`}>{field.label}</Label>
+                    <Input
+                      id={`field-${field.key}`}
+                      value={values[field.key]}
+                      placeholder={field.placeholder}
+                      onChange={(e) => setValues({ ...values, [field.key]: e.target.value })}
+                    />
+                  </div>
+                ))}
 
-              <div className="space-y-1.5">
-                <Label htmlFor="field-accent">Accent colour</Label>
-                <div className="flex items-center gap-3">
-                  <input
-                    id="field-accent"
-                    type="color"
-                    value={values.accent}
-                    onChange={(e) => setValues({ ...values, accent: e.target.value })}
-                    className="h-9 w-14 cursor-pointer rounded-md border border-slate-200 bg-transparent p-1"
-                    aria-label="Accent colour"
-                  />
-                  <Input
-                    value={values.accent}
-                    onChange={(e) => setValues({ ...values, accent: e.target.value })}
-                    className="max-w-[10rem] font-mono"
-                  />
+                <div className="space-y-1.5">
+                  <Label htmlFor="field-accent">Accent colour</Label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      id="field-accent"
+                      type="color"
+                      value={values.accent}
+                      onChange={(e) => setValues({ ...values, accent: e.target.value })}
+                      className="h-9 w-14 cursor-pointer rounded-md border border-slate-200 bg-transparent p-1"
+                      aria-label="Accent colour"
+                    />
+                    <Input
+                      value={values.accent}
+                      onChange={(e) => setValues({ ...values, accent: e.target.value })}
+                      className="max-w-[10rem] font-mono"
+                    />
+                  </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Back of card — its own content */}
+            <div className="space-y-4 border-t border-slate-100 pt-5">
+              <div>
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Back of card
+                </h4>
+                <p className="mt-1 text-xs text-slate-400">
+                  Its own headline, message and call to action. The back also uses the business name, phone,
+                  website and colour from above.
+                </p>
+              </div>
+              <div className="grid gap-4">
+                {TEMPLATE_BACK_FIELDS.map((field) => (
+                  <div key={field.key} className="space-y-1.5">
+                    <Label htmlFor={`field-${field.key}`}>{field.label}</Label>
+                    {field.multiline ? (
+                      <textarea
+                        id={`field-${field.key}`}
+                        value={values[field.key]}
+                        placeholder={field.placeholder}
+                        rows={3}
+                        onChange={(e) => setValues({ ...values, [field.key]: e.target.value })}
+                        className="border-input placeholder:text-muted-foreground dark:bg-input/30 w-full resize-y rounded-md border bg-transparent px-3 py-2 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] md:text-sm"
+                      />
+                    ) : (
+                      <Input
+                        id={`field-${field.key}`}
+                        value={values[field.key]}
+                        placeholder={field.placeholder}
+                        onChange={(e) => setValues({ ...values, [field.key]: e.target.value })}
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 
             <p className="rounded-md bg-slate-50 p-3 text-xs text-slate-500">
               Text is kept inside the safe margin and auto-shrinks to fit, so nothing is cut when the card is
-              trimmed. Long lines will scale down automatically.
+              trimmed. The back message wraps to a few lines. The right half of the back stays clear for the
+              address the printer adds.
             </p>
 
             {onUseUpload && (

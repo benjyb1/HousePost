@@ -1,6 +1,10 @@
 // Shared types for the in-browser postcard template editor.
 
-/** The editable content of a postcard front, common to every template. */
+/**
+ * The editable content of a template. The FRONT and BACK share the brand and
+ * contact (businessName, phone, website, accent); the back also has its own
+ * headline, message and call to action so it isn't just an echo of the front.
+ */
 export interface TemplateValues {
   businessName: string
   tagline: string
@@ -12,6 +16,12 @@ export interface TemplateValues {
   areaServed: string
   /** Accent colour as `#rrggbb`. */
   accent: string
+  /** Back-of-card headline, e.g. "Thinking of selling?". */
+  backHeadline: string
+  /** Back-of-card body message — wraps to a few lines. */
+  backMessage: string
+  /** Back-of-card call to action, e.g. "Book your free valuation". */
+  backCta: string
 }
 
 /** One editable field, used to build the form generically. */
@@ -21,6 +31,8 @@ export interface TemplateFieldDef {
   placeholder: string
   /** Soft character guide shown under the input (text still auto-shrinks). */
   maxHint?: number
+  /** Render as a multi-line textarea instead of a single-line input. */
+  multiline?: boolean
 }
 
 export interface SvgTemplate {
@@ -42,7 +54,7 @@ export interface SvgTemplate {
   renderBack: (values: TemplateValues) => string
 }
 
-/** The fields shown in the editor form, in order. */
+/** The FRONT fields shown in the editor form, in order. */
 export const TEMPLATE_FIELDS: TemplateFieldDef[] = [
   { key: 'businessName', label: 'Business name', placeholder: 'Your agency name', maxHint: 26 },
   { key: 'tagline', label: 'Tagline / service line', placeholder: 'Local property experts', maxHint: 40 },
@@ -50,4 +62,20 @@ export const TEMPLATE_FIELDS: TemplateFieldDef[] = [
   { key: 'areaServed', label: 'Area served', placeholder: 'Kingston & Surbiton', maxHint: 28 },
   { key: 'phone', label: 'Phone', placeholder: '020 1234 5678', maxHint: 20 },
   { key: 'website', label: 'Website', placeholder: 'www.youragency.co.uk', maxHint: 30 },
+]
+
+/**
+ * The BACK-specific fields. The back also reuses the business name, phone,
+ * website and accent from the front, so those aren't repeated here.
+ */
+export const TEMPLATE_BACK_FIELDS: TemplateFieldDef[] = [
+  { key: 'backHeadline', label: 'Back headline', placeholder: 'Thinking of selling?', maxHint: 24 },
+  {
+    key: 'backMessage',
+    label: 'Back message',
+    placeholder: 'A friendly line or two about what you offer and why to get in touch.',
+    maxHint: 150,
+    multiline: true,
+  },
+  { key: 'backCta', label: 'Back call to action', placeholder: 'Book your free valuation', maxHint: 28 },
 ]

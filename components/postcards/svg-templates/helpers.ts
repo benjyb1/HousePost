@@ -75,6 +75,40 @@ export function fitSize(text: string, maxWidth: number, base: number, factor = 0
   return Math.max(20, Math.floor((base * maxWidth) / estimated))
 }
 
+/**
+ * Greedily wrap `text` into lines that each fit `maxWidth` at `fontSize`, using
+ * the same glyph-width estimate as {@link fitSize}. Used for the back message,
+ * which SVG won't wrap on its own. Caps at `maxLines`, ellipsising the last line
+ * if the text is longer (the nested-SVG clip is the final backstop).
+ */
+export function wrapText(
+  text: string,
+  maxWidth: number,
+  fontSize: number,
+  factor = 0.52,
+  maxLines = 6
+): string[] {
+  const words = (text ?? '').trim().split(/\s+/).filter(Boolean)
+  const lines: string[] = []
+  let current = ''
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word
+    if (current && candidate.length * fontSize * factor > maxWidth) {
+      lines.push(current)
+      current = word
+    } else {
+      current = candidate
+    }
+  }
+  if (current) lines.push(current)
+  if (lines.length > maxLines) {
+    const kept = lines.slice(0, maxLines)
+    kept[maxLines - 1] = kept[maxLines - 1].replace(/[.,;:!?]+$/, '') + '…'
+    return kept
+  }
+  return lines
+}
+
 // Web-safe font stacks — no external fetch, so preview and rasterised export
 // render identically (the whole point of avoiding a Google-font dependency).
 export const FONTS = {
