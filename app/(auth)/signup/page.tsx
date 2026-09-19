@@ -179,6 +179,17 @@ export default function SignupPage() {
           )}
         </CardContent>
         <CardFooter className="flex flex-col gap-3">
+          <p className="text-center text-xs text-slate-500">
+            By creating an account you agree to our{' '}
+            <Link href="/terms" target="_blank" className="text-primary hover:underline">
+              Terms of service
+            </Link>{' '}
+            and{' '}
+            <Link href="/privacy" target="_blank" className="text-primary hover:underline">
+              Privacy notice
+            </Link>
+            .
+          </p>
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Creating account…' : 'Create account'}
           </Button>

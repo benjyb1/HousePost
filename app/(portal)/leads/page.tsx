@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import { LeadsTable } from '@/components/leads/LeadsTable'
+import { LandRegistryAttribution } from '@/components/layout/LandRegistryAttribution'
 
 export default async function LeadsPage() {
   const supabase = await createClient()
@@ -46,6 +47,7 @@ export default async function LeadsPage() {
         <p className="text-sm text-slate-500">{leads.length} properties</p>
       </div>
       <LeadsTable leads={leads} subscriptionStatus={subscriptionStatus} />
+      <LandRegistryAttribution />
     </div>
   )
 }
