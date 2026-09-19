@@ -238,6 +238,7 @@ function ResultCard({
       <p className="bg-slate-50 px-6 py-3 text-center text-xs text-slate-400">
         Based on {formatMonthKey(month)} data from the HM Land Registry Price Paid dataset
         {result.capped ? ' (showing a sample of a very large area)' : ''}.
+        {' '}Contains HM Land Registry data © Crown copyright and database right 2026. Licensed under the Open Government Licence v3.0.
       </p>
     </div>
   )

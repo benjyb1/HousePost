@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import { LandRegistryAttribution } from '@/components/layout/LandRegistryAttribution'
 
 /**
  * Shared site footer. Both columns share the same vertical rhythm: a logo-height
@@ -50,9 +51,10 @@ export function SiteFooter({ variant = 'public' }: { variant?: 'public' | 'porta
               side by side. Hidden on mobile, where it would just add dead space
               between the two stacked sections. */}
           <div className="hidden h-10 sm:block" aria-hidden="true" />
-          <p className="text-xs text-slate-400">
-            Data sourced from HM Land Registry &middot; Printed and posted via Royal Mail
-          </p>
+          <div className="space-y-1 sm:max-w-sm">
+            <LandRegistryAttribution />
+            <p className="text-xs text-slate-400">Printed and posted via Royal Mail</p>
+          </div>
           <div className="flex flex-col gap-1 text-sm text-slate-500 sm:items-end">
             <Link href="/opt-out" className="hover:text-slate-700 transition-colors">Opt out of mail</Link>
             <Link href="/privacy" className="hover:text-slate-700 transition-colors">Privacy policy</Link>

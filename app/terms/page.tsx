@@ -11,187 +11,466 @@ export const metadata: Metadata = {
 
 const link = 'font-medium text-brand underline'
 
-type Section = { title: string; clauses: React.ReactNode[] }
+type Clause = {
+  lead: React.ReactNode
+  list?: string[]
+  listStyle?: 'alpha' | 'bullet'
+  tail?: React.ReactNode
+}
+type Section = { title: string; clauses: Clause[] }
 
 const SECTIONS: Section[] = [
   {
-    title: 'About these terms',
+    title: 'About us and these terms',
     clauses: [
-      <>
-        Housepost is operated by [LEGAL ENTITY NAME], a company registered in
-        England and Wales (company number [NUMBER]) with its registered office at
-        [REGISTERED ADDRESS]. You can contact us at{' '}
-        <a className={link} href="mailto:info@housepost.co.uk">
-          info@housepost.co.uk
-        </a>
-        . References to &ldquo;we&rdquo;, &ldquo;us&rdquo; and &ldquo;Housepost&rdquo;
-        mean that company.
-      </>,
-      <>
-        These terms form the agreement between you and us for your use of the
-        Housepost website and service (the &ldquo;Service&rdquo;). By creating an
-        account you confirm that you have read and accept them, together with our{' '}
-        <Link className={link} href="/privacy">
-          privacy notice
-        </Link>
-        .
-      </>,
-      'The Service is for businesses. You confirm that you are 18 or over and that you are signing up for the purposes of your trade, business or profession, not as a consumer. If you are a consumer, nothing in these terms affects your statutory rights.',
-      'If you sign up on behalf of a company, you confirm you have authority to bind it, and "you" includes that company.',
+      {
+        lead: (
+          <>
+            Housepost is a trading name of [OWNER’S FULL NAME] (“we”, “us”), whose
+            address for service is [ADDRESS FOR SERVICE]. You can contact us at{' '}
+            <a className={link} href="mailto:info@housepost.co.uk">
+              info@housepost.co.uk
+            </a>
+            .
+          </>
+        ),
+      },
+      {
+        lead: (
+          <>
+            These terms form the contract between you and us for the Housepost
+            website and service (the “Service”). You accept them when you create
+            your account. They are available in English only, and you can download
+            or print them at any time from{' '}
+            <Link className={link} href="/terms">
+              www.housepost.co.uk/terms
+            </Link>
+            .
+          </>
+        ),
+      },
+      {
+        lead: 'The Service is for businesses only. By accepting these terms, you confirm that you are 18 or over and are acting for the purposes of your trade, business or profession. If you accept for a company or other organisation, you confirm that you have authority to bind it, and “you” includes it.',
+      },
     ],
   },
   {
     title: 'The Service',
     clauses: [
-      'Housepost shows you homes that have recently sold near your business address and lets you choose which new owners to send a printed postcard to. We arrange the printing and posting of the postcards you order.',
-      'We will provide the Service with reasonable care and skill. We may improve, change or remove features from time to time. We will try to give you notice of any change that materially reduces what you are paying for.',
-      'We do not promise that the Service will be available at all times or free of errors. We may suspend it briefly for maintenance or where we need to for security reasons.',
-      'We do not promise or guarantee any result from using the Service. That includes any number of enquiries, jobs, sales or revenue. Response to direct mail varies and is outside our control.',
+      {
+        lead: 'Each month, after HM Land Registry publishes its Price Paid Data update, we show you recorded sales of properties in England and Wales that match your settings, such as your business postcode, radius, price range and property types (“Leads”). For each Lead we show its address and sale details (“Lead Data”). You choose which Leads to send your postcard to, and we arrange for it to be printed and posted.',
+      },
+      {
+        lead: 'We aim to show you at least 15 new Leads each month. If fewer match your settings, we may widen your radius in 5-mile steps to find more. We do not guarantee any number of Leads. Leads are not exclusive: other customers, including your competitors, may receive the same ones.',
+      },
+      { lead: 'We will provide the Service with reasonable care and skill.' },
+      {
+        lead: 'We may change the Service. If a change would materially reduce what you pay for, we will give you at least 30 days’ notice and you may cancel before it takes effect. If the change is needed sooner for legal, security or data-supply reasons, we will give as much notice as we reasonably can.',
+      },
+      {
+        lead: 'We do not guarantee that the Service will be uninterrupted or error-free. We may suspend it for maintenance or security reasons, and will try to keep any interruption short.',
+      },
+      {
+        lead: 'We do not promise any result from using the Service, including any number of enquiries, jobs or sales. Response to direct mail varies and is outside our control.',
+      },
     ],
   },
   {
-    title: 'Lead data and HM Land Registry',
+    title: 'Lead Data',
     clauses: [
-      'The leads we show you are based on the HM Land Registry Price Paid Data. Contains HM Land Registry data © Crown copyright and database right. This data is licensed under the Open Government Licence v3.0.',
-      'We do not create that data. It is published by a government body and we rely on it as published. It may be incomplete, out of date, delayed, wrongly recorded or contain errors, and not every sale will appear. Addresses may be missing details such as a flat number or town.',
-      'A lead is not a promise that a person is at the address, wants to hear from you, or is the owner. The person may have moved, died, opted out or never been the buyer. We do not verify the data, and we do not warrant that it is accurate, complete or up to date.',
-      'We may remove an address at any time, for example where someone has opted out or where we think the data is wrong. Changes or gaps in the government data, or a delay or interruption to its publication, do not entitle you to a refund or compensation unless clause 5.4 applies.',
-      'You may not say or imply that HM Land Registry or any government body endorses you, us or your business.',
+      {
+        lead: 'Leads are derived from HM Land Registry Price Paid Data. Contains HM Land Registry data © Crown copyright and database right 2026. This data is licensed under the Open Government Licence v3.0.',
+      },
+      {
+        lead: 'We do not create or verify this data, and we do not warrant that it or any Lead is accurate, complete or up to date. It is published in arrears, not every sale appears, and addresses may be incomplete or wrong. A Lead does not mean that the buyer lives at the address, still owns it or wants to hear from you.',
+      },
+      {
+        lead: 'We may remove, withhold or correct any Lead at any time, for example where someone has opted out or we think the data is wrong.',
+      },
+      {
+        lead: 'Delays in, changes to or withdrawal of that data do not entitle you to a refund or compensation, except under clause 15.3.',
+      },
+      {
+        lead: 'You must not say or imply that HM Land Registry or any other public body endorses you, us or your business.',
+      },
     ],
   },
   {
-    title: 'Your subscription and payments',
+    title: 'Your account',
     clauses: [
-      'The Service is a monthly subscription of £15 a month. Each billing period includes 5 postcards. A postcard beyond those 5 costs £1.50 and is charged when you confirm the order. There is a maximum of 50 postcards in each billing period. Unused postcards do not carry over.',
-      'Prices are shown in pounds sterling. Where VAT applies we will show it at checkout and on your invoice.',
-      'Your subscription renews automatically each month until you cancel it. We take payment in advance by card through our payment provider, Stripe. We do not see or store your full card number. You authorise us to charge your card for the subscription and for any extra postcards you order.',
-      'If a payment fails we may try it again, tell you, and suspend your account until it is paid. You must keep your card details up to date.',
-      'We may change our prices. We will give you at least 30 days\' notice by email, and the new price applies from your next renewal after that. If you do not agree, you can cancel before the change takes effect.',
-      'You are responsible for any tax that applies to you, other than tax on our income.',
+      { lead: 'You must give us accurate information and keep it up to date.' },
+      {
+        lead: 'You must keep your login details secure and not share them outside your business. You are responsible for all activity on your account. If you think someone else has access to it, tell us promptly.',
+      },
     ],
   },
   {
-    title: 'Ordering and sending postcards',
+    title: 'Price and payment',
     clauses: [
-      'You choose the leads and the designs. When you confirm an order it is held for 15 minutes before it is sent to print. You can cancel it in that time from the Postcards page and you will not be charged, and any allowance used is given back. After that the postcard goes to print and cannot be cancelled or changed.',
-      'You are responsible for your designs. We print what you approve. Please check the preview, including where the address will be printed and the margins that are trimmed. Small differences in colour, cropping and alignment between the screen and the printed card are normal and are not a fault.',
-      'Housepost prints the recipient\'s address on the back of each card. You must leave the reserved address area clear.',
-      'If a postcard you have ordered fails to be printed or posted because of a fault in our systems or our suppliers before it reaches the post, we will refund any charge for that postcard, give the allowance back and return the lead to your new leads. This is our full responsibility for a failed send.',
-      'We may refuse, hold or cancel any postcard that we reasonably think breaks these terms or the law, and we will refund it if we do.',
+      {
+        lead: 'The subscription costs £15 per monthly billing period (“Billing Period”) and includes 5 postcards per Billing Period (your “Allowance”). Each further postcard costs £1.50. You may order up to 50 postcards per Billing Period unless we agree otherwise. Unused Allowance does not carry over.',
+      },
+      {
+        lead: 'We are not currently registered for VAT, so we do not charge it. If we register, we will give you at least 30 days’ notice by email before adding VAT at the applicable rate, and you may cancel before then.',
+      },
+      {
+        lead: 'Your subscription renews automatically each Billing Period until you cancel. We charge the subscription fee in advance. We charge for postcards beyond your Allowance when you confirm the Order. We take payment by card through our payment provider, Stripe, and do not see or store your full card details. You authorise us to charge your card for these amounts.',
+      },
+      {
+        lead: 'If a payment fails, we may retry it and suspend your account until it is paid. You must keep your card details up to date.',
+      },
+      {
+        lead: 'We may change our prices by giving you at least 30 days’ notice by email. New prices apply from your first renewal after the notice period ends. If you do not agree, you may cancel before then.',
+      },
+      { lead: 'Except as set out in these terms, fees are non-refundable.' },
     ],
   },
   {
-    title: 'Third-party suppliers and delivery',
+    title: 'Designs and orders',
     clauses: [
-      'We use other companies to provide parts of the Service, including a print and mailing provider, Royal Mail or another carrier, Stripe for payments, and hosting, database and email providers (our "Suppliers").',
-      'Once a postcard has been handed to a print provider or carrier, delivery is in their hands. We do not guarantee that any postcard will be printed to a particular standard, or delivered, or delivered by a particular date, or delivered to the right person. Post can be late, lost or damaged.',
-      'Suppliers set their own terms and their own limits on what they will pay if something goes wrong, and we are bound by them. We are not responsible for a Supplier\'s acts, delays, errors, outages or failures, except as set out in clause 5.4.',
-      'If a postcard is lost or damaged in the post and we are able to recover compensation from a Supplier or carrier for it, we will pay you the part of that compensation that relates to your postcard. We will not be required to bring court action against a Supplier.',
-      'You accept that the Service depends on Suppliers and on data and infrastructure outside our control, and that a failure by any of them may affect the Service.',
+      {
+        lead: (
+          <>
+            You provide your postcard artwork and text (your “Design”). Your Design
+            must meet our{' '}
+            <Link className={link} href="/print-specs">
+              print specifications
+            </Link>{' '}
+            and include your business name and contact details. Each postcard may
+            also carry:
+          </>
+        ),
+        list: [
+          'the recipient’s address;',
+          'a statement that it was sent via Housepost; and',
+          'our privacy and opt-out wording.',
+        ],
+        listStyle: 'bullet',
+        tail: 'You must leave clear the space our print specifications reserve for these, and must not remove, obscure or alter them.',
+      },
+      {
+        lead: 'When you confirm an order (an “Order”), it is held for 15 minutes before it goes to print. You can cancel it during that time from the Postcards page. If you do, you will not be charged for it and any Allowance used will be restored. After that, the Order cannot be cancelled or changed.',
+      },
+      {
+        lead: 'You must check the preview before confirming an Order, including where the address will be printed and the margins that will be trimmed. We print what you approve. Small differences in colour, cropping and alignment between screen and print are normal and are not a defect.',
+      },
+      {
+        lead: 'This clause applies if a postcard in your Order:',
+        list: [
+          'is not printed or handed to a carrier because of a fault in our systems or those of a Supplier (see clause 7.1); or',
+          'is printed materially differently from the preview you approved, for a reason other than your Design.',
+        ],
+        listStyle: 'alpha',
+        tail: 'We will, at our option, either reprint and resend it, or not charge you for it and return the Lead to your list. If we do not charge you, we will refund any charge already made and restore any Allowance used. This is your only remedy for those failures.',
+      },
+      {
+        lead: 'We may refuse, hold or cancel any Design or Order that we reasonably believe breaches these terms or the law. If we cancel an Order, you will not be charged for the cancelled postcards and any Allowance used will be restored.',
+      },
     ],
   },
   {
-    title: 'Your content and marketing compliance',
+    title: 'Printing, delivery and Suppliers',
     clauses: [
-      'You are solely responsible for everything in your postcards, including the words, images, logos, offers and contact details, and for the way you market your business.',
-      'You promise that your postcards will be accurate, honest and lawful. They must follow the UK Code of Non-broadcast Advertising and Direct & Promotional Marketing (the CAP Code), consumer protection law, and any rules that apply to your trade. They must not be misleading, offensive, defamatory, discriminatory or threatening, and must not infringe anyone\'s rights.',
-      'You must be able to show that any claims you make, for example about qualifications, accreditations, insurance, prices or guarantees, are true.',
-      'You must not use the Service for anything unlawful, or to send postcards that are not marketing for your own genuine business.',
-      'You must respect an opt-out. Every postcard carries a link to our opt-out page. When someone opts out, we will stop posting to them, and you must not contact them about your services by any other means without their permission.',
-      'We do not check or approve your content and we are not responsible for it. We may still remove or refuse it at any time.',
+      {
+        lead: 'We use other companies to provide parts of the Service (“Suppliers”). These include print and mailing providers, Royal Mail and other carriers, Stripe, and hosting, database and email providers.',
+      },
+      {
+        lead: 'Our responsibility is to arrange, within a reasonable time, for each postcard in an Order to be printed and handed to a carrier. We do not control delivery. We do not guarantee that a postcard will be delivered, delivered by a particular date or received by a particular person. Post can be delayed, lost or damaged.',
+      },
+      {
+        lead: 'If we recover compensation from a Supplier for a lost or damaged postcard in your Order, we will pass on the part that relates to it. We do not have to bring legal proceedings against a Supplier.',
+      },
     ],
   },
   {
-    title: 'How you may use the Service and lead data',
+    title: 'Your postcards and marketing',
     clauses: [
-      'You may use the leads and the Service only to send your own postcards through Housepost. You must not copy, scrape, export, store outside the Service, sell, share, rent or publish lead data, or use it to build your own mailing list or database. You must not use it for any other kind of marketing or contact.',
-      'You must not copy or reverse engineer the Service, use bots or automated tools to access it, try to get around its limits or security, or interfere with how it works.',
-      'You must not share your login with anyone outside your business. You are responsible for all activity on your account.',
-      'You must not use the Service to harass anyone or to send unsolicited mail to someone you know does not want it.',
+      {
+        lead: 'You are solely responsible for your Designs and for how you market your business.',
+      },
+      {
+        lead: 'You promise that your Designs will be accurate, honest and lawful. They will comply with the UK Code of Non-broadcast Advertising and Direct & Promotional Marketing (the CAP Code), consumer protection law, any rules on advertising finance or credit, and any rules that apply to your trade. They must not:',
+        list: [
+          'be misleading, offensive, defamatory, discriminatory or threatening, or infringe anyone’s rights;',
+          'look as if they come from HM Land Registry, any other public body, or anyone involved in the recipient’s purchase;',
+          'mention the price paid, the date of sale or any other Lead Data, beyond a general reference to a recent move or purchase; or',
+          'link to anything unlawful or harmful.',
+        ],
+        listStyle: 'alpha',
+      },
+      {
+        lead: 'You must be able to prove any claim in your Designs, for example about qualifications, accreditations, insurance, prices or guarantees.',
+      },
+      { lead: 'You may use the Service only to market your own genuine business.' },
+      {
+        lead: 'We do not check or approve Designs and are not responsible for them, but we may reject or remove any Design at any time.',
+      },
+      {
+        lead: 'When a recipient opts out, we will stop sending Housepost postcards to that address. If a recipient tells you they do not want to hear from you, you must respect that.',
+      },
+    ],
+  },
+  {
+    title: 'Use of the Service and Lead Data',
+    clauses: [
+      {
+        lead: 'You may use Lead Data only to choose recipients and send postcards through the Service for your own business. You must not:',
+        list: [
+          'copy, export, scrape, store outside the Service, sell, share or publish Lead Data;',
+          'use it to build any list or database; or',
+          'use it to contact anyone in any other way, including by phone, email or in person.',
+        ],
+        listStyle: 'alpha',
+      },
+      {
+        lead: 'You must not:',
+        list: [
+          'copy, modify or reverse engineer the Service, except as the law allows;',
+          'access it using bots, scrapers or other automated tools;',
+          'try to get round its limits or security, or gain unauthorised access to it or our systems;',
+          'introduce viruses or other harmful code, or otherwise interfere with how it works;',
+          'use it to build a competing product or service; or',
+          'use it to harass anyone.',
+        ],
+        listStyle: 'alpha',
+      },
     ],
   },
   {
     title: 'Data protection',
     clauses: [
-      <>
-        We handle personal data in line with UK data protection law, as explained
-        in our{' '}
-        <Link className={link} href="/privacy">
-          privacy notice
-        </Link>
-        . For the recipients&apos; details in the lead data, we decide how and why
-        that data is used to provide the Service.
-      </>,
-      'You must not use recipients\' personal data other than as these terms allow, and you must follow data protection law in anything you do with any personal data you collect yourself, for example if a recipient contacts you.',
-      'We will keep your account data, such as your name, email address and business details, to provide the Service and to meet our legal duties.',
+      {
+        lead: (
+          <>
+            Each of us will comply with UK data protection law, including the UK
+            GDPR and the Data Protection Act 2018, in connection with the Service.
+            Our{' '}
+            <Link className={link} href="/privacy">
+              privacy notice
+            </Link>{' '}
+            explains how we use personal data, including yours and recipients’.
+          </>
+        ),
+      },
+      {
+        lead: 'We are a controller of the personal data in Lead Data. We are responsible for:',
+        list: [
+          'giving recipients privacy information, including on each postcard;',
+          'handling their opt-outs, objections and other requests relating to the Service;',
+          'keeping a suppression list; and',
+          'keeping the Service secure.',
+        ],
+        listStyle: 'alpha',
+      },
+      {
+        lead: 'You are a controller of any personal data you process for your own purposes, including when you choose recipients and when a recipient contacts you. When doing so you must comply with data protection law and use Lead Data only as these terms allow. You must pass to us, within 5 working days, any request or objection you receive about Housepost postcards.',
+      },
+      {
+        lead: 'If we are joint controllers of any processing, this clause 10 is our arrangement under Article 26 of the UK GDPR, and we will be recipients’ point of contact.',
+      },
     ],
   },
   {
     title: 'Intellectual property',
     clauses: [
-      'We own the Service, the website and the lead presentation, and all rights in them. You get a limited, non-exclusive, non-transferable right to use the Service while you have an active subscription.',
-      'You keep the rights in your own designs and logos. You give us and our Suppliers a licence to use, copy and print them as needed to provide the Service.',
-      'You promise that you own or have permission to use everything in your designs, and that our use of them as set out here will not infringe anyone\'s rights.',
+      {
+        lead: 'We and our licensors own all rights in the Service, our website and our presentation of Lead Data. We give you a non-exclusive, non-transferable right to use the Service for your business while your subscription is active.',
+      },
+      {
+        lead: 'You keep all rights in your Designs. You give us and our Suppliers a non-exclusive, royalty-free licence to store, copy, adapt (for example, resize or reformat) and print them as needed to provide the Service.',
+      },
+      {
+        lead: 'You promise that you own, or have permission to use, everything in your Designs, and that our use of them under these terms will not infringe anyone’s rights.',
+      },
+      {
+        lead: 'We may use anonymised, aggregated information about use of the Service, and any feedback you give us, to operate and improve the Service.',
+      },
     ],
   },
   {
-    title: 'Cancelling, suspension and ending the agreement',
+    title: 'Confidentiality',
     clauses: [
-      'You can cancel your subscription at any time from the billing section of your account. It stays active until the end of the period you have paid for and then ends. We do not refund part months or unused postcards.',
-      'Postcards that have already gone to print cannot be cancelled or refunded, except as set out in clause 5.4.',
-      'We can suspend or close your account immediately if you seriously or repeatedly break these terms, if we reasonably suspect fraud or misuse, if a payment is overdue after we have told you, or where we must to comply with the law. Where we reasonably can, we will tell you why.',
-      'We can also end the Service or your subscription for any other reason by giving you 30 days\' notice. If we do, we will refund the unused part of what you have paid for that period.',
-      'When the agreement ends you lose access to the Service and any leads and designs on your account. Any rights and duties that are meant to continue, including those on liability, indemnity and the use of lead data, continue.',
+      {
+        lead: 'Each of us will keep confidential any non-public information about the other’s business received through the Service, and will use it only for the purposes of these terms. Either of us may disclose it where the law requires. Either of us may also disclose it to professional advisers, and we may disclose it to Suppliers, who need it and are bound by confidentiality.',
+      },
     ],
   },
   {
-    title: 'Our liability to you',
+    title: 'Our liability',
     clauses: [
-      'Nothing in these terms limits or excludes liability for death or personal injury caused by negligence, for fraud or fraudulent misrepresentation, or for anything else that the law does not allow to be limited or excluded.',
-      'Subject to clause 12.1, we are not liable to you, whether in contract, tort (including negligence), breach of statutory duty or otherwise, for any loss of profit, revenue, sales, contracts, business, opportunity, goodwill or anticipated savings, or for any indirect or consequential loss, however it arises.',
-      'Subject to clause 12.1, our total liability to you in any 12-month period for all claims arising from or in connection with the Service and these terms is limited to the amount you paid us in the 12 months before the event that gave rise to the claim.',
-      'Without limiting the above, we are not liable for any loss arising from the content, accuracy, completeness, timeliness or availability of HM Land Registry data or any other public or third-party data, including errors, omissions, delays, or changes to or withdrawal of that data, or from a recipient having moved, died, opted out or not being the owner.',
-      'Without limiting the above, we are not liable for any failure, delay, error or loss by a Supplier, including in printing, mailing, delivery, payment processing, hosting or email, or for loss or damage to a postcard in the post, except that we will do what is set out in clauses 5.4 and 6.4.',
-      'Except as set out in these terms, all conditions, warranties and terms that the law would otherwise imply into this agreement are excluded as far as the law allows.',
-      'You agree that these limits are fair and reasonable given the price of the Service, and that you can insure against losses that we exclude.',
+      {
+        lead: 'Nothing in these terms limits or excludes liability for death or personal injury caused by negligence, for fraud or fraudulent misrepresentation, or any other liability that cannot lawfully be limited or excluded.',
+      },
+      {
+        lead: 'Subject to clause 13.1, the rest of this clause 13 applies to all our liability arising under or in connection with these terms or the Service. This covers liability in contract, tort (including negligence), breach of statutory duty, misrepresentation or otherwise.',
+      },
+      {
+        lead: 'We are not liable for:',
+        list: [
+          'any loss of profit, revenue or sales;',
+          'any loss of business, contracts or opportunity;',
+          'any loss of goodwill or reputation;',
+          'any loss of anticipated savings;',
+          'any loss or corruption of data (but see clause 13.6),',
+        ],
+        listStyle: 'alpha',
+        tail: 'in each case whether direct or indirect; or (f) any indirect or consequential loss.',
+      },
+      {
+        lead: 'Our total liability to you for all events occurring in a Contract Year is limited to the greater of:',
+        list: [
+          '£100; and',
+          'the total fees you paid us in the 12 months before the first of those events.',
+        ],
+        listStyle: 'alpha',
+        tail: 'A “Contract Year” is each 12-month period starting on the date you first subscribed or an anniversary of it.',
+      },
+      {
+        lead: 'We are not liable for any loss arising from:',
+        list: [
+          'the content, accuracy, completeness, timeliness or availability of HM Land Registry or other third-party data;',
+          'a recipient not living at the address, not being the buyer or having opted out;',
+          'anything that happens to a postcard after it has been handed to a carrier; or',
+          'failures or delays of the internet or other networks we do not control.',
+        ],
+        listStyle: 'alpha',
+        tail: 'This does not affect clauses 6.4 and 7.3.',
+      },
+      {
+        lead: 'If your Designs or account data are lost or damaged, we will use reasonable efforts to restore them from our latest back-up. That is your only remedy for such loss. Please keep your own copies of your Designs.',
+      },
+      {
+        lead: 'Except as set out in these terms, all terms implied by law are excluded to the fullest extent the law allows.',
+      },
+      {
+        lead: 'Our employees and contractors have no personal liability to you in connection with the Service, except liability that cannot lawfully be excluded. They may enforce this clause 13.8.',
+      },
+      {
+        lead: 'Our prices reflect the allocation of risk in these terms. You may wish to insure against losses we exclude.',
+      },
     ],
   },
   {
     title: 'Indemnity',
     clauses: [
-      'You will pay us, and keep us protected against, any losses, claims, fines, costs and expenses (including reasonable legal fees) that we or our Suppliers suffer because of a claim by a third party, or action by a regulator, that comes from your postcards or their content, your marketing, your breach of these terms or the law, or your misuse of lead data.',
+      {
+        lead: 'You will indemnify us against all losses, liabilities, costs and expenses arising from any claim by a third party, or action by a regulator, to the extent it results from:',
+        list: [
+          'your Designs or marketing;',
+          'your breach of these terms or of the law; or',
+          'your misuse of Lead Data.',
+        ],
+        listStyle: 'alpha',
+        tail: 'This includes reasonable legal fees, sums we must pay a Supplier and, where the law allows, fines. It does not apply to the extent the loss is caused by our breach of these terms or our negligence.',
+      },
+    ],
+  },
+  {
+    title: 'Cancellation, suspension and termination',
+    clauses: [
+      {
+        lead: 'You can cancel your subscription at any time from the billing section of your account. It will end at the end of the current Billing Period. We do not refund part periods or unused Allowance. Orders that have already gone to print will still be sent and charged.',
+      },
+      {
+        lead: 'We may suspend or close your account immediately by notice if:',
+        list: [
+          'you seriously or repeatedly breach these terms;',
+          'we reasonably suspect fraud or misuse; or',
+          'a payment remains unpaid after we have told you about it.',
+        ],
+        listStyle: 'alpha',
+        tail: 'Where we reasonably can, we will tell you why.',
+      },
+      {
+        lead: 'We may end your subscription, or the Service generally, for any other reason on at least 30 days’ notice. We may give shorter notice if we can no longer lawfully provide the Service or obtain Lead Data or a key Supplier’s services. We will refund any fees you have paid for the period after it ends.',
+      },
+      {
+        lead: 'When your subscription ends, your access to the Service ends. We may delete your Designs and account data 30 days afterwards, except anything we must keep by law. Clauses 3, 5, 8 to 14, 19 and 20, and any other provision intended to continue, will continue to apply.',
+      },
     ],
   },
   {
     title: 'Events outside our control',
     clauses: [
-      'We are not liable for any delay or failure to perform caused by something outside our reasonable control. That includes strikes or industrial action (including at Royal Mail or another carrier), postal disruption, failures of the internet, power, hosting or a Supplier, government action or changes to public data, fire, flood, severe weather, epidemic, war, terrorism and cyber attack. If it goes on for a long time either of us can end the agreement by written notice.',
+      {
+        lead: 'We are not liable for any delay or failure to perform caused by events outside our reasonable control. These include:',
+        list: [
+          'strikes or other industrial action, including at Royal Mail or another carrier;',
+          'postal disruption;',
+          'failure of the internet, power, hosting or a Supplier;',
+          'changes to or withdrawal of public data;',
+          'government action; and',
+          'fire, flood, severe weather, epidemic, war, terrorism or cyber-attack.',
+        ],
+        listStyle: 'bullet',
+        tail: 'If such an event continues for more than 30 days, either of us may end the contract by notice.',
+      },
+    ],
+  },
+  {
+    title: 'Changes to these terms',
+    clauses: [
+      {
+        lead: 'We may update these terms. We will give you at least 30 days’ notice by email of any change that materially affects you. If a change is needed sooner for legal, regulatory or security reasons, we will give as much notice as we reasonably can. If you keep using the Service after a change takes effect, you accept it. If you do not agree, you may cancel before it takes effect.',
+      },
     ],
   },
   {
     title: 'Complaints',
     clauses: [
-      'If you have a complaint, please email info@housepost.co.uk with the details. We will reply as soon as we reasonably can and try to put things right.',
+      {
+        lead: 'Please send any complaint to info@housepost.co.uk or to our address for service. We will respond as soon as we reasonably can and try to put things right.',
+      },
     ],
   },
   {
     title: 'General',
     clauses: [
-      'These terms and our privacy notice are the whole agreement between us about the Service and replace anything said or written before. You confirm that you have not relied on any statement that is not in them, though this does not exclude liability for fraud.',
-      'We may update these terms. For a change that matters we will email you at least 30 days before it applies. If you keep using the Service after that date you accept the new terms. If you do not, you can cancel before it applies.',
-      'You may not transfer your rights or duties under these terms to anyone else without our written consent. We may transfer ours to a company that takes over the Service and will tell you if we do.',
-      'If a part of these terms is found to be invalid or unenforceable, the rest stays in force. If we do not enforce a right straight away, we have not given it up.',
-      'Notices to you will be sent to the email address on your account. Notices to us should be sent to info@housepost.co.uk.',
-      'Nobody other than you and us has any right to enforce these terms under the Contracts (Rights of Third Parties) Act 1999.',
+      {
+        lead: 'These terms are the entire agreement between us about the Service and replace anything said or written before. You confirm that you have not relied on any statement or promise not set out in them. Nothing in this clause limits liability for fraud.',
+      },
+      {
+        lead: 'You may not transfer your rights or obligations under these terms without our written consent. We may transfer ours to anyone who takes over all or part of the Service, including a company set up to run Housepost, and will tell you if we do.',
+      },
+      {
+        lead: 'If any part of these terms is found invalid or unenforceable, the rest remains in force.',
+      },
+      {
+        lead: 'If we delay or do not enforce a right, we have not waived it.',
+      },
+      {
+        lead: 'Nothing in these terms creates a partnership or agency between us.',
+      },
+      {
+        lead: 'Apart from our employees and contractors under clause 13.8, no one other than you and us may enforce these terms under the Contracts (Rights of Third Parties) Act 1999. We may vary or end these terms without anyone else’s consent.',
+      },
+      {
+        lead: 'We will send notices to the email address on your account. You must send notices to info@housepost.co.uk.',
+      },
+      {
+        lead: 'Regulations 9(1), 9(2) and 11(1) of the Electronic Commerce (EC Directive) Regulations 2002 do not apply to our contract.',
+      },
     ],
   },
   {
-    title: 'Governing law',
+    title: 'Governing law and jurisdiction',
     clauses: [
-      'These terms, and any dispute or claim arising out of or in connection with them (including non-contractual disputes), are governed by the law of England and Wales. The courts of England and Wales have exclusive jurisdiction.',
+      {
+        lead: 'These terms, and any dispute or claim arising out of or in connection with them or the Service, are governed by the law of England and Wales. This includes non-contractual disputes or claims. The courts of England and Wales have exclusive jurisdiction.',
+      },
     ],
   },
 ]
+
+const KEY_POINTS = [
+  'Housepost is for businesses only. You accept these terms when you create your account.',
+  'It costs £15 a month (we do not currently charge VAT), including 5 postcards. Extra postcards are £1.50 each. You can cancel at any time, and your plan runs to the end of the month you have paid for.',
+  'Leads come from HM Land Registry data, which can be wrong or incomplete, and they are not exclusive to you. We do not guarantee results. Once a postcard is posted, delivery is in the carrier’s hands.',
+  'You are responsible for your postcards, and you may use leads only to send postcards through Housepost.',
+  'Our liability to you is limited (clause 13). You must cover our losses from claims caused by your postcards or your misuse of leads (clause 14).',
+]
+
+const ALPHA = 'abcdefghijklmnopqrstuvwxyz'
 
 export default function TermsPage() {
   return (
@@ -215,16 +494,29 @@ export default function TermsPage() {
       <main className="flex-1">
         <div className="mx-auto max-w-3xl px-5 py-12 sm:px-6 sm:py-16">
           <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
-            Terms of service
+            Housepost terms of service
           </h1>
-          <p className="mt-3 text-sm text-slate-500">Last updated: September 2026</p>
+          <p className="mt-3 text-sm text-slate-500">Last updated: [DATE]</p>
 
-          {/* Draft banner — legal copy is not yet final. */}
+          {/* Draft banner — remove once the placeholders are filled in and the terms are approved. */}
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-900">
-            <strong>Draft &mdash; pending final review.</strong> These terms are a
-            working draft and are awaiting review by the business owner and their
-            solicitor before go-live. The company details in section 1 still need
-            to be filled in.
+            <strong>Draft &mdash; not final.</strong> The owner’s name, address for
+            service and “last updated” date in square brackets still need to be
+            filled in, and the terms need a final legal review before go-live.
+          </div>
+
+          <div className="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-5">
+            <h2 className="text-base font-semibold text-slate-900">
+              Key points{' '}
+              <span className="font-normal text-slate-500">
+                (a summary only; the terms below prevail)
+              </span>
+            </h2>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-[15px] leading-relaxed text-slate-700">
+              {KEY_POINTS.map((point) => (
+                <li key={point}>{point}</li>
+              ))}
+            </ul>
           </div>
 
           <div className="mt-8 space-y-8 text-[15px] leading-relaxed text-slate-700">
@@ -235,12 +527,27 @@ export default function TermsPage() {
                 </h2>
                 <div className="mt-2 space-y-3">
                   {section.clauses.map((clause, ci) => (
-                    <p key={ci} className="flex gap-3">
-                      <span className="w-9 shrink-0 text-slate-400 tabular-nums">
+                    <div key={ci} className="flex gap-3">
+                      <span className="w-10 shrink-0 text-slate-400 tabular-nums">
                         {si + 1}.{ci + 1}
                       </span>
-                      <span>{clause}</span>
-                    </p>
+                      <div className="space-y-2">
+                        <p>{clause.lead}</p>
+                        {clause.list && (
+                          <ul className="space-y-1">
+                            {clause.list.map((item, li) => (
+                              <li key={item} className="flex gap-2">
+                                <span className="w-6 shrink-0 text-slate-400">
+                                  {clause.listStyle === 'bullet' ? '•' : `(${ALPHA[li]})`}
+                                </span>
+                                <span>{item}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                        {clause.tail && <p>{clause.tail}</p>}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </section>
