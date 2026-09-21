@@ -6,9 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { ArrowLeft, Check, RotateCcw, Upload, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Check, RotateCcw, Upload, ExternalLink, Undo2, Redo2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { PostcardPreview } from './PostcardPreview'
+import { useHistory } from './useHistory'
 import {
   SVG_TEMPLATES,
   getTemplate,
@@ -80,17 +81,28 @@ export function SvgTemplateEditor({
   onUseUpload,
   onAddBack,
   onBackToOptions,
+  onDirtyChange,
+  guard: guardProp,
 }: {
   onUseUpload?: () => void
   /** Open the uploader on the BACK side (falls back to onUseUpload). */
   onAddBack?: () => void
   onBackToOptions?: () => void
+  /** Called whenever the editor has unsaved edits (or stops having them). */
+  onDirtyChange?: (dirty: boolean) => void
+  /** Wrap navigation away from the editor so the page can ask about unsaved edits. */
+  guard?: (action: () => void) => void
 }) {
   const addBack = onAddBack ?? onUseUpload
+  const guard = guardProp ?? ((fn: () => void) => fn())
   const supabase = createClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [values, setValues] = useState<TemplateValues | null>(null)
+  const history = useHistory<TemplateValues | null>(null)
+  const values = history.value
+  const { undo, redo } = history
+  // Which side the big preview shows. Focusing a field flips it to that side.
+  const [side, setSide] = useState<'front' | 'back'>('front')
   const [saving, setSaving] = useState(false)
   const [savedUrl, setSavedUrl] = useState<string | null>(null)
   const [savedBackUrl, setSavedBackUrl] = useState<string | null>(null)
@@ -114,17 +126,54 @@ export function SvgTemplateEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // JSON of the values as last chosen/saved; dirty = current values differ from it.
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
+  const dirty = values !== null && savedSnapshot !== null && JSON.stringify(values) !== savedSnapshot
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
+  // Unmount clears it so the page doesn't keep guarding for an editor that's gone.
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
+
   const template = selectedId ? getTemplate(selectedId) : undefined
+
+  // ⌘Z / Ctrl+Z undo, with Shift for redo, while a template is open.
+  useEffect(() => {
+    if (!template) return
+    function onKey(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== 'z') return
+      e.preventDefault() // take over from the input's native undo so the two never disagree
+      if (e.shiftKey) redo()
+      else undo()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [template, undo, redo])
+
+  /** Every form edit goes through here so it lands in the undo stack. */
+  function edit(key: keyof TemplateValues, next: string) {
+    if (!values) return
+    history.set({ ...values, [key]: next }, key)
+  }
 
   function chooseTemplate(id: string) {
     const t = getTemplate(id)
     if (!t) return
     setSelectedId(id)
-    setValues({ ...t.defaults })
+    setSide('front')
+    history.reset({ ...t.defaults })
+    setSavedSnapshot(JSON.stringify(t.defaults))
   }
 
+  /** Reset is itself an undo step, so a slip of the mouse doesn't lose work. */
   function resetToDefaults() {
-    if (template) setValues({ ...template.defaults })
+    if (template) history.set({ ...template.defaults })
+  }
+
+  function backToTemplates() {
+    setSelectedId(null)
+    history.reset(null)
+    setSavedSnapshot(null)
   }
 
   const previewSvg = useMemo(
@@ -182,6 +231,7 @@ export function SvgTemplateEditor({
 
       setSavedUrl(frontUrl)
       setSavedBackUrl(backUrl)
+      setSavedSnapshot(JSON.stringify(values))
 
       // Also record the pair in the saved-designs LIBRARY.
       // Best-effort: a failure here must not undo the successful active save.
@@ -333,40 +383,75 @@ export function SvgTemplateEditor({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => {
-            setSelectedId(null)
-            setValues(null)
-          }}
+          onClick={() => guard(backToTemplates)}
           className="-ml-2 text-slate-500 hover:text-slate-900"
         >
           <ArrowLeft className="mr-1.5 h-4 w-4" />
           All templates
         </Button>
-        <Button variant="ghost" size="sm" onClick={resetToDefaults} className="text-slate-500 hover:text-slate-900">
-          <RotateCcw className="mr-1.5 h-4 w-4" />
-          Reset
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={undo}
+            disabled={!history.canUndo}
+            aria-label="Undo"
+            title="Undo (⌘Z)"
+            className="text-slate-500 hover:text-slate-900"
+          >
+            <Undo2 className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={redo}
+            disabled={!history.canRedo}
+            aria-label="Redo"
+            title="Redo (⇧⌘Z)"
+            className="text-slate-500 hover:text-slate-900"
+          >
+            <Redo2 className="h-4 w-4" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={resetToDefaults} className="text-slate-500 hover:text-slate-900">
+            <RotateCcw className="mr-1.5 h-4 w-4" />
+            Reset
+          </Button>
+        </div>
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-2">
         {/* Live preview — first on mobile so edits are visible immediately. */}
         <div className="order-first space-y-3 lg:order-last lg:sticky lg:top-4">
-          <div className="grid gap-3 sm:grid-cols-2">
-            <figure className="space-y-1.5">
-              <Card className="overflow-hidden">
-                <SvgFrame svgString={previewSvg} />
-              </Card>
-              <figcaption className="text-center text-xs font-medium text-slate-500">Front</figcaption>
-            </figure>
-            <figure className="space-y-1.5">
-              <Card className="overflow-hidden">
-                <SvgFrame svgString={previewBackSvg} />
-              </Card>
-              <figcaption className="text-center text-xs font-medium text-slate-500">
-                Back · right half kept clear for the address
-              </figcaption>
-            </figure>
+          <div className="flex items-center justify-center">
+            <div
+              role="tablist"
+              aria-label="Postcard side"
+              className="inline-flex rounded-md border border-slate-200 bg-white p-0.5 text-sm"
+            >
+              {(['front', 'back'] as const).map((s) => (
+                <button
+                  key={s}
+                  role="tab"
+                  type="button"
+                  aria-selected={side === s}
+                  onClick={() => setSide(s)}
+                  className={`rounded px-4 py-1.5 font-medium transition ${
+                    side === s ? 'bg-brand text-white' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {s === 'front' ? 'Front' : 'Back'}
+                </button>
+              ))}
+            </div>
           </div>
+          <figure className="space-y-1.5">
+            <Card className="overflow-hidden">
+              <SvgFrame svgString={side === 'front' ? previewSvg : previewBackSvg} />
+            </Card>
+            <figcaption className="text-center text-xs font-medium text-slate-500">
+              {side === 'front' ? 'Front' : 'Back · right half kept clear for the address'}
+            </figcaption>
+          </figure>
           <p className="text-center text-xs text-slate-500">
             Live preview · {template.name} · A6 landscape ({CARD_W}×{CARD_H}px @ 300 DPI)
           </p>
@@ -414,7 +499,8 @@ export function SvgTemplateEditor({
                       id={`field-${field.key}`}
                       value={values[field.key]}
                       placeholder={field.placeholder}
-                      onChange={(e) => setValues({ ...values, [field.key]: e.target.value })}
+                      onFocus={() => setSide('front')}
+                      onChange={(e) => edit(field.key, e.target.value)}
                     />
                   </div>
                 ))}
@@ -426,13 +512,15 @@ export function SvgTemplateEditor({
                       id="field-accent"
                       type="color"
                       value={values.accent}
-                      onChange={(e) => setValues({ ...values, accent: e.target.value })}
+                      onFocus={() => setSide('front')}
+                      onChange={(e) => edit('accent', e.target.value)}
                       className="h-9 w-14 cursor-pointer rounded-md border border-slate-200 bg-transparent p-1"
                       aria-label="Accent colour"
                     />
                     <Input
                       value={values.accent}
-                      onChange={(e) => setValues({ ...values, accent: e.target.value })}
+                      onFocus={() => setSide('front')}
+                      onChange={(e) => edit('accent', e.target.value)}
                       className="max-w-[10rem] font-mono"
                     />
                   </div>
@@ -461,7 +549,8 @@ export function SvgTemplateEditor({
                         value={values[field.key]}
                         placeholder={field.placeholder}
                         rows={3}
-                        onChange={(e) => setValues({ ...values, [field.key]: e.target.value })}
+                        onFocus={() => setSide('back')}
+                        onChange={(e) => edit(field.key, e.target.value)}
                         className="border-input placeholder:text-muted-foreground dark:bg-input/30 w-full resize-y rounded-md border bg-transparent px-3 py-2 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] md:text-sm"
                       />
                     ) : (
@@ -469,7 +558,8 @@ export function SvgTemplateEditor({
                         id={`field-${field.key}`}
                         value={values[field.key]}
                         placeholder={field.placeholder}
-                        onChange={(e) => setValues({ ...values, [field.key]: e.target.value })}
+                        onFocus={() => setSide('back')}
+                        onChange={(e) => edit(field.key, e.target.value)}
                       />
                     )}
                   </div>
