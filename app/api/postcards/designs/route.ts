@@ -48,6 +48,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
+  // Both success paths below return the full row, INCLUDING `id`. The template
+  // editor keys its save/resume sidecar (`${userId}/design-editor/${id}.json`)
+  // to this id, so keep it in the response.
   const source = body.source
   const frontUrl = typeof body.front_url === 'string' ? body.front_url.trim() : ''
   const backUrl = typeof body.back_url === 'string' && body.back_url.trim() ? body.back_url.trim() : null

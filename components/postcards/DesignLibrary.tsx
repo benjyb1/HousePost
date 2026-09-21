@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Check, Trash2, LayoutTemplate, Upload as UploadIcon, Loader2 } from 'lucide-react'
+import { Check, Trash2, LayoutTemplate, Upload as UploadIcon, Loader2, Pencil } from 'lucide-react'
 import { PostcardPreview } from './PostcardPreview'
 
 /**
@@ -54,7 +54,18 @@ function Thumb({ url, source }: { url: string; source: SavedDesign['source'] }) 
   )
 }
 
-export function DesignLibrary({ onGoToUpload }: { onGoToUpload?: () => void }) {
+export function DesignLibrary({
+  onGoToUpload,
+  onEditTemplate,
+}: {
+  onGoToUpload?: () => void
+  /**
+   * Reopen a saved TEMPLATE design in the editor. The page wires this to switch
+   * to the template editor and load the design's sidecar. Only shown for
+   * `source: 'template'` rows.
+   */
+  onEditTemplate?: (design: SavedDesign) => void
+}) {
   const [designs, setDesigns] = useState<SavedDesign[]>([])
   const [activeFront, setActiveFront] = useState<string | null>(null)
   const [activeBack, setActiveBack] = useState<string | null>(null)
@@ -200,6 +211,17 @@ export function DesignLibrary({ onGoToUpload }: { onGoToUpload?: () => void }) {
                     </span>
                   </span>
                 </button>
+                {onEditTemplate && d.source === 'template' && (
+                  <button
+                    type="button"
+                    onClick={() => onEditTemplate(d)}
+                    title="Edit this template"
+                    aria-label={`Edit ${d.label}`}
+                    className="shrink-0 rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => remove(d.id)}
