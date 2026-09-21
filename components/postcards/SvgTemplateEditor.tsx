@@ -81,13 +81,20 @@ export function SvgTemplateEditor({
   onUseUpload,
   onAddBack,
   onBackToOptions,
+  onDirtyChange,
+  guard: guardProp,
 }: {
   onUseUpload?: () => void
   /** Open the uploader on the BACK side (falls back to onUseUpload). */
   onAddBack?: () => void
   onBackToOptions?: () => void
+  /** Called whenever the editor has unsaved edits (or stops having them). */
+  onDirtyChange?: (dirty: boolean) => void
+  /** Wrap navigation away from the editor so the page can ask about unsaved edits. */
+  guard?: (action: () => void) => void
 }) {
   const addBack = onAddBack ?? onUseUpload
+  const guard = guardProp ?? ((fn: () => void) => fn())
   const supabase = createClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -119,6 +126,15 @@ export function SvgTemplateEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // JSON of the values as last chosen/saved; dirty = current values differ from it.
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
+  const dirty = values !== null && savedSnapshot !== null && JSON.stringify(values) !== savedSnapshot
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
+  // Unmount clears it so the page doesn't keep guarding for an editor that's gone.
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
+
   const template = selectedId ? getTemplate(selectedId) : undefined
 
   // ⌘Z / Ctrl+Z undo, with Shift for redo, while a template is open.
@@ -146,6 +162,7 @@ export function SvgTemplateEditor({
     setSelectedId(id)
     setSide('front')
     history.reset({ ...t.defaults })
+    setSavedSnapshot(JSON.stringify(t.defaults))
   }
 
   /** Reset is itself an undo step, so a slip of the mouse doesn't lose work. */
@@ -156,10 +173,8 @@ export function SvgTemplateEditor({
   function backToTemplates() {
     setSelectedId(null)
     history.reset(null)
+    setSavedSnapshot(null)
   }
-
-  // Wired to the page's unsaved-changes guard in a later step.
-  const guard = (fn: () => void) => fn()
 
   const previewSvg = useMemo(
     () => (template && values ? template.render(values) : ''),
@@ -216,6 +231,7 @@ export function SvgTemplateEditor({
 
       setSavedUrl(frontUrl)
       setSavedBackUrl(backUrl)
+      setSavedSnapshot(JSON.stringify(values))
 
       // Also record the pair in the saved-designs LIBRARY.
       // Best-effort: a failure here must not undo the successful active save.
