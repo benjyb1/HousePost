@@ -39,6 +39,25 @@ function svg(inner: string): string {
 
 const USABLE = CARD_W - 180 // rough safe width for left-aligned heros
 
+/**
+ * Fit a letter-spaced caps line: shrink the font (and scale the tracking with
+ * it) so the text plus its letter-spacing fits `maxWidth`. The eyebrow "area
+ * served" lines are otherwise fixed-size and a long area can run off the card.
+ */
+function fitLS(
+  text: string,
+  maxWidth: number,
+  base: number,
+  factor: number,
+  ls: number
+): { size: number; ls: number } {
+  const len = Math.max(1, (text ?? '').length)
+  const widthAt = (size: number) => len * size * factor + Math.max(0, len - 1) * ls * (size / base)
+  if (widthAt(base) <= maxWidth) return { size: base, ls }
+  const size = Math.max(18, Math.floor((base * maxWidth) / widthAt(base)))
+  return { size, ls: Math.round((ls * size) / base) }
+}
+
 /* ------------------------------------------------------------------ */
 /* 1. BOLD (Studio) — high-impact colour-block, big accent band        */
 /* ------------------------------------------------------------------ */
@@ -48,14 +67,15 @@ function renderBold(v: TemplateValues): string {
   const offer = esc(v.offer.toUpperCase())
   const offerSize = fitSize(v.offer, USABLE, 200, 0.62)
   const nameSize = fitSize(v.businessName, USABLE, 112, 0.58)
+  const area = fitLS(v.areaServed.toUpperCase(), USABLE, 52, 0.6, 12)
   return svg(`
     <rect width="${CARD_W}" height="${CARD_H}" fill="#ffffff"/>
     <rect x="0" y="0" width="${CARD_W}" height="712" fill="${a}"/>
     <rect x="0" y="712" width="${CARD_W}" height="20" fill="${darken(a, 0.22)}"/>
-    <text x="92" y="168" font-family="${FONTS.sans}" font-weight="700" font-size="52" letter-spacing="12" fill="${onA}" opacity="0.82">${esc(
+    <text x="92" y="168" font-family="${FONTS.sans}" font-weight="700" font-size="${area.size}" letter-spacing="${area.ls}" fill="${onA}" opacity="0.82">${esc(
       v.areaServed.toUpperCase()
     )}</text>
-    <text x="86" y="490" font-family="${FONTS.sans}" font-weight="900" font-size="${offerSize}" fill="${onA}">${offer}</text>
+    <text x="92" y="490" font-family="${FONTS.sans}" font-weight="900" font-size="${offerSize}" fill="${onA}">${offer}</text>
     <text x="90" y="940" font-family="${FONTS.sans}" font-weight="800" font-size="${nameSize}" fill="#0f172a">${esc(
       v.businessName
     )}</text>
@@ -63,10 +83,10 @@ function renderBold(v: TemplateValues): string {
       v.tagline
     )}</text>
     <rect x="0" y="1171" width="${CARD_W}" height="140" fill="${a}"/>
-    <text x="92" y="1258" font-family="${FONTS.sans}" font-weight="700" font-size="50" fill="${onA}">${esc(
+    <text x="92" y="1222" font-family="${FONTS.sans}" font-weight="700" font-size="50" fill="${onA}">${esc(
       v.phone
     )}</text>
-    <text x="1727" y="1258" text-anchor="end" font-family="${FONTS.sans}" font-weight="700" font-size="50" fill="${onA}">${esc(
+    <text x="1727" y="1222" text-anchor="end" font-family="${FONTS.sans}" font-weight="700" font-size="50" fill="${onA}">${esc(
       v.website
     )}</text>
   `)
@@ -184,7 +204,7 @@ function renderBright(v: TemplateValues): string {
 /* message and call to action (plus the shared brand and contact).     */
 /* ================================================================== */
 const HALF = Math.round(CARD_W / 2) // 910 — the centre fold; the address sits to its right
-const BACK_M = 74 // safe margin inside the trimmed edges (≈3mm bleed + 3mm safe)
+const BACK_M = 80 // left gutter inside the safe box (Stannp safe line is 71px); a touch more for air
 const BACK_W = HALF - BACK_M * 2 // usable width for left-aligned text in the design half
 const BACK_CX = Math.round(HALF / 2) // horizontal centre of the design (left) half
 
@@ -238,21 +258,21 @@ function renderBackBold(v: TemplateValues): string {
   return backSvg(`
     <rect x="0" y="0" width="${HALF}" height="170" fill="${a}"/>
     <rect x="0" y="170" width="${HALF}" height="14" fill="${darken(a, 0.22)}"/>
-    <text x="${BACK_M}" y="116" font-family="${FONTS.sans}" font-weight="800" font-size="${brandSize}" letter-spacing="1" fill="${onA}">${esc(
+    <text x="${BACK_M}" y="124" font-family="${FONTS.sans}" font-weight="800" font-size="${brandSize}" letter-spacing="1" fill="${onA}">${esc(
       v.businessName
     )}</text>
-    <text x="${BACK_M - 2}" y="360" font-family="${FONTS.sans}" font-weight="800" font-size="${headSize}" fill="#0f172a">${esc(
+    <text x="${BACK_M}" y="360" font-family="${FONTS.sans}" font-weight="800" font-size="${headSize}" fill="#0f172a">${esc(
       v.backHeadline
     )}</text>
     ${rows(msg, BACK_M, 470, 60, `font-family="${FONTS.sans}" font-weight="400" font-size="44" fill="#475569"`)}
-    <text x="${BACK_M - 2}" y="1095" font-family="${FONTS.sans}" font-weight="800" font-size="${ctaSize}" fill="${a}">${esc(
+    <text x="${BACK_M}" y="1095" font-family="${FONTS.sans}" font-weight="800" font-size="${ctaSize}" fill="${a}">${esc(
       v.backCta
     )}</text>
     <rect x="0" y="1171" width="${HALF}" height="140" fill="${a}"/>
-    <text x="${BACK_M}" y="1258" font-family="${FONTS.sans}" font-weight="700" font-size="${phoneSize}" fill="${onA}">${esc(
+    <text x="${BACK_M}" y="1222" font-family="${FONTS.sans}" font-weight="700" font-size="${phoneSize}" fill="${onA}">${esc(
       v.phone
     )}</text>
-    <text x="${HALF - BACK_M}" y="1258" text-anchor="end" font-family="${FONTS.sans}" font-weight="700" font-size="${webSize}" fill="${onA}">${esc(
+    <text x="${HALF - BACK_M}" y="1222" text-anchor="end" font-family="${FONTS.sans}" font-weight="700" font-size="${webSize}" fill="${onA}">${esc(
       v.website
     )}</text>
   `)
@@ -270,7 +290,7 @@ function renderBackClean(v: TemplateValues): string {
     <text x="${BACK_M}" y="210" font-family="${FONTS.sans}" font-weight="700" font-size="${brandSize}" fill="#0f172a">${esc(
       v.businessName
     )}</text>
-    <text x="${BACK_M - 2}" y="360" font-family="${FONTS.sans}" font-weight="700" font-size="${headSize}" fill="#0f172a">${esc(
+    <text x="${BACK_M}" y="360" font-family="${FONTS.sans}" font-weight="700" font-size="${headSize}" fill="#0f172a">${esc(
       v.backHeadline
     )}</text>
     ${rows(msg, BACK_M, 470, 58, `font-family="${FONTS.sans}" font-weight="400" font-size="42" fill="#64748b"`)}
@@ -278,10 +298,10 @@ function renderBackClean(v: TemplateValues): string {
       v.backCta
     )} &#8594;</text>
     <line x1="${BACK_M}" y1="1060" x2="${HALF - BACK_M}" y2="1060" stroke="#e2e8f0" stroke-width="3"/>
-    <text x="${BACK_M}" y="1168" font-family="${FONTS.sans}" font-weight="600" font-size="42" fill="#334155">${esc(
+    <text x="${BACK_M}" y="1150" font-family="${FONTS.sans}" font-weight="600" font-size="${fitSize(v.phone, BACK_W, 42, 0.56)}" fill="#334155">${esc(
       v.phone
     )}</text>
-    <text x="${BACK_M}" y="1234" font-family="${FONTS.sans}" font-weight="400" font-size="40" fill="#64748b">${esc(
+    <text x="${BACK_M}" y="1216" font-family="${FONTS.sans}" font-weight="400" font-size="${fitSize(v.website, BACK_W, 40, 0.6)}" fill="#64748b">${esc(
       v.website
     )}</text>
   `)
@@ -444,21 +464,21 @@ function themedBack(v: TemplateValues, o: BackOpts): string {
     v.businessName
   )}</text>
     <rect x="${BACK_M}" y="214" width="74" height="8" fill="${a}"/>
-    <text x="${BACK_M - 2}" y="404" font-family="${o.font}" font-weight="${o.serif ? 700 : 800}" font-size="${headSize}" fill="${o.ink}">${esc(
+    <text x="${BACK_M}" y="404" font-family="${o.font}" font-weight="${o.serif ? 700 : 800}" font-size="${headSize}" fill="${o.ink}">${esc(
     v.backHeadline
   )}</text>
     ${rows(msg, BACK_M, 504, 56, `font-family="${o.font}" font-weight="400" font-size="40" fill="${o.sub}"`)}
-    <text x="${BACK_M - 2}" y="1052" font-family="${o.font}" font-weight="700" font-size="${ctaSize}" fill="${a}">${esc(
+    <text x="${BACK_M}" y="1052" font-family="${o.font}" font-weight="700" font-size="${ctaSize}" fill="${a}">${esc(
     v.backCta
   )}</text>
-    <line x1="${BACK_M}" y1="1114" x2="${HALF - BACK_M}" y2="1114" stroke="${a}" stroke-width="2" opacity="0.55"/>
-    <text x="${BACK_M}" y="1198" font-family="${o.font}" font-weight="700" font-size="${fitSize(
+    <line x1="${BACK_M}" y1="1084" x2="${HALF - BACK_M}" y2="1084" stroke="${a}" stroke-width="2" opacity="0.55"/>
+    <text x="${BACK_M}" y="1168" font-family="${o.font}" font-weight="700" font-size="${fitSize(
     v.phone,
     BACK_W,
     42,
     0.56
   )}" fill="${o.ink}">${esc(v.phone)}</text>
-    <text x="${BACK_M}" y="1252" font-family="${o.font}" font-weight="400" font-size="${fitSize(
+    <text x="${BACK_M}" y="1222" font-family="${o.font}" font-weight="400" font-size="${fitSize(
     v.website,
     BACK_W,
     38,
@@ -487,11 +507,11 @@ function frontAtelier(v: TemplateValues): string {
     <text x="${FL}" y="930" font-family="${FONTS.elegantSerif}" font-weight="400" font-size="${offerSize}" fill="${a}">${esc(
     v.offer
   )}</text>
-    <line x1="${FL}" y1="1150" x2="${FR}" y2="1150" stroke="#d8d2c7" stroke-width="2"/>
-    <text x="${FL}" y="1238" font-family="${FONTS.elegantSerif}" font-weight="400" font-size="40" fill="#3f3a34">${esc(
+    <line x1="${FL}" y1="1128" x2="${FR}" y2="1128" stroke="#d8d2c7" stroke-width="2"/>
+    <text x="${FL}" y="1216" font-family="${FONTS.elegantSerif}" font-weight="400" font-size="40" fill="#3f3a34">${esc(
     v.phone
   )}</text>
-    <text x="${FR}" y="1238" text-anchor="end" font-family="${FONTS.elegantSerif}" font-weight="400" font-size="40" fill="#3f3a34">${esc(
+    <text x="${FR}" y="1216" text-anchor="end" font-family="${FONTS.elegantSerif}" font-weight="400" font-size="40" fill="#3f3a34">${esc(
     v.website
   )}</text>
   `)
@@ -575,10 +595,10 @@ function frontFoundry(v: TemplateValues): string {
     v.tagline
   )}</text>
     <rect x="0" y="1120" width="${CARD_W}" height="191" fill="${a}"/>
-    <text x="${FL}" y="1245" font-family="${FONTS.sans}" font-weight="800" font-size="50" fill="${ink}">${esc(
+    <text x="${FL}" y="1222" font-family="${FONTS.sans}" font-weight="800" font-size="50" fill="${ink}">${esc(
     v.phone
   )}</text>
-    <text x="${FR}" y="1245" text-anchor="end" font-family="${FONTS.sans}" font-weight="800" font-size="50" fill="${ink}">${esc(
+    <text x="${FR}" y="1222" text-anchor="end" font-family="${FONTS.sans}" font-weight="800" font-size="50" fill="${ink}">${esc(
     v.website
   )}</text>
   `)
@@ -671,10 +691,10 @@ function frontMeadow(v: TemplateValues): string {
     a,
     0.18
   )}">${esc(v.offer)}</text>
-    <text x="${FL}" y="1235" font-family="${FONTS.rounded}" font-weight="700" font-size="46" fill="${readableOn(
+    <text x="${FL}" y="1216" font-family="${FONTS.rounded}" font-weight="700" font-size="46" fill="${readableOn(
     a
   )}">${esc(v.phone)}</text>
-    <text x="${FR}" y="1235" text-anchor="end" font-family="${FONTS.rounded}" font-weight="700" font-size="44" fill="${readableOn(
+    <text x="${FR}" y="1216" text-anchor="end" font-family="${FONTS.rounded}" font-weight="700" font-size="44" fill="${readableOn(
     a
   )}">${esc(v.website)}</text>
   `)

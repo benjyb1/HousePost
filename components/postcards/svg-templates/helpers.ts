@@ -68,9 +68,16 @@ export function escapeXml(value: string): string {
  * user-editable, so heros are auto-shrunk rather than allowed to overflow the
  * card. `factor` is the rough average glyph-width : font-size ratio for the face.
  */
+// Real rendered text runs a few percent wider than `factor` predicts (checked
+// against true getBBox bounds — a bold uppercase line measured 0.644 where the
+// code assumed 0.62). Without a buffer a "fitted" hero can still cross its own
+// margin, so pad the width estimate: text shrinks a touch sooner and stays
+// inside the safe box even on faces the factor under-measures.
+const FIT_BUFFER = 1.08
+
 export function fitSize(text: string, maxWidth: number, base: number, factor = 0.56): number {
   const len = Math.max(1, (text ?? '').length)
-  const estimated = len * base * factor
+  const estimated = len * base * factor * FIT_BUFFER
   if (estimated <= maxWidth) return base
   return Math.max(20, Math.floor((base * maxWidth) / estimated))
 }

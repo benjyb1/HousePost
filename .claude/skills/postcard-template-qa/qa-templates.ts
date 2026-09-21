@@ -82,6 +82,7 @@ function checkSvg(svg: string, side: 'front' | 'back', variant: 'default' | 'str
     const len = glyphLen(m[2])
     if (!len) continue
     const x = parseFloat(attr(attrs, 'x') ?? '0')
+    const y = parseFloat(attr(attrs, 'y') ?? '0')
     const size = parseFloat(attr(attrs, 'font-size') ?? '0')
     if (!size) continue
     const anchor = attr(attrs, 'text-anchor') ?? 'start'
@@ -91,16 +92,27 @@ function checkSvg(svg: string, side: 'front' | 'back', variant: 'default' | 'str
     let xEnd = x + w
     if (anchor === 'middle') { xStart = x - w / 2; xEnd = x + w / 2 }
     else if (anchor === 'end') { xStart = x - w; xEnd = x }
+    // Vertical extent from the baseline: cap/ascent up, descender down.
+    const yTop = y - size * 0.8
+    const yBottom = y + size * 0.22
 
     const label = m[2].replace(/<[^>]*>/g, '').replace(/&#\d+;/g, ' ').replace(/&[a-zA-Z]+;/g, '&').trim().slice(0, 40)
-    // Hard limits: the back clips at the fold; the front is cut at the trim.
-    // Anything crossing these renders broken. A 25px band before is a warning.
-    const rightLimit = side === 'back' ? FOLD : CARD_W - BLEED
+    const box = { side, variant, text: label, xStart: Math.round(xStart), xEnd: Math.round(xEnd) } as const
+    const add = (level: 'ERROR' | 'WARN', why: string) => flags.push({ ...box, level, why })
 
-    if (xEnd > rightLimit) flags.push({ side, variant, text: label, xStart: Math.round(xStart), xEnd: Math.round(xEnd), level: 'ERROR', why: side === 'back' ? `clips fold (x=${FOLD})` : `over trim (x=${CARD_W - BLEED})` })
-    else if (xEnd > rightLimit - 25) flags.push({ side, variant, text: label, xStart: Math.round(xStart), xEnd: Math.round(xEnd), level: 'WARN', why: side === 'back' ? `at fold (x=${rightLimit})` : `at trim (x=${rightLimit})` })
-    if (xStart < BLEED) flags.push({ side, variant, text: label, xStart: Math.round(xStart), xEnd: Math.round(xEnd), level: 'ERROR', why: `over trim left (x=${BLEED})` })
-    else if (xStart < BLEED + 25) flags.push({ side, variant, text: label, xStart: Math.round(xStart), xEnd: Math.round(xEnd), level: 'WARN', why: `at trim left (x=${BLEED})` })
+    // Crossing the TRIM (a back's fold) renders broken → ERROR. Crossing Stannp's
+    // SAFE line (71px, their published safe zone) sits inside the trim but in the
+    // skew-risk band → WARN. Checked on BOTH axes — the old check only looked
+    // left/right, which is why every bottom-safe overrun slipped through.
+    const rightLimit = side === 'back' ? FOLD : CARD_W - BLEED
+    if (xEnd > rightLimit) add('ERROR', side === 'back' ? `clips fold (x=${FOLD})` : `over trim right (x=${CARD_W - BLEED})`)
+    else if (side !== 'back' && xEnd > CARD_W - SAFE) add('WARN', `past safe right (x=${CARD_W - SAFE})`)
+    if (xStart < BLEED) add('ERROR', `over trim left (x=${BLEED})`)
+    else if (xStart < SAFE) add('WARN', `past safe left (x=${SAFE})`)
+    if (yBottom > CARD_H - BLEED) add('ERROR', `over trim bottom (y=${CARD_H - BLEED})`)
+    else if (yBottom > CARD_H - SAFE) add('WARN', `past safe bottom (y=${CARD_H - SAFE})`)
+    if (yTop < BLEED) add('ERROR', `over trim top (y=${BLEED})`)
+    else if (yTop < SAFE) add('WARN', `past safe top (y=${SAFE})`)
   }
   return flags
 }
