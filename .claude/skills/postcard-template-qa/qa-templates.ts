@@ -77,6 +77,8 @@ function checkSvg(svg: string, side: 'front' | 'back', variant: 'default' | 'str
   let m: RegExpExecArray | null
   while ((m = re.exec(svg))) {
     const attrs = m[1]
+    // The opt-out compliance line deliberately sits in the back's address half.
+    if (/id="opt-out"/.test(attrs)) continue
     const len = glyphLen(m[2])
     if (!len) continue
     const x = parseFloat(attr(attrs, 'x') ?? '0')

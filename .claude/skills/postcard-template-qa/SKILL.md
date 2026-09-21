@@ -25,6 +25,7 @@ the trim or clip at the back's fold. This skill catches that before it prints.
 - **Trim (finished edge):** 35px in. Backgrounds may run to the card edge; nothing else should cross this.
 - **Safe:** 71px in. Keep ALL text and logos inside this box.
 - **Back fold:** x = 910. The design lives to the LEFT; the right half is the address area and must stay clear.
+- **Opt-out line:** every back carries `housepost.co.uk/opt-out` at the bottom-centre of the address half (id="opt-out"); the checker exempts it.
 
 ## Run it
 
