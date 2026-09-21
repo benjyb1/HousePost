@@ -1,3 +1,5 @@
+import { applyMapUpsertPolyfill } from '@/lib/polyfills/map-upsert'
+
 /** Accepted logo uploads. PDFs are rasterised (page 1); everything else is embedded as-is. */
 export const LOGO_ACCEPT = 'image/png,image/jpeg,image/svg+xml,application/pdf'
 const MAX_BYTES = 10 * 1024 * 1024
@@ -55,6 +57,8 @@ function downscale(img: HTMLImageElement): LogoSource {
 }
 
 async function pdfToSource(file: File): Promise<LogoSource> {
+  // pdf.js needs Map.prototype.getOrInsertComputed, which older browsers lack.
+  applyMapUpsertPolyfill()
   // Same lazy import + worker path the custom-design uploader uses.
   const pdfjsLib = await import('pdfjs-dist')
   pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'

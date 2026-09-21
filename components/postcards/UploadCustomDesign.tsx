@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner'
 import { Upload, Trash2, ImageIcon, Eye, Sparkles, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { applyMapUpsertPolyfill } from '@/lib/polyfills/map-upsert'
 import { PostcardPreview } from './PostcardPreview'
 
 // Cards print A6 (148×105mm). Artwork is supplied at 154×111mm (A6 + 3mm bleed
@@ -349,6 +350,8 @@ export function UploadCustomDesign({
       const arrayBuffer = await file.arrayBuffer()
 
       const renderPdf = async () => {
+        // pdf.js needs Map.prototype.getOrInsertComputed, which older browsers lack.
+        applyMapUpsertPolyfill()
         const pdfjsLib = await import('pdfjs-dist')
         // Served from our own origin (copied into /public at build time by
         // scripts/copy-pdf-worker.mjs), so there's no third-party CDN to fail.
