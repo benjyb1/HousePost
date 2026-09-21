@@ -10,6 +10,13 @@ import { Upload, Trash2, ImageIcon, Eye, Sparkles, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { applyMapUpsertPolyfill } from '@/lib/polyfills/map-upsert'
 import { PostcardPreview } from './PostcardPreview'
+import {
+  drawOptOutOnCanvas,
+  OPT_OUT_TEXT,
+  OPT_OUT_CX_FRAC,
+  OPT_OUT_BASELINE_FROM_BOTTOM_FRAC,
+  OPT_OUT_SIZE_FRAC,
+} from './opt-out'
 
 // Cards print A6 (148×105mm). Artwork is supplied at 154×111mm (A6 + 3mm bleed
 // on every edge) and 3mm is trimmed off all round, so the design must run past
@@ -218,7 +225,43 @@ async function getCroppedImg(imageSrc: string, cropArea: Area, addBleed: boolean
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, full.width, full.height)
   ctx.drawImage(cropped, 0, 0, cropped.width, cropped.height, 0, 0, HALF_PX_W, TARGET_PX.h)
+  // Every back must carry the opt-out line. Stamp it onto the composite (right/
+  // address half, bottom-centre) at the exact spot the templates draw it, so an
+  // uploaded image back is compliant the moment it's saved. The front returns
+  // above, so only the back is ever stamped.
+  drawOptOutOnCanvas(ctx, full.width, full.height)
   return canvasToBlob(full)
+}
+
+/**
+ * Stamp the opt-out line onto page 1 of a print-ready PDF back, in the browser,
+ * before it's uploaded as-is (passthrough). Centred in the right/address half at
+ * the same relative spot the templates and composited backs use, sized to
+ * ~30px @ 300 DPI relative to the page, mid-grey, in a standard Helvetica. Only
+ * the back is stamped; a passthrough FRONT PDF is uploaded untouched.
+ */
+async function stampOptOutOnPdfBack(file: File): Promise<Blob> {
+  const { PDFDocument, StandardFonts, rgb } = await import('pdf-lib')
+  const pdf = await PDFDocument.load(await file.arrayBuffer(), { ignoreEncryption: true })
+  const page = pdf.getPage(0)
+  const { width, height } = page.getSize()
+  const font = await pdf.embedFont(StandardFonts.Helvetica)
+  const size = height * OPT_OUT_SIZE_FRAC
+  const textWidth = font.widthOfTextAtSize(OPT_OUT_TEXT, size)
+  // PDF origin is bottom-left (y up): drawText's y is the baseline, measured up
+  // from the bottom; x is the text's left edge, so subtract half the width to
+  // centre it.
+  page.drawText(OPT_OUT_TEXT, {
+    x: width * OPT_OUT_CX_FRAC - textWidth / 2,
+    y: height * OPT_OUT_BASELINE_FROM_BOTTOM_FRAC,
+    size,
+    font,
+    color: rgb(0.4, 0.4, 0.4), // #666666
+  })
+  const bytes = await pdf.save()
+  // Copy into an ArrayBuffer-backed view so it satisfies BlobPart (pdf-lib types
+  // the result as Uint8Array<ArrayBufferLike>).
+  return new Blob([Uint8Array.from(bytes)], { type: 'application/pdf' })
 }
 
 export function UploadCustomDesign({
@@ -407,8 +450,14 @@ export function UploadCustomDesign({
     try {
       const ext = passthrough ? 'pdf' : 'png'
       const contentType = passthrough ? 'application/pdf' : 'image/png'
+      // Passthrough uploads the raw PDF as-is, EXCEPT the back, whose page 1 is
+      // stamped with the opt-out line first so every back stays compliant. The
+      // crop path stamps the back on the canvas inside getCroppedImg; the front
+      // never gets the line either way.
       const blob: Blob = passthrough
-        ? originalFileRef.current!
+        ? activeSide === 'back'
+          ? await stampOptOutOnPdfBack(originalFileRef.current!)
+          : originalFileRef.current!
         : await getCroppedImg(imageSrc, croppedAreaPixels!, addBleed, activeSide)
 
       const path = `${userId}/${config.fileBase}.${ext}`
