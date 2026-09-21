@@ -1,15 +1,19 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, type ChangeEvent, type ReactNode } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
-import { ArrowLeft, Check, RotateCcw, Upload, ExternalLink, Undo2, Redo2 } from 'lucide-react'
+import { ArrowLeft, Check, RotateCcw, Upload, ExternalLink, Undo2, Redo2, ImagePlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { PostcardPreview } from './PostcardPreview'
 import { useHistory } from './useHistory'
+import { injectOverlay } from './logo/inject'
+import { defaultPlacement, type CardSide, type LogoOverlay } from './logo/types'
+import { loadLogoFile, LOGO_ACCEPT } from './logo/load-logo-file'
+import { LogoLayer } from './logo/LogoLayer'
 import {
   SVG_TEMPLATES,
   getTemplate,
@@ -65,15 +69,51 @@ function svgToPngBlob(svgString: string, w = CARD_W, h = CARD_H): Promise<Blob> 
   })
 }
 
-/** Renders an SVG string, scaled to fill its container while keeping A6 ratio. */
-function SvgFrame({ svgString, className }: { svgString: string; className?: string }) {
+/** Everything the undo stack tracks: the text fields plus the logo on each side. */
+interface EditorState {
+  values: TemplateValues
+  logos: Record<CardSide, LogoOverlay | null>
+}
+
+const NO_LOGOS: Record<CardSide, LogoOverlay | null> = { front: null, back: null }
+
+/**
+ * Cheap identity for "has anything changed since the last save?". Deliberately
+ * not JSON.stringify(state): a logo src is a multi-MB data URL and this runs on
+ * every render, including every pointer move of a drag.
+ */
+function fingerprint(s: EditorState): string {
+  const logo = (o: LogoOverlay | null) =>
+    o ? `${Math.round(o.x)},${Math.round(o.y)},${Math.round(o.w)},${o.src.length}` : ''
+  return JSON.stringify(s.values) + '|' + logo(s.logos.front) + '|' + logo(s.logos.back)
+}
+
+/**
+ * Renders an SVG string, scaled to fill its container while keeping A6 ratio.
+ * Children sit over the card art itself (not the Card's padding), so a layer
+ * positioned in percentages lines up with the SVG's viewBox.
+ */
+function SvgFrame({
+  svgString,
+  className,
+  children,
+}: {
+  svgString: string
+  className?: string
+  children?: ReactNode
+}) {
   return (
     <div
-      className={`overflow-hidden bg-white [&_svg]:block [&_svg]:h-auto [&_svg]:w-full ${className ?? ''}`}
+      className={`relative overflow-hidden bg-white ${className ?? ''}`}
       style={{ aspectRatio: `${CARD_W}/${CARD_H}` }}
-      // Safe: every dynamic value is XML-escaped in the template render fns.
-      dangerouslySetInnerHTML={{ __html: svgString }}
-    />
+    >
+      <div
+        className="[&_svg]:block [&_svg]:h-auto [&_svg]:w-full"
+        // Safe: every dynamic value is XML-escaped in the template render fns.
+        dangerouslySetInnerHTML={{ __html: svgString }}
+      />
+      {children}
+    </div>
   )
 }
 
@@ -98,11 +138,19 @@ export function SvgTemplateEditor({
   const supabase = createClient()
   const [userId, setUserId] = useState<string | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const history = useHistory<TemplateValues | null>(null)
-  const values = history.value
+  const history = useHistory<EditorState | null>(null)
+  const state = history.value
+  const values = state?.values ?? null
+  const logos = state?.logos ?? NO_LOGOS
   const { undo, redo } = history
+  // Latest state for async handlers (a logo file can take a moment to load).
+  const stateRef = useRef<EditorState | null>(null)
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
   // Which side the big preview shows. Focusing a field flips it to that side.
-  const [side, setSide] = useState<'front' | 'back'>('front')
+  const [side, setSide] = useState<CardSide>('front')
+  const logoInputRef = useRef<HTMLInputElement>(null)
   const [saving, setSaving] = useState(false)
   const [savedUrl, setSavedUrl] = useState<string | null>(null)
   const [savedBackUrl, setSavedBackUrl] = useState<string | null>(null)
@@ -126,9 +174,9 @@ export function SvgTemplateEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // JSON of the values as last chosen/saved; dirty = current values differ from it.
+  // Fingerprint of the state as last chosen/saved; dirty = current state differs from it.
   const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null)
-  const dirty = values !== null && savedSnapshot !== null && JSON.stringify(values) !== savedSnapshot
+  const dirty = state !== null && savedSnapshot !== null && fingerprint(state) !== savedSnapshot
   useEffect(() => {
     onDirtyChange?.(dirty)
   }, [dirty, onDirtyChange])
@@ -152,8 +200,8 @@ export function SvgTemplateEditor({
 
   /** Every form edit goes through here so it lands in the undo stack. */
   function edit(key: keyof TemplateValues, next: string) {
-    if (!values) return
-    history.set({ ...values, [key]: next }, key)
+    if (!state) return
+    history.set({ ...state, values: { ...state.values, [key]: next } }, key)
   }
 
   function chooseTemplate(id: string) {
@@ -161,19 +209,55 @@ export function SvgTemplateEditor({
     if (!t) return
     setSelectedId(id)
     setSide('front')
-    history.reset({ ...t.defaults })
-    setSavedSnapshot(JSON.stringify(t.defaults))
+    const fresh: EditorState = { values: { ...t.defaults }, logos: NO_LOGOS }
+    history.reset(fresh)
+    setSavedSnapshot(fingerprint(fresh))
   }
 
-  /** Reset is itself an undo step, so a slip of the mouse doesn't lose work. */
+  /** Reset is itself an undo step, so a slip of the mouse doesn't lose work. It resets the text; logos stay. */
   function resetToDefaults() {
-    if (template) history.set({ ...template.defaults })
+    if (template && state) history.set({ ...state, values: { ...template.defaults } })
   }
 
   function backToTemplates() {
     setSelectedId(null)
     history.reset(null)
     setSavedSnapshot(null)
+  }
+
+  /**
+   * Drag/resize from the layer. Every move in one gesture shares a key, so the
+   * whole drag is one undo step. `commit` is pointer-up: the value is unchanged
+   * by then, so just close the step (a plain set would push an extra step and
+   * the first ⌘Z would appear to do nothing).
+   */
+  function setLogo(s: CardSide, next: LogoOverlay, commit: boolean) {
+    if (!state) return
+    if (commit) {
+      history.seal()
+      return
+    }
+    history.set({ ...state, logos: { ...state.logos, [s]: next } }, `logo-${s}`)
+  }
+
+  function removeLogo(s: CardSide) {
+    if (state) history.set({ ...state, logos: { ...state.logos, [s]: null } })
+  }
+
+  async function handleLogoFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    try {
+      const src = await loadLogoFile(file)
+      // Read the ref, not the closure: the user may have typed while the file loaded.
+      const current = stateRef.current
+      if (!current) return
+      const placed = defaultPlacement(side, src.src, src.naturalW, src.naturalH)
+      history.set({ ...current, logos: { ...current.logos, [side]: placed } })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not load that logo')
+    }
   }
 
   const previewSvg = useMemo(
@@ -184,18 +268,23 @@ export function SvgTemplateEditor({
     () => (template && values ? template.renderBack(values) : ''),
     [template, values]
   )
+  // The preview SVG stays logo-free; the HTML layer shows the logo while editing
+  // and the export embeds it. Both come from the same state, so they can't drift.
+  const currentLogo = logos[side]
 
   async function handleUse() {
-    if (!template || !values || !userId) return
+    if (!template || !state || !userId) return
     setSaving(true)
     try {
       // A template is a matched pair: rasterise the front AND the coordinated
       // back. The back keeps its design on the left half with the right half
       // white, so the printer prints the address over it — the same full card
       // the uploader composites for an uploaded back.
+      // The logo is appended to the SVG only here, at export; on the back it is
+      // clipped to the left half so it can never print over the address area.
       const [frontBlob, backBlob] = await Promise.all([
-        svgToPngBlob(template.render(values)),
-        svgToPngBlob(template.renderBack(values)),
+        svgToPngBlob(injectOverlay(template.render(state.values), state.logos.front)),
+        svgToPngBlob(injectOverlay(template.renderBack(state.values), state.logos.back)),
       ])
 
       // Same storage keys + upload options the uploader uses for each side.
@@ -231,7 +320,7 @@ export function SvgTemplateEditor({
 
       setSavedUrl(frontUrl)
       setSavedBackUrl(backUrl)
-      setSavedSnapshot(JSON.stringify(values))
+      setSavedSnapshot(fingerprint(state))
 
       // Also record the pair in the saved-designs LIBRARY.
       // Best-effort: a failure here must not undo the successful active save.
@@ -273,8 +362,9 @@ export function SvgTemplateEditor({
               This is now your active postcard
             </h3>
             <p className="text-sm text-green-700/90">
-              Here&apos;s how it will print, front and back. The matching back sits on the left half; the
-              right half is reserved for the address the printer adds. You can send straight away.
+              Here&apos;s how it will print, front and back, with your logo where you placed it. The matching
+              back sits on the left half; the right half is reserved for the address the printer adds. You
+              can send straight away.
             </p>
           </CardContent>
         </Card>
@@ -319,8 +409,8 @@ export function SvgTemplateEditor({
           <CardContent className="space-y-1 p-5">
             <h3 className="text-sm font-semibold text-slate-900">Design your postcard in the browser</h3>
             <p className="text-sm text-slate-600">
-              Pick a template, then edit both sides — the front and its own matching back — and see them
-              update live. When you&apos;re happy, &ldquo;Use this design&rdquo; saves both sides, print-ready
+              Pick a template, then edit both sides — the front and its own matching back — add your logo,
+              and see it all update live. When you&apos;re happy, &ldquo;Use this design&rdquo; saves both sides, print-ready
               at A6 300 DPI.
             </p>
           </CardContent>
@@ -444,9 +534,50 @@ export function SvgTemplateEditor({
               ))}
             </div>
           </div>
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-500">
+            <input
+              ref={logoInputRef}
+              type="file"
+              accept={LOGO_ACCEPT}
+              className="hidden"
+              onChange={handleLogoFile}
+            />
+            {currentLogo ? (
+              <>
+                <span>Drag your logo to move it, use the corner to resize.</span>
+                <button
+                  type="button"
+                  className="underline underline-offset-2 hover:text-slate-900"
+                  onClick={() => logoInputRef.current?.click()}
+                >
+                  Replace
+                </button>
+                <button
+                  type="button"
+                  className="underline underline-offset-2 hover:text-slate-900"
+                  onClick={() => removeLogo(side)}
+                >
+                  Remove
+                </button>
+              </>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => logoInputRef.current?.click()}>
+                <ImagePlus className="mr-1.5 h-4 w-4" />
+                Add your logo to the {side}
+              </Button>
+            )}
+          </div>
           <figure className="space-y-1.5">
             <Card className="overflow-hidden">
-              <SvgFrame svgString={side === 'front' ? previewSvg : previewBackSvg} />
+              <SvgFrame svgString={side === 'front' ? previewSvg : previewBackSvg}>
+                {currentLogo && (
+                  <LogoLayer
+                    overlay={currentLogo}
+                    onChange={(next, commit) => setLogo(side, next, commit)}
+                    onRemove={() => removeLogo(side)}
+                  />
+                )}
+              </SvgFrame>
             </Card>
             <figcaption className="text-center text-xs font-medium text-slate-500">
               {side === 'front' ? 'Front' : 'Back · right half kept clear for the address'}
@@ -568,9 +699,10 @@ export function SvgTemplateEditor({
             </div>
 
             <p className="rounded-md bg-slate-50 p-3 text-xs text-slate-500">
-              Text is kept inside the safe margin and auto-shrinks to fit, so nothing is cut when the card is
-              trimmed. The back message wraps to a few lines. The right half of the back stays clear for the
-              address the printer adds.
+              Text and your logo are kept inside the safe margin, so nothing is cut when the card is
+              trimmed. Text auto-shrinks to fit and the back message wraps to a few lines. On the back, the
+              right half stays clear for the address the printer adds, and the logo can&apos;t be placed
+              there.
             </p>
 
             {onUseUpload && (
