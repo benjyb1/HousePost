@@ -8,8 +8,7 @@ import { SvgTemplateEditor } from '@/components/postcards/SvgTemplateEditor'
 import { UploadCustomDesign } from '@/components/postcards/UploadCustomDesign'
 import { CustomDesignBrief } from '@/components/postcards/CustomDesignBrief'
 import { DesignLibrary } from '@/components/postcards/DesignLibrary'
-import { ConfirmLeaveDialog } from '@/components/postcards/ConfirmLeaveDialog'
-import { useLeaveGuard } from '@/components/postcards/useLeaveGuard'
+import { useLeaveGuard } from '@/components/layout/LeaveGuardProvider'
 
 const HEADINGS: Record<DesignOption, { title: string; subtitle: string }> = {
   template: {
@@ -31,9 +30,9 @@ export default function PostcardDesignPage() {
   // Which side the uploader opens on. "Add a back design" from the template
   // editor lands straight on the Back tab instead of the Front one.
   const [uploadSide, setUploadSide] = useState<'front' | 'back'>('front')
-  // The template editor reports unsaved edits; the guard asks before we leave them behind.
-  const [editorDirty, setEditorDirty] = useState(false)
-  const leave = useLeaveGuard(editorDirty)
+  // The template editor reports unsaved edits straight to the portal-wide guard,
+  // which asks before we leave them behind (page back, sidebar, browser Back, Sign-out).
+  const { setDirty, guard } = useLeaveGuard()
 
   function goToUpload(side: 'front' | 'back' = 'front') {
     setUploadSide(side)
@@ -59,7 +58,7 @@ export default function PostcardDesignPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => leave.guard(() => setOption(null))}
+              onClick={() => guard(() => setOption(null))}
               className="-ml-2 text-slate-500 hover:text-slate-900"
             >
               <ArrowLeft className="mr-1.5 h-4 w-4" />
@@ -76,8 +75,8 @@ export default function PostcardDesignPage() {
               onUseUpload={() => goToUpload('front')}
               onAddBack={() => goToUpload('back')}
               onBackToOptions={() => setOption(null)}
-              onDirtyChange={setEditorDirty}
-              guard={leave.guard}
+              onDirtyChange={setDirty}
+              guard={guard}
             />
           )}
           {option === 'upload' && (
@@ -86,7 +85,6 @@ export default function PostcardDesignPage() {
           {option === 'request' && <CustomDesignBrief />}
         </>
       )}
-      <ConfirmLeaveDialog open={leave.open} onConfirm={leave.confirm} onCancel={leave.cancel} />
     </div>
   )
 }
