@@ -163,7 +163,7 @@ export function CustomDesignBrief() {
                 id="businessName"
                 value={businessName}
                 onChange={(e) => setBusinessName(e.target.value)}
-                placeholder="e.g. Bream & Co Estate Agents"
+                placeholder="e.g. Bream & Co Interiors"
                 required
               />
             </div>
