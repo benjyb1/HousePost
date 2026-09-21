@@ -33,6 +33,23 @@ describe('clampOverlay', () => {
     const o = clampOverlay({ ...base, w: 5000 })
     expect(o.w).toBe(1819 - 2 * 71)
   })
+  it('shrinks a tall (1:4) logo so it fits the safe height', () => {
+    const o = clampOverlay({ ...base, naturalW: 300, naturalH: 1200, x: 100, y: 100, w: 360 })
+    const h = (o.w * 1200) / 300
+    expect(o.y + h).toBeLessThanOrEqual(1311 - 71)
+    expect(o.y).toBeGreaterThanOrEqual(71)
+    expect(o.w).toBeCloseTo((1311 - 2 * 71) / 4, 5)
+  })
+  it('lets an extreme aspect (1:30) go below the minimum width rather than overflow', () => {
+    const o = clampOverlay({ ...base, naturalW: 10, naturalH: 300, w: 360 })
+    expect((o.w * 300) / 10).toBeLessThanOrEqual(1311 - 2 * 71)
+    expect(o.w).toBeLessThan(80)
+  })
+  it('default placement of a tall logo also fits', () => {
+    const o = defaultPlacement('back', png, 300, 1200)
+    expect(o.y + (o.w * 1200) / 300).toBeLessThanOrEqual(1311 - 71)
+    expect(o.x + o.w).toBeLessThanOrEqual(840)
+  })
 })
 
 describe('injectOverlay', () => {

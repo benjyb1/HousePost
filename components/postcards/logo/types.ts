@@ -30,8 +30,11 @@ function bounds(side: CardSide) {
 /** Keep the box fully inside the safe area for its side; keep width sane. */
 export function clampOverlay(o: LogoOverlay): LogoOverlay {
   const b = bounds(o.side)
-  const maxW = b.right - b.left
-  const w = Math.min(Math.max(o.w, MIN_W), maxW)
+  // Width is capped by the safe width AND by the height the aspect ratio
+  // implies, so a tall logo can't run off the bottom of the card.
+  const maxW = Math.min(b.right - b.left, ((b.bottom - b.top) * o.naturalW) / o.naturalH)
+  // An extreme aspect can't honour the minimum width and still fit; fitting wins.
+  const w = Math.min(Math.max(o.w, Math.min(MIN_W, maxW)), maxW)
   const h = overlayHeight({ ...o, w })
   const x = Math.min(Math.max(o.x, b.left), b.right - w)
   const y = Math.min(Math.max(o.y, b.top), Math.max(b.top, b.bottom - h))
