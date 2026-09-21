@@ -10,9 +10,9 @@
 // printer adds, so a back design only decorates the LEFT half; `backSvg` clips at
 // the fold so the right half always stays white.
 //
-// The first four templates (Bold, Clean, Classic, Bright) are estate-agent
-// styles; the rest span the other trades the tool serves — interior design,
-// florist, builder, electrician, landscaper, cleaner, salon, bakery,
+// The first four templates (Studio, Linen, Manor, Palette) are interior-design
+// styles; the rest span the other trades the tool serves — interior design
+// (Atelier), florist, builder, electrician, landscaper, cleaner, salon, bakery,
 // photographer, professional services, fitness and joinery.
 //
 // All fonts are common web-safe stacks (no external fetch) so the live preview
@@ -40,7 +40,7 @@ function svg(inner: string): string {
 const USABLE = CARD_W - 180 // rough safe width for left-aligned heros
 
 /* ------------------------------------------------------------------ */
-/* 1. BOLD — high-impact "just sold" style, big accent band            */
+/* 1. BOLD (Studio) — high-impact colour-block, big accent band        */
 /* ------------------------------------------------------------------ */
 function renderBold(v: TemplateValues): string {
   const a = normaliseHex(v.accent)
@@ -73,7 +73,7 @@ function renderBold(v: TemplateValues): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* 2. CLEAN — minimal, airy, modern estate agent                       */
+/* 2. CLEAN (Linen) — minimal, airy, modern interior studio            */
 /* ------------------------------------------------------------------ */
 function renderClean(v: TemplateValues): string {
   const a = normaliseHex(v.accent)
@@ -105,7 +105,7 @@ function renderClean(v: TemplateValues): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* 3. CLASSIC — traditional serif, framed, centred, premium            */
+/* 3. CLASSIC (Manor) — traditional serif, framed, centred, premium    */
 /* ------------------------------------------------------------------ */
 function renderClassic(v: TemplateValues): string {
   const a = normaliseHex(v.accent)
@@ -138,7 +138,7 @@ function renderClassic(v: TemplateValues): string {
 }
 
 /* ------------------------------------------------------------------ */
-/* 4. BRIGHT — friendly, rounded, accent background with a white card   */
+/* 4. BRIGHT (Palette) — playful, rounded, accent background, white card */
 /* ------------------------------------------------------------------ */
 function renderBright(v: TemplateValues): string {
   const a = normaliseHex(v.accent)
@@ -1006,80 +1006,80 @@ function backHeritage(v: TemplateValues): string {
 export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'bold',
-    name: 'Bold',
-    description: 'High-impact accent band and a big headline — great for "just sold" drops.',
+    name: 'Studio',
+    description: 'Colour-block statement for a confident design studio.',
     defaults: {
-      businessName: 'Harbour & Vale',
-      tagline: 'Estate agents you can trust',
-      offer: 'JUST SOLD NEARBY',
+      businessName: 'Harbour & Vale Interiors',
+      tagline: 'Interior design, done properly',
+      offer: 'NEW PROJECT NEAR YOU',
       areaServed: 'Kingston & Surbiton',
       phone: '020 1234 5678',
       website: 'harbourvale.co.uk',
       accent: '#c02b3a',
-      backHeadline: 'Just sold on your street',
+      backHeadline: 'We just finished nearby',
       backMessage:
-        'We recently sold a home near you. Curious what yours could fetch in today’s market? We’ll tell you, free.',
-      backCta: 'Book your free valuation',
+        'A full redesign a few doors down. If your new place needs a fresh look, we’d love to show you what’s possible. First consultation is free.',
+      backCta: 'Book a free design consultation',
     },
     render: renderBold,
     renderBack: renderBackBold,
   },
   {
     id: 'clean',
-    name: 'Clean',
-    description: 'Minimal, airy and modern. Lets your name and offer breathe.',
+    name: 'Linen',
+    description: 'Calm, airy and minimal. Lets a considered brand breathe.',
     defaults: {
-      businessName: 'Meridian Homes',
-      tagline: 'Local property experts',
-      offer: 'Free valuation this month',
+      businessName: 'Meridian Interiors',
+      tagline: 'Calm, considered interiors',
+      offer: 'Free design consultation',
       areaServed: 'Richmond upon Thames',
       phone: '020 8765 4321',
-      website: 'www.meridianhomes.co.uk',
+      website: 'www.meridianinteriors.co.uk',
       accent: '#0f766e',
-      backHeadline: 'Thinking of selling?',
+      backHeadline: 'Just moved in?',
       backMessage:
-        'A quick, honest valuation from a local team that knows your area. No pressure and no obligation.',
-      backCta: 'Arrange your free valuation',
+        'The first few months are when a home takes shape. We help you plan the rooms that matter, from one space to the whole house.',
+      backCta: 'Arrange your free consultation',
     },
     render: renderClean,
     renderBack: renderBackClean,
   },
   {
     id: 'classic',
-    name: 'Classic',
-    description: 'Traditional serif in a framed layout — trustworthy and premium.',
+    name: 'Manor',
+    description: 'Traditional serif and a formal frame for established, heritage-led studios.',
     defaults: {
-      businessName: 'Ashworth & Co.',
-      tagline: 'Selling fine homes since 1998',
-      offer: 'Book your free market appraisal',
-      areaServed: 'Established · Wimbledon Village',
-      phone: '020 3456 7890',
-      website: 'ashworthandco.co.uk',
+      businessName: 'Ashcombe & Co',
+      tagline: 'Timeless interiors since 1998',
+      offer: 'Bespoke room design',
+      areaServed: 'Bath & Somerset',
+      phone: '01225 123 456',
+      website: 'ashcombeandco.co.uk',
       accent: '#1e3a5f',
-      backHeadline: 'A considered move',
+      backHeadline: 'Make it yours',
       backMessage:
-        'For over twenty years we have guided local homeowners through their next move with care and discretion.',
-      backCta: 'Request a market appraisal',
+        'A new home deserves more than the last owner’s choices. We design rooms around how you live, with fabric, colour and furniture sourced for you.',
+      backCta: 'Request a design visit',
     },
     render: renderClassic,
     renderBack: renderBackClassic,
   },
   {
     id: 'bright',
-    name: 'Bright',
-    description: 'Friendly and rounded with a bold colour panel — warm and approachable.',
+    name: 'Palette',
+    description: 'Playful colour and big type for studios that aren’t afraid of a bold room.',
     defaults: {
-      businessName: 'Sunnyside Move',
-      tagline: 'Making your next move easy',
-      offer: 'Thinking of selling?',
-      areaServed: 'Twickenham & Teddington',
-      phone: '020 2468 1357',
-      website: 'sunnysidemove.co.uk',
-      accent: '#f97316',
-      backHeadline: 'Let’s get you moving',
+      businessName: 'Hue Studio',
+      tagline: 'Colour-confident interiors',
+      offer: 'Welcome to your new home',
+      areaServed: 'Leeds & Harrogate',
+      phone: '0113 496 0000',
+      website: 'huestudio.co.uk',
+      accent: '#f59e0b',
+      backHeadline: 'Time for a fresh look?',
       backMessage:
-        'Friendly, straight-talking advice and a free valuation whenever you are ready. We would love to help.',
-      backCta: 'Get your free valuation',
+        'Bold colour, clever storage and rooms that feel like you. One room or the whole home, and always to your budget.',
+      backCta: 'Get a free colour consultation',
     },
     render: renderBright,
     renderBack: renderBackBright,
