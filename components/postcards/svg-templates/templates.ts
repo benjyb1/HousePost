@@ -194,10 +194,16 @@ const BACK_CX = Math.round(HALF / 2) // horizontal centre of the design (left) h
  * pathologically long line can never spill into the right half where the
  * printer prints the address — the right half always stays white.
  */
+/** Compliance line every back carries; sits in the printer's address half, bottom-centre, inside the safe box. */
+const OPT_OUT_LINE = 'housepost.co.uk/opt-out'
+const OPT_OUT_X = HALF + Math.round(HALF / 2) // centre of the right half (1365)
+const OPT_OUT_Y = CARD_H - 86 // baseline; 30px text sits inside the 71px safe margin
+
 function backSvg(leftHalf: string): string {
   return svg(
     `<rect width="${CARD_W}" height="${CARD_H}" fill="#ffffff"/>` +
-      `<svg x="0" y="0" width="${HALF}" height="${CARD_H}" viewBox="0 0 ${HALF} ${CARD_H}" overflow="hidden">${leftHalf}</svg>`
+      `<svg x="0" y="0" width="${HALF}" height="${CARD_H}" viewBox="0 0 ${HALF} ${CARD_H}" overflow="hidden">${leftHalf}</svg>` +
+      `<text id="opt-out" x="${OPT_OUT_X}" y="${OPT_OUT_Y}" text-anchor="middle" font-family="${FONTS.sans}" font-weight="400" font-size="30" fill="#666666">${OPT_OUT_LINE}</text>`
   )
 }
 
