@@ -8,6 +8,7 @@ import { LayoutDashboard, MapPin, Mail, Palette, Bell, Settings, UserCog, LogOut
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
+import { useLeaveGuard } from '@/components/layout/LeaveGuardProvider'
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -25,6 +26,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
+  const { guard } = useLeaveGuard()
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -75,7 +77,7 @@ export function Sidebar() {
           <span className="text-xs text-white/40">Housepost</span>
         </div>
         <button
-          onClick={handleLogout}
+          onClick={() => guard(handleLogout)}
           className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-white/70 hover:bg-white/10 hover:text-white transition-colors"
         >
           <LogOut className="h-4 w-4" />
