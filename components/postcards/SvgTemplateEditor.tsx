@@ -15,6 +15,14 @@ import { defaultPlacement, type CardSide, type LogoOverlay } from './logo/types'
 import { loadLogoFile, LOGO_ACCEPT } from './logo/load-logo-file'
 import { LogoLayer } from './logo/LogoLayer'
 import {
+  buildSidecar,
+  logoRefFromOverlay,
+  overlayFromLogoRef,
+  serialiseSidecar,
+  type LogoRef,
+  type TemplateSidecar,
+} from './template-sidecar'
+import {
   SVG_TEMPLATES,
   getTemplate,
   TEMPLATE_FIELDS,
@@ -67,6 +75,43 @@ function svgToPngBlob(svgString: string, w = CARD_W, h = CARD_H): Promise<Blob> 
     }
     img.src = url
   })
+}
+
+/** Decode a data URL to a Blob for upload, without a network round-trip. */
+function dataUrlToBlob(dataUrl: string): Blob {
+  const comma = dataUrl.indexOf(',')
+  const header = dataUrl.slice(0, comma)
+  const body = dataUrl.slice(comma + 1)
+  const mime = header.match(/^data:([^;,]+)/)?.[1] ?? 'application/octet-stream'
+  if (/;base64/i.test(header)) {
+    const binary = atob(body)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    return new Blob([bytes], { type: mime })
+  }
+  return new Blob([decodeURIComponent(body)], { type: mime })
+}
+
+/**
+ * Fetch a stored logo's public URL and turn it into a data URL via FileReader.
+ * The bytes never touch a canvas, so the export canvas stays untainted and the
+ * result is the data URL `LogoOverlay.src` requires (see `logo/types.ts`).
+ */
+function fetchAsDataUrl(url: string): Promise<string> {
+  return fetch(url, { cache: 'no-store' })
+    .then((res) => {
+      if (!res.ok) throw new Error('Could not load saved logo')
+      return res.blob()
+    })
+    .then(
+      (blob) =>
+        new Promise<string>((resolve, reject) => {
+          const r = new FileReader()
+          r.onload = () => resolve(r.result as string)
+          r.onerror = () => reject(new Error('Could not read saved logo'))
+          r.readAsDataURL(blob)
+        })
+    )
 }
 
 /** Everything the undo stack tracks: the text fields plus the logo on each side. */
@@ -123,6 +168,7 @@ export function SvgTemplateEditor({
   onBackToOptions,
   onDirtyChange,
   guard: guardProp,
+  resume,
 }: {
   onUseUpload?: () => void
   /** Open the uploader on the BACK side (falls back to onUseUpload). */
@@ -132,6 +178,12 @@ export function SvgTemplateEditor({
   onDirtyChange?: (dirty: boolean) => void
   /** Wrap navigation away from the editor so the page can ask about unsaved edits. */
   guard?: (action: () => void) => void
+  /**
+   * A saved template's sidecar to reopen for editing. The page passes this when
+   * the library's "Edit" fires; a mount effect loads it. Fresh chooser opens
+   * (no `resume`) start with the template defaults and no logo.
+   */
+  resume?: TemplateSidecar | null
 }) {
   const addBack = onAddBack ?? onUseUpload
   const guard = guardProp ?? ((fn: () => void) => fn())
@@ -148,6 +200,8 @@ export function SvgTemplateEditor({
   useEffect(() => {
     stateRef.current = state
   }, [state])
+  // Guards the reopen loader so a given sidecar is applied once, not on every render.
+  const resumedRef = useRef<TemplateSidecar | null>(null)
   // Which side the big preview shows. Focusing a field flips it to that side.
   const [side, setSide] = useState<CardSide>('front')
   const logoInputRef = useRef<HTMLInputElement>(null)
@@ -182,6 +236,15 @@ export function SvgTemplateEditor({
   }, [dirty, onDirtyChange])
   // Unmount clears it so the page doesn't keep guarding for an editor that's gone.
   useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
+
+  // Reopen a saved template from its sidecar (the library's "Edit"). Applied once
+  // per distinct sidecar; opens clean, and a missing logo doesn't block the text.
+  useEffect(() => {
+    if (!resume || resumedRef.current === resume) return
+    resumedRef.current = resume
+    void resumeFromSidecar(resume)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resume])
 
   const template = selectedId ? getTemplate(selectedId) : undefined
 
@@ -223,6 +286,66 @@ export function SvgTemplateEditor({
     setSelectedId(null)
     history.reset(null)
     setSavedSnapshot(null)
+  }
+
+  /**
+   * Rebuild the editor from a saved template's sidecar (S3). Each logo ref is
+   * fetched and turned back into a data URL so the export canvas stays clean,
+   * then the template is chosen and the state reset to the saved values. Sets
+   * the saved fingerprint so it opens clean, not dirty.
+   */
+  async function resumeFromSidecar(sidecar: TemplateSidecar) {
+    const t = getTemplate(sidecar.templateId)
+    if (!t) return
+    const restored: Record<CardSide, LogoOverlay | null> = { ...NO_LOGOS }
+    for (const s of ['front', 'back'] as CardSide[]) {
+      const ref = sidecar.logos[s]
+      if (!ref) continue
+      try {
+        const src = await fetchAsDataUrl(ref.url)
+        restored[s] = overlayFromLogoRef(ref, s, src)
+      } catch {
+        /* leave this side logo-free rather than fail the whole reopen */
+      }
+    }
+    // Merge over defaults so a field absent from an older sidecar can't leave a
+    // form input uncontrolled.
+    const resumed: EditorState = { values: { ...t.defaults, ...sidecar.values }, logos: restored }
+    setSelectedId(sidecar.templateId)
+    setSide('front')
+    history.reset(resumed)
+    setSavedSnapshot(fingerprint(resumed))
+  }
+
+  /**
+   * Persist the editable sidecar for a just-saved template (S2), so it can be
+   * reopened and edited. Uploads each side's logo image, then writes the sidecar
+   * JSON keyed to the library row id. Caller treats a failure as non-fatal.
+   */
+  async function persistTemplateSidecar(designId: string, templateId: string, snapshot: EditorState) {
+    if (!userId) return
+    const storage = supabase.storage.from('postcard-designs')
+    const refs: Record<CardSide, LogoRef | null> = { front: null, back: null }
+    for (const s of ['front', 'back'] as CardSide[]) {
+      const overlay = snapshot.logos[s]
+      if (!overlay) continue
+      const logoPath = `${userId}/design-logos/${designId}-${s}.png`
+      const blob = dataUrlToBlob(overlay.src)
+      const up = await storage.upload(logoPath, blob, {
+        upsert: true,
+        contentType: blob.type || 'image/png',
+      })
+      if (up.error) throw up.error
+      const url = `${storage.getPublicUrl(logoPath).data.publicUrl}?v=${Date.now()}`
+      refs[s] = logoRefFromOverlay(overlay, url)
+    }
+    const sidecar = buildSidecar({ templateId, values: snapshot.values, logos: refs })
+    const jsonBlob = new Blob([serialiseSidecar(sidecar)], { type: 'application/json' })
+    const up = await storage.upload(`${userId}/design-editor/${designId}.json`, jsonBlob, {
+      upsert: true,
+      contentType: 'application/json',
+    })
+    if (up.error) throw up.error
   }
 
   /**
@@ -322,10 +445,11 @@ export function SvgTemplateEditor({
       setSavedBackUrl(backUrl)
       setSavedSnapshot(fingerprint(state))
 
-      // Also record the pair in the saved-designs LIBRARY.
+      // Also record the pair in the saved-designs LIBRARY, then persist the
+      // editable sidecar so this template can be reopened and edited later.
       // Best-effort: a failure here must not undo the successful active save.
       try {
-        await fetch('/api/postcards/designs', {
+        const libRes = await fetch('/api/postcards/designs', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -338,6 +462,11 @@ export function SvgTemplateEditor({
             }).format(new Date())}`,
           }),
         })
+        // The POST returns the library row; key the sidecar to its id (S1/S2).
+        const { design } = (await libRes.json()) as { design?: { id?: string } }
+        if (libRes.ok && design?.id) {
+          await persistTemplateSidecar(design.id, template.id, state)
+        }
       } catch {
         /* non-fatal — the design is already saved as active */
       }

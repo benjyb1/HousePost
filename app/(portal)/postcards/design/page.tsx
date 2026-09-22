@@ -9,6 +9,9 @@ import { UploadCustomDesign } from '@/components/postcards/UploadCustomDesign'
 import { CustomDesignBrief } from '@/components/postcards/CustomDesignBrief'
 import { DesignLibrary } from '@/components/postcards/DesignLibrary'
 import { useLeaveGuard } from '@/components/layout/LeaveGuardProvider'
+import { parseSidecar, type TemplateSidecar } from '@/components/postcards/template-sidecar'
+import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
 
 const HEADINGS: Record<DesignOption, { title: string; subtitle: string }> = {
   template: {
@@ -33,10 +36,43 @@ export default function PostcardDesignPage() {
   // The template editor reports unsaved edits straight to the portal-wide guard,
   // which asks before we leave them behind (page back, sidebar, browser Back, Sign-out).
   const { setDirty, guard } = useLeaveGuard()
+  // A saved template being reopened for editing (the library's "Edit"). Cleared
+  // whenever we leave the editor or start a template fresh, so a later fresh
+  // "Use a template" never resumes a stale design.
+  const [resumeSidecar, setResumeSidecar] = useState<TemplateSidecar | null>(null)
+  const supabase = createClient()
 
   function goToUpload(side: 'front' | 'back' = 'front') {
     setUploadSide(side)
     setOption('upload')
+  }
+
+  // Leaving the editor: drop any resume so re-entering a template starts clean.
+  function backToOptions() {
+    setResumeSidecar(null)
+    setOption(null)
+  }
+
+  // The library's "Edit" on a saved template: load its editor sidecar and reopen
+  // it in the template editor (the editor's mount effect applies `resume`). A row
+  // saved before in-browser editing existed has no sidecar — say so, don't crash.
+  async function handleEditTemplate(design: { id: string }) {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error('no-user')
+      const path = `${user.id}/design-editor/${design.id}.json`
+      const { publicUrl } = supabase.storage.from('postcard-designs').getPublicUrl(path).data
+      const res = await fetch(`${publicUrl}?t=${Date.now()}`, { cache: 'no-store' })
+      if (!res.ok) throw new Error('missing')
+      const sidecar = parseSidecar(await res.text())
+      if (!sidecar) throw new Error('invalid')
+      setResumeSidecar(sidecar)
+      setOption('template')
+    } catch {
+      toast('This design was saved before in-browser editing, so it can’t be reopened to edit.')
+    }
   }
 
   return (
@@ -49,8 +85,16 @@ export default function PostcardDesignPage() {
               Choose how you&apos;d like to create your postcard. You can always come back and switch approach.
             </p>
           </div>
-          <DesignOptionChooser onSelect={setOption} />
-          <DesignLibrary onGoToUpload={() => goToUpload('front')} />
+          <DesignOptionChooser
+            onSelect={(opt) => {
+              setResumeSidecar(null)
+              setOption(opt)
+            }}
+          />
+          <DesignLibrary
+            onGoToUpload={() => goToUpload('front')}
+            onEditTemplate={handleEditTemplate}
+          />
         </>
       ) : (
         <>
@@ -58,7 +102,7 @@ export default function PostcardDesignPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => guard(() => setOption(null))}
+              onClick={() => guard(backToOptions)}
               className="-ml-2 text-slate-500 hover:text-slate-900"
             >
               <ArrowLeft className="mr-1.5 h-4 w-4" />
@@ -74,9 +118,10 @@ export default function PostcardDesignPage() {
             <SvgTemplateEditor
               onUseUpload={() => goToUpload('front')}
               onAddBack={() => goToUpload('back')}
-              onBackToOptions={() => setOption(null)}
+              onBackToOptions={backToOptions}
               onDirtyChange={setDirty}
               guard={guard}
+              resume={resumeSidecar}
             />
           )}
           {option === 'upload' && (
