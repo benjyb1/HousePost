@@ -32,6 +32,13 @@ import {
   initials,
 } from './helpers'
 import type { SvgTemplate, TemplateValues } from './types'
+import {
+  OPT_OUT_TEXT,
+  OPT_OUT_CX,
+  OPT_OUT_BASELINE,
+  OPT_OUT_SIZE,
+  OPT_OUT_COLOUR,
+} from '../opt-out'
 
 function svg(inner: string): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}" viewBox="0 0 ${CARD_W} ${CARD_H}">${inner}</svg>`
@@ -214,16 +221,17 @@ const BACK_CX = Math.round(HALF / 2) // horizontal centre of the design (left) h
  * pathologically long line can never spill into the right half where the
  * printer prints the address — the right half always stays white.
  */
-/** Compliance line every back carries; sits in the printer's address half, bottom-centre, inside the safe box. */
-const OPT_OUT_LINE = 'housepost.co.uk/opt-out'
-const OPT_OUT_X = HALF + Math.round(HALF / 2) // centre of the right half (1365)
-const OPT_OUT_Y = CARD_H - 86 // baseline; 30px text sits inside the 71px safe margin
-
+// Compliance line every back carries; sits in the printer's address half,
+// bottom-centre, inside the safe box. Text and geometry come from the shared
+// source of truth (components/postcards/opt-out.ts) so the uploaded and default
+// backs stamp the identical line at the identical spot. The imported constants
+// equal the previous local coords (1365 / 1225 / 30 / #666666), so the rendered
+// back stays byte-for-byte the same.
 function backSvg(leftHalf: string): string {
   return svg(
     `<rect width="${CARD_W}" height="${CARD_H}" fill="#ffffff"/>` +
       `<svg x="0" y="0" width="${HALF}" height="${CARD_H}" viewBox="0 0 ${HALF} ${CARD_H}" overflow="hidden">${leftHalf}</svg>` +
-      `<text id="opt-out" x="${OPT_OUT_X}" y="${OPT_OUT_Y}" text-anchor="middle" font-family="${FONTS.sans}" font-weight="400" font-size="30" fill="#666666">${OPT_OUT_LINE}</text>`
+      `<text id="opt-out" x="${OPT_OUT_CX}" y="${OPT_OUT_BASELINE}" text-anchor="middle" font-family="${FONTS.sans}" font-weight="400" font-size="${OPT_OUT_SIZE}" fill="${OPT_OUT_COLOUR}">${OPT_OUT_TEXT}</text>`
   )
 }
 

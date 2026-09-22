@@ -1,18 +1,47 @@
-// One-off: upload the blank default postcard back to the public
-// postcard-designs bucket (see lib/postcards/defaults.ts). Idempotent.
-//   node scripts/upload-default-back.mjs
-import { createClient } from '@supabase/supabase-js'
-import zlib from 'node:zlib'
+// Build the blank default postcard back (see lib/postcards/defaults.ts) and,
+// with --upload, publish it to the public postcard-designs bucket. The back is a
+// plain white A6+bleed card (1819×1311 @ 300 DPI) that now carries the
+// `housepost.co.uk/opt-out` compliance line, bottom-centre of the address half,
+// exactly where the templates and uploaded backs draw it.
+//
+//   node scripts/upload-default-back.mjs                 # write back-blank.png locally to eyeball
+//   node scripts/upload-default-back.mjs --out /tmp/x.png
+//   node scripts/upload-default-back.mjs --upload        # replace the file in production (idempotent)
+//
+// Upload is OPT-IN so running the script can never overwrite production by
+// accident. --upload needs NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
+import fs from 'node:fs'
+import { GEOM, whiteRaster, stampOptOut, encodePng } from './lib/optout-png.mjs'
 
-const W = 1819, H = 1311 // A6 landscape + 3mm bleed at 300 DPI
-function crc(buf) { let c = ~0; for (const b of buf) { c ^= b; for (let i = 0; i < 8; i++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1)) } return ~c >>> 0 }
-function chunk(type, data) { const t = Buffer.from(type); const len = Buffer.alloc(4); len.writeUInt32BE(data.length); const cc = Buffer.alloc(4); cc.writeUInt32BE(crc(Buffer.concat([t, data]))); return Buffer.concat([len, t, data, cc]) }
-const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(W, 255)]) // grey8, filter 0, white
-const raw = Buffer.concat(Array.from({ length: H }, () => row))
-const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(W, 0); ihdr.writeUInt32BE(H, 4); ihdr[8] = 8; ihdr[9] = 0; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0
-const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))])
+// White grayscale card, then stamp the opt-out grey into it.
+const raster = stampOptOut(whiteRaster(GEOM.W, GEOM.H, 1))
+const png = encodePng(raster)
 
-const admin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
-const { error } = await admin.storage.from('postcard-designs').upload('defaults/back-blank.png', png, { upsert: true, contentType: 'image/png', cacheControl: '31536000' })
-if (error) { console.error('upload failed:', error.message); process.exit(1) }
-console.log(`uploaded defaults/back-blank.png (${png.length} bytes, ${W}x${H})`)
+const args = process.argv.slice(2)
+const doUpload = args.includes('--upload')
+const outIdx = args.indexOf('--out')
+const outPath = outIdx !== -1 ? args[outIdx + 1] : 'back-blank.png'
+
+if (!doUpload) {
+  fs.writeFileSync(outPath, png)
+  console.log(`wrote ${outPath} (${png.length} bytes, ${GEOM.W}x${GEOM.H}, grayscale, opt-out stamped)`)
+  console.log('Not uploaded. Re-run with --upload to replace defaults/back-blank.png in production.')
+  process.exit(0)
+}
+
+const { createClient } = await import('@supabase/supabase-js')
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+if (!url || !key) {
+  console.error('--upload needs NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment.')
+  process.exit(1)
+}
+const admin = createClient(url, key, { auth: { persistSession: false } })
+const { error } = await admin.storage
+  .from('postcard-designs')
+  .upload('defaults/back-blank.png', png, { upsert: true, contentType: 'image/png', cacheControl: '31536000' })
+if (error) {
+  console.error('upload failed:', error.message)
+  process.exit(1)
+}
+console.log(`uploaded defaults/back-blank.png (${png.length} bytes, ${GEOM.W}x${GEOM.H}, opt-out stamped)`)
