@@ -5,8 +5,8 @@ import { useEffect, useRef } from 'react'
 /**
  * The big hero headline: "For <trade>" where the trade word cycles through the
  * list every 3.2s. Each trade sits on the front face of a shallow cube that
- * tips upward, so the next trade rises from the bottom and the current one
- * lifts off the top. The perspective is kept large (flat) so the turn reads
+ * tips downward, so the next trade rolls down from the top and the current one
+ * drops off the bottom. The perspective is kept large (flat) so the turn reads
  * almost parallel to the screen rather than steeply angled.
  *
  * SEO / accessibility notes:
@@ -35,7 +35,7 @@ const WIDEST = 'interior designers'
 
 const FLIP_MS = 3200 // time each trade is held
 const TURN_MS = 620 // length of the flip itself
-const DIR = 1 // tip upward: the next trade rises from the bottom
+const DIR = -1 // tip downward: the next trade rolls down from the top
 
 // Matches the existing hero accent: a soft blue gradient clipped to the text.
 const BLUE_GRADIENT: React.CSSProperties = {
