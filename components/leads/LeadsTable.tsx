@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -17,6 +18,7 @@ import {
   Clock, RotateCw,
 } from 'lucide-react'
 import AddAddressModal from './AddAddressModal'
+import { ConfirmEmptyBackDialog } from './ConfirmEmptyBackDialog'
 import { toast } from 'sonner'
 
 type Lead = {
@@ -80,9 +82,12 @@ const SECTION_PAGE_SIZE = 15
 interface LeadsTableProps {
   leads: Lead[]
   subscriptionStatus: SubscriptionStatus
+  /** False when no back design is set, so the send warns before a blank back goes out. */
+  hasBackDesign: boolean
 }
 
-export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTableProps) {
+export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDesign }: LeadsTableProps) {
+  const router = useRouter()
   const [leads, setLeads] = useState(initialLeads)
   const [archivedLeads, setArchivedLeads] = useState<Lead[]>([])
   const [archivedLoaded, setArchivedLoaded] = useState(false)
@@ -111,6 +116,8 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
   const [pendingReactivate, setPendingReactivate] = useState(false)
   // Job links the held leads had before this order, for reverting on cancel.
   const previousJobLinks = useRef<Map<string, string | null>>(new Map())
+  // Held send args while the "no back design" warning is up (null = not shown).
+  const [emptyBackPrompt, setEmptyBackPrompt] = useState<{ leadIds: string[]; reactivate: boolean } | null>(null)
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'trialing'
 
@@ -366,9 +373,15 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
   // (reactivate=true) the server treats already-sent leads as eligible and
   // re-claims them from their old job only when the order is confirmed —
   // nothing is detached up front, so closing this modal changes nothing.
-  async function beginSend(leadIds: string[], reactivate = false) {
+  async function beginSend(leadIds: string[], reactivate = false, bypassEmptyBackWarning = false) {
     if (leadIds.length === 0) {
       toast.error('No leads selected')
+      return
+    }
+    // No back design set → the back prints blank. Warn once, then let the user
+    // add a back or send anyway. Nothing about the order itself changes here.
+    if (!hasBackDesign && !bypassEmptyBackWarning) {
+      setEmptyBackPrompt({ leadIds, reactivate })
       return
     }
     setSendError(null)
@@ -857,6 +870,21 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus }: LeadsTab
         onConfirm={confirmSend}
         onCancelOrder={cancelOrder}
         onClose={resetSend}
+      />
+
+      <ConfirmEmptyBackDialog
+        open={emptyBackPrompt !== null}
+        count={emptyBackPrompt?.leadIds.length ?? 0}
+        onSendAnyway={() => {
+          const pending = emptyBackPrompt
+          setEmptyBackPrompt(null)
+          if (pending) beginSend(pending.leadIds, pending.reactivate, true)
+        }}
+        onAddBack={() => {
+          setEmptyBackPrompt(null)
+          router.push('/postcards/design')
+        }}
+        onCancel={() => setEmptyBackPrompt(null)}
       />
     </div>
   )
