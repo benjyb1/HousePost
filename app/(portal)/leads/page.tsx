@@ -23,7 +23,7 @@ export default async function LeadsPage() {
 
   const [firstPage, { data: profile }] = await Promise.all([
     leadsQuery(0),
-    supabase.from('profiles').select('subscription_status').eq('id', user.id).single(),
+    supabase.from('profiles').select('subscription_status, postcard_design_back_url').eq('id', user.id).single(),
   ])
 
   // Page past PostgREST's 1000-row cap so "Previous leads" isn't truncated.
@@ -38,6 +38,9 @@ export default async function LeadsPage() {
   }
 
   const subscriptionStatus = profile?.subscription_status ?? 'incomplete'
+  // Empty = the send resolves the back to the blank default card, so we warn
+  // before sending. A whitespace-only URL counts as empty.
+  const hasBackDesign = Boolean(profile?.postcard_design_back_url?.trim())
 
   return (
     <div className="space-y-4">
@@ -45,7 +48,7 @@ export default async function LeadsPage() {
         <h1 className="text-2xl font-bold text-slate-900">Leads</h1>
         <p className="text-sm text-slate-500">{leads.length} properties</p>
       </div>
-      <LeadsTable leads={leads} subscriptionStatus={subscriptionStatus} />
+      <LeadsTable leads={leads} subscriptionStatus={subscriptionStatus} hasBackDesign={hasBackDesign} />
     </div>
   )
 }
