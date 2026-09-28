@@ -2,7 +2,7 @@ import { createElement } from 'react'
 import Link from 'next/link'
 import { MapPin, Mail, Bell, Clock, AlertTriangle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatDate } from '@/lib/utils/date'
+import { formatDateTime } from '@/lib/utils/date'
 import { cn } from '@/lib/utils'
 import type { Notification } from '@/lib/notifications'
 
@@ -52,7 +52,9 @@ export function NotificationRow({ notification }: { notification: Notification }
         {notification.body && (
           <p className="mt-0.5 text-sm text-slate-500">{notification.body}</p>
         )}
-        <p className="mt-0.5 text-xs text-slate-400">{formatDate(notification.created_at)}</p>
+        <p className="mt-0.5 text-xs text-slate-400">
+          <time dateTime={notification.created_at}>{formatDateTime(notification.created_at)}</time>
+        </p>
       </div>
     </div>
   )

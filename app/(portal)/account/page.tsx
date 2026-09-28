@@ -7,14 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { CreditCard, ExternalLink, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Profile {
   subscription_status: string
   subscription_period_end: string | null
-  postcards_used_this_period: number
   stripe_customer_id: string | null
 }
 
@@ -132,7 +130,7 @@ export default function AccountPage() {
       <Card>
         <CardHeader>
           <CardTitle>Account info</CardTitle>
-          <CardDescription>Your email address associated with this account</CardDescription>
+          <CardDescription>The email address associated with your account</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-1.5">
@@ -145,20 +143,9 @@ export default function AccountPage() {
       {/* Billing — merged in from the former Billing page. */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
-              Subscription
-            </span>
-            {!profileLoading && (
-              <Badge
-                className={
-                  isActive ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'
-                }
-              >
-                {profile?.subscription_status ?? 'Inactive'}
-              </Badge>
-            )}
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            Subscription
           </CardTitle>
           <CardDescription>£15/month · 5 postcards included · £1.50 per additional</CardDescription>
         </CardHeader>
@@ -167,25 +154,19 @@ export default function AccountPage() {
             <p className="text-sm text-slate-400">Loading…</p>
           ) : (
             <>
-              <div className="space-y-2">
-                {profile?.subscription_period_end && (
-                  <p className="text-sm text-slate-600">
-                    Next billing:{' '}
-                    <strong>
-                      {new Date(profile.subscription_period_end).toLocaleDateString('en-GB', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                      })}
-                    </strong>
-                  </p>
-                )}
-
+              {profile?.subscription_period_end && (
                 <p className="text-sm text-slate-600">
-                  Postcards used this period:{' '}
-                  <strong>{profile?.postcards_used_this_period ?? 0} / 5</strong>
+                  Next billing:{' '}
+                  <strong>
+                    {new Date(profile.subscription_period_end).toLocaleDateString('en-GB', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric',
+                      timeZone: 'Europe/London',
+                    })}
+                  </strong>
                 </p>
-              </div>
+              )}
 
               {isActive ? (
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

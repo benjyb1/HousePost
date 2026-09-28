@@ -575,7 +575,8 @@ export async function POST(request: Request) {
     body:
       payableCount > 0
         ? `${includedCount} included and ${payableCount} paid (${formatPounds(costPence)}). You can cancel within ${POSTCARD_COOL_OFF_MINUTES} minutes.`
-        : `All ${q} from your free monthly allowance. You can cancel within ${POSTCARD_COOL_OFF_MINUTES} minutes.`,
+        : // Never "All 2 from your allowance": it reads as if the allowance is 2.
+          `${q} postcard${q === 1 ? '' : 's'} from your allowance. You can cancel within ${POSTCARD_COOL_OFF_MINUTES} minutes.`,
     href: '/postcards',
   })
 
