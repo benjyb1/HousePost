@@ -26,7 +26,9 @@ export type NormalisedStatus =
   | 'production'
   | 'printed'
   | 'dispatched'
+  | 'local_delivery'
   | 'delivered'
+  | 'returned'
   | 'held'
   | 'dispatching'
   | 'provider_hold'
@@ -35,15 +37,15 @@ export type NormalisedStatus =
   | 'cancelled'
 
 /**
- * Statuses we treat as terminal — once a job reaches one of these there is no
- * point polling it again. `dispatched` is terminal because the provider hands
- * the item to Royal Mail at that point and reports nothing further for standard
- * mail; `delivered` is included for completeness in case a tracked product ever
- * reports it. `error`/`failed`/`cancelled` will not advance on their own.
+ * Statuses we treat as terminal: once a job reaches one of these there is no
+ * point polling it again. `dispatched` is NOT terminal. The provider goes on to
+ * report "local_delivery" and then "delivered" (an estimate from the postal
+ * service level, not a scan) or "returned", and customers are told about those
+ * (fix list 7.2). `error`/`failed`/`cancelled` will not advance on their own.
  */
 export const TERMINAL_STATUSES: readonly NormalisedStatus[] = [
-  'dispatched',
   'delivered',
+  'returned',
   'failed',
   'cancelled',
   'error',
@@ -75,20 +77,28 @@ const RAW_STATUS_MAP: Record<string, NormalisedStatus> = {
   // On the press.
   production: 'production',
   in_production: 'production',
+  producing: 'production',
   printing: 'production',
   // Printed, waiting to be posted.
   printed: 'printed',
   produced: 'printed',
-  // Handed to the carrier (Royal Mail) — terminal for standard mail.
+  // Handed to the carrier. The provider's own word is "handed_over", and
+  // "in_transit" is the carrier moving it; both read as Dispatched.
   dispatched: 'dispatched',
+  handed_over: 'dispatched',
+  in_transit: 'dispatched',
   posted: 'dispatched',
   mailed: 'dispatched',
   shipped: 'dispatched',
   sent: 'dispatched',
   complete: 'dispatched',
   completed: 'dispatched',
-  // Optional delivery confirmation (tracked products only).
+  // At the local delivery office, then delivered. "delivered" is assumed from
+  // the postal service level for the postage class, not scanned at the door.
+  local_delivery: 'local_delivery',
   delivered: 'delivered',
+  // The carrier couldn't deliver it (usually a bad or incomplete address).
+  returned: 'returned',
   // Manually held for review by the provider. This is a DISTINCT state from our
   // internal cool-off 'held' (pre-send). Mapping it to 'held' would collide with
   // the cool-off state and let the release cron re-send an already-dispatched

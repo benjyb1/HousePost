@@ -253,7 +253,7 @@ export async function POST(request: Request) {
 
   if (quantity === 0) {
     return NextResponse.json(
-      { error: 'No eligible leads — they may already have been sent.' },
+      { error: 'No eligible leads. They may already have been sent.' },
       { status: 409 }
     )
   }
@@ -372,7 +372,7 @@ export async function POST(request: Request) {
   const q = claimed.length
   if (q === 0) {
     return NextResponse.json(
-      { error: 'No eligible leads — they may already have been sent.' },
+      { error: 'No eligible leads. They may already have been sent.' },
       { status: 409 }
     )
   }
@@ -505,7 +505,7 @@ export async function POST(request: Request) {
       // masks the real "check with support" message below.
       try {
         await sendAdminAlert(
-          `[Housepost] Postcard charge failed and needs review — batch ${batchId}`,
+          `[Housepost] Postcard charge failed and needs review – batch ${batchId}`,
           `<p>A postcard charge for user <strong>${user.id}</strong> (batch <strong>${batchId}</strong>,
             ${payableCount} paid card${payableCount === 1 ? '' : 's'}, ${formatPounds(costPence)}) failed
             with a NON-decline error. The charge may have succeeded, so the reserved usage and pending
@@ -519,7 +519,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'Something went wrong while taking payment. Our team has been notified — please check with support before trying again.',
+            'Something went wrong while taking payment. Our team has been notified. Please check with support before trying again.',
         },
         { status: 500 }
       )
@@ -575,7 +575,8 @@ export async function POST(request: Request) {
     body:
       payableCount > 0
         ? `${includedCount} included and ${payableCount} paid (${formatPounds(costPence)}). You can cancel within ${POSTCARD_COOL_OFF_MINUTES} minutes.`
-        : `All ${q} from your free monthly allowance. You can cancel within ${POSTCARD_COOL_OFF_MINUTES} minutes.`,
+        : // Never "All 2 from your allowance": it reads as if the allowance is 2.
+          `${q} postcard${q === 1 ? '' : 's'} from your allowance. You can cancel within ${POSTCARD_COOL_OFF_MINUTES} minutes.`,
     href: '/postcards',
   })
 

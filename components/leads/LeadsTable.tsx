@@ -1,12 +1,11 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { formatPricePence, formatDate, formatMonthKey } from '@/lib/utils/date'
+import { formatPricePence, formatDate, formatDayMonth, formatMonthKey } from '@/lib/utils/date'
 import { formatAddressLine, formatPostcode } from '@/lib/address/format'
 import { addressKey } from '@/lib/address/normalise'
 import { PROPERTY_TYPE_LABELS } from '@/types/land-registry'
@@ -14,11 +13,11 @@ import { INCLUDED_POSTCARDS_PER_MONTH } from '@/types/profile'
 import type { SubscriptionStatus } from '@/types/profile'
 import {
   ArrowUpDown, ArrowUp, ArrowDown, SendHorizonal,
-  Archive, Lock, ChevronDown, ChevronUp, Plus, Loader2, X,
-  Clock, RotateCw,
+  Archive, ArchiveRestore, Lock, ChevronDown, ChevronUp, Plus, RotateCw,
+  Info, SlidersHorizontal,
 } from 'lucide-react'
 import AddAddressModal from './AddAddressModal'
-import { ConfirmEmptyBackDialog } from './ConfirmEmptyBackDialog'
+import { useSendFlow } from '@/components/postcards/SendFlow'
 import { toast } from 'sonner'
 
 type Lead = {
@@ -33,6 +32,7 @@ type Lead = {
   postcard_job_id: string | null
   lead_month: string
   archived_at: string | null
+  unarchived_at?: string | null
   is_custom: boolean
   created_at?: string | null
 }
@@ -40,42 +40,6 @@ type Lead = {
 type SortField = 'distance' | 'price' | 'type' | 'date'
 type SortState = 0 | 1 | 2
 type Tab = 'new' | 'previous' | 'targeted' | 'archived'
-
-// Cost preview returned by POST /api/postcards { action: 'preview' }.
-type PreviewData = {
-  preview: true
-  requested?: number
-  quantity: number
-  suppressed?: number
-  alreadySent: number
-  used: number
-  includedRemaining: number
-  includedApplied: number
-  payable: number
-  unitPricePence: number
-  costPence: number
-  costFormatted: string
-  cap: number
-  capRemaining: number
-  wouldExceedCap: boolean
-  designsReady: boolean
-}
-
-// Confirmed-order response (201) from POST /api/postcards.
-type OrderResult = {
-  success: true
-  orderId: string
-  quantity: number
-  included: number
-  payable: number
-  costFormatted: string
-  paymentIntentId: string | null
-  releaseAt: string
-  coolOffMinutes: number
-}
-
-// The send modal walks through these states.
-type SendState = 'idle' | 'previewing' | 'confirm' | 'confirming' | 'held' | 'cancelling'
 
 const SECTION_PAGE_SIZE = 15
 
@@ -87,7 +51,6 @@ interface LeadsTableProps {
 }
 
 export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDesign }: LeadsTableProps) {
-  const router = useRouter()
   const [leads, setLeads] = useState(initialLeads)
   const [archivedLeads, setArchivedLeads] = useState<Lead[]>([])
   const [archivedLoaded, setArchivedLoaded] = useState(false)
@@ -96,6 +59,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
   const [typeSort, setTypeSort] = useState<SortState>(0)
   const [dateSort, setDateSort] = useState<SortState>(0)
   const [archiving, setArchiving] = useState(false)
+  const [unarchiving, setUnarchiving] = useState(false)
   const [tab, setTab] = useState<Tab>('new')
   // Per-month count of currently revealed rows — "Show more" bumps this in
   // place (see revealMore) rather than jumping to a fully-expanded list.
@@ -104,26 +68,50 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
   // Local selection for the "Send again" tab (targeted leads carry no
   // selected_for_dispatch flag of their own once sent).
   const [againSelected, setAgainSelected] = useState<Set<string>>(new Set())
-
-  // --- Send / cost-preview / cool-off flow state ---
-  const [sendState, setSendState] = useState<SendState>('idle')
-  const [preview, setPreview] = useState<PreviewData | null>(null)
-  const [pendingLeadIds, setPendingLeadIds] = useState<string[]>([])
-  const [order, setOrder] = useState<OrderResult | null>(null)
-  const [sendError, setSendError] = useState<string | null>(null)
-  const [cancelInfo, setCancelInfo] = useState<string | null>(null)
-  // Whether the pending send re-targets already-sent leads ("Send again").
-  const [pendingReactivate, setPendingReactivate] = useState(false)
+  // Local selection for the "Archived" tab (fix list 4.4).
+  const [archivedSelected, setArchivedSelected] = useState<Set<string>>(new Set())
   // Job links the held leads had before this order, for reverting on cancel.
   const previousJobLinks = useRef<Map<string, string | null>>(new Map())
-  // Held send args while the "no back design" warning is up (null = not shown).
-  const [emptyBackPrompt, setEmptyBackPrompt] = useState<{ leadIds: string[]; reactivate: boolean } | null>(null)
+
+  // Review order → confirm → cool-off/cancel, shared with Tracking.
+  const sendFlow = useSendFlow({
+    hasBackDesign,
+    // Optimistically move the held leads into "Send again" (they now carry a
+    // job) and clear any selection state. Cancelling reverts this, so
+    // remember what each lead pointed at before.
+    onHeld: ({ orderId, leadIds }) => {
+      setLeads((prev) => {
+        previousJobLinks.current = new Map(
+          prev.filter((l) => leadIds.includes(l.id)).map((l) => [l.id, l.postcard_job_id])
+        )
+        return prev.map((l) =>
+          leadIds.includes(l.id) ? { ...l, postcard_job_id: orderId, selected_for_dispatch: false } : l
+        )
+      })
+      setAgainSelected(new Set())
+    },
+    // Revert the optimistic hold. A re-sent lead keeps its old job link (it
+    // goes back to "Send again"); a fresh one is freed.
+    onCancelled: ({ leadIds, reactivate }) => {
+      setLeads((prev) =>
+        prev.map((l) =>
+          leadIds.includes(l.id)
+            ? {
+                ...l,
+                postcard_job_id: reactivate ? (previousJobLinks.current.get(l.id) ?? null) : null,
+                selected_for_dispatch: false,
+              }
+            : l
+        )
+      )
+    },
+  })
 
   const isSubscribed = subscriptionStatus === 'active' || subscriptionStatus === 'trialing'
 
   // Collapse duplicate addresses to a single record. "1 TOLPUDDLE ST" and
   // "1 TOLPUDDLE STREET" (same postcode) share an addressKey, so they would
-  // otherwise show — and be billable — twice. We keep one row per key, preferring
+  // otherwise show, and be billable, twice. We keep one row per key, preferring
   // a lead that is already selected so a collapse never silently drops the user's
   // pick; otherwise the first occurrence (lists arrive newest/closest first). The
   // key folds street-type abbreviations and casing but keeps the full postcode
@@ -142,9 +130,10 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
     return [...byKey.values()]
   }
 
-  // "New leads" = your most recent batch. Leads drop on the 22nd, so the newest
-  // batch must stay "new" until the next drop — keying off the calendar month
-  // would show 0 new leads for the ~3 weeks before each drop. "Previous leads" =
+  // "New leads" = your most recent batch. Leads drop on the 6th, so the newest
+  // batch must stay "new" until the next drop; keying off the calendar month
+  // would empty it at the start of every month. A lead added by hand or
+  // unarchived joins that batch (see latestBatchMonth). "Previous leads" =
   // everything older. "Send again" = ones a postcard has already been sent to.
   const activeLeads = dedupeByAddress(leads.filter((l) => !l.postcard_job_id))
   const latestActiveMonth = [...new Set(activeLeads.map((l) => l.lead_month))].sort().pop()
@@ -204,17 +193,18 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
   const includedCount = Math.min(selected.length, INCLUDED_POSTCARDS_PER_MONTH)
   const overageCount = Math.max(0, selected.length - INCLUDED_POSTCARDS_PER_MONTH)
 
+  const sortStates: Record<SortField, SortState> = {
+    distance: distanceSort,
+    price: priceSort,
+    type: typeSort,
+    date: dateSort,
+  }
+
   // Click a column header to cycle its sort: off → descending → ascending → off.
   // Read the clicked field's current state first, then set all four in one go
   // (resetting then incrementing in separate calls always landed back on 1).
   function cycleSort(field: SortField) {
-    const stateMap: Record<SortField, SortState> = {
-      distance: distanceSort,
-      price: priceSort,
-      type: typeSort,
-      date: dateSort,
-    }
-    const next = (((stateMap[field] + 1) % 3) as SortState)
+    const next = (((sortStates[field] + 1) % 3) as SortState)
     setDistanceSort(field === 'distance' ? next : 0)
     setPriceSort(field === 'price' ? next : 0)
     setTypeSort(field === 'type' ? next : 0)
@@ -225,6 +215,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
     setTab(t)
     setMonthVisible({})
     setAgainSelected(new Set())
+    setArchivedSelected(new Set())
 
     // Lazy-load archived leads on first visit
     if (t === 'archived' && !archivedLoaded) {
@@ -253,7 +244,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
       setLeads((prev) =>
         prev.map((l) => (l.id === id ? { ...l, selected_for_dispatch: !checked } : l))
       )
-      toast.error('Could not update that selection — please try again.')
+      toast.error('Could not update that selection. Please try again.')
     }
   }
 
@@ -272,7 +263,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
   }
 
   async function selectAll() {
-    // Only the leads on the tab in front of the user — "Select All" on New
+    // Only the leads on the tab in front of the user: "Select All" on New
     // leads must not silently sweep up (and bill for) every Previous lead too.
     const tabLeads = tab === 'previous' ? previousLeads : newLeads
     const toSelect = isSubscribed
@@ -293,7 +284,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
       setLeads((prev) =>
         prev.map((l) => (failedIds.includes(l.id) ? { ...l, selected_for_dispatch: false } : l))
       )
-      toast.error('Some leads could not be selected — please try again.')
+      toast.error('Some leads could not be selected. Please try again.')
     }
   }
 
@@ -313,26 +304,37 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
       setLeads((prev) =>
         prev.map((l) => (failedIds.includes(l.id) ? { ...l, selected_for_dispatch: true } : l))
       )
-      toast.error('Some leads could not be deselected — please try again.')
+      toast.error('Some leads could not be deselected. Please try again.')
     }
   }
 
-  // --- "Send again" selection ---
+  // --- "Send again" and "Archived" selection (local only) ---
 
-  function toggleAgain(id: string, checked: boolean) {
-    setAgainSelected((prev) => {
-      const next = new Set(prev)
-      if (checked) next.add(id)
-      else next.delete(id)
-      return next
-    })
+  function toggleIn(setter: React.Dispatch<React.SetStateAction<Set<string>>>) {
+    return (id: string, checked: boolean) =>
+      setter((prev) => {
+        const next = new Set(prev)
+        if (checked) next.add(id)
+        else next.delete(id)
+        return next
+      })
   }
+  const toggleAgain = toggleIn(setAgainSelected)
+  const toggleArchived = toggleIn(setArchivedSelected)
 
   function selectAllAgain() {
     if (againSelected.size === targetedLeads.length) {
       setAgainSelected(new Set())
     } else {
       setAgainSelected(new Set(targetedLeads.map((l) => l.id)))
+    }
+  }
+
+  function selectAllArchived() {
+    if (archivedSelected.size === dedupedArchived.length) {
+      setArchivedSelected(new Set())
+    } else {
+      setArchivedSelected(new Set(dedupedArchived.map((l) => l.id)))
     }
   }
 
@@ -357,161 +359,51 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
     setArchiving(false)
   }
 
-  // --- Send flow: preview → confirm → cool-off/cancel (feature 8.6) ---
+  // Bring archived leads back (fix list 4.4). Unsent ones rejoin the newest
+  // batch, so they land in New leads with an "Unarchived" label; sent ones go
+  // back under Send again.
+  async function unarchiveLeads(ids: string[]) {
+    if (ids.length === 0) return
+    // Archived rows are de-duplicated for display, so bring back any hidden
+    // copies of the same address too; otherwise one would pop up in its place.
+    const keys = new Set(
+      archivedLeads.filter((l) => ids.includes(l.id)).map((l) => addressKey(l.address_line, l.postcode))
+    )
+    const allIds = archivedLeads
+      .filter((l) => keys.has(addressKey(l.address_line, l.postcode)))
+      .map((l) => l.id)
 
-  function resetSend() {
-    setSendState('idle')
-    setPreview(null)
-    setPendingLeadIds([])
-    setOrder(null)
-    setSendError(null)
-    setCancelInfo(null)
-    setPendingReactivate(false)
-  }
-
-  // Fetch the cost preview and open the confirmation modal. For "Send again"
-  // (reactivate=true) the server treats already-sent leads as eligible and
-  // re-claims them from their old job only when the order is confirmed —
-  // nothing is detached up front, so closing this modal changes nothing.
-  async function beginSend(leadIds: string[], reactivate = false, bypassEmptyBackWarning = false) {
-    if (leadIds.length === 0) {
-      toast.error('No leads selected')
-      return
-    }
-    // No back design set → the back prints blank. Warn once, then let the user
-    // add a back or send anyway. Nothing about the order itself changes here.
-    if (!hasBackDesign && !bypassEmptyBackWarning) {
-      setEmptyBackPrompt({ leadIds, reactivate })
-      return
-    }
-    setSendError(null)
-    setCancelInfo(null)
-    setOrder(null)
-    setPendingReactivate(reactivate)
-    setSendState('previewing')
-    setPendingLeadIds(leadIds)
-
+    setUnarchiving(true)
     try {
-      const res = await fetch('/api/postcards', {
+      const res = await fetch('/api/leads/unarchive', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'preview', leadIds, resend: reactivate }),
+        body: JSON.stringify({ ids: allIds }),
       })
       const data = await res.json()
-      if (!res.ok) {
-        toast.error(data.error ?? 'Could not prepare your order')
-        resetSend()
-        return
-      }
-      if (reactivate && data.quantity === 0) {
-        toast.error('Those leads are still being sent and cannot be re-sent yet.')
-        resetSend()
-        return
-      }
-      setPreview(data as PreviewData)
-      setSendState('confirm')
-    } catch {
-      toast.error('Could not prepare your order')
-      resetSend()
-    }
-  }
+      if (!res.ok) throw new Error(data.error ?? 'Unarchive failed')
 
-  // Confirm the order: charge the saved card and hold for the cool-off window.
-  // The previewed cost and card count go with the request; if either has
-  // changed by the time the server gets there, nothing is charged and we show
-  // the fresh figures for the user to confirm again.
-  async function confirmSend() {
-    if (pendingLeadIds.length === 0 || !preview) return
-    setSendError(null)
-    setSendState('confirming')
-    try {
-      const res = await fetch('/api/postcards', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          leadIds: pendingLeadIds,
-          resend: pendingReactivate,
-          expectedCostPence: preview.costPence,
-          expectedQuantity: preview.quantity,
-        }),
-      })
-      const data = await res.json()
-      if (res.status === 409 && data.costChanged && data.preview) {
-        setPreview(data.preview as PreviewData)
-        setSendError(data.error ?? 'Your order has changed. Please check the new figures and confirm again.')
-        setSendState('confirm')
-        return
-      }
-      if (res.status === 201 && data.success) {
-        setOrder(data as OrderResult)
-        setSendState('held')
-        // Optimistically move the held leads into "Send again" (they now carry a
-        // job) and clear any selection state. Cancelling reverts this, so
-        // remember what each lead pointed at before.
-        setLeads((prev) => {
-          previousJobLinks.current = new Map(
-            prev.filter((l) => pendingLeadIds.includes(l.id)).map((l) => [l.id, l.postcard_job_id])
-          )
-          return prev.map((l) =>
-            pendingLeadIds.includes(l.id)
-              ? { ...l, postcard_job_id: data.orderId, selected_for_dispatch: false }
-              : l
-          )
-        })
-        setAgainSelected(new Set())
-      } else {
-        // 402 declined, 403 over cap, 409 no eligible leads, 400 designs missing.
-        setSendError(data.error ?? 'Your order could not be placed.')
-        setSendState('confirm')
-      }
+      const months = new Map(
+        (data.unarchived as { id: string; lead_month: string }[]).map((u) => [u.id, u.lead_month])
+      )
+      const restored = archivedLeads
+        .filter((l) => months.has(l.id))
+        .map((l) => ({
+          ...l,
+          archived_at: null,
+          unarchived_at: data.unarchivedAt as string,
+          lead_month: months.get(l.id)!,
+          selected_for_dispatch: l.postcard_job_id ? l.selected_for_dispatch : false,
+        }))
+      setLeads((prev) => [...restored, ...prev])
+      setArchivedLeads((prev) => prev.filter((l) => !months.has(l.id)))
+      setArchivedSelected(new Set())
+      toast.success(`${ids.length} lead${ids.length === 1 ? '' : 's'} unarchived`)
     } catch {
-      setSendError('Your order could not be placed. Please try again.')
-      setSendState('confirm')
+      toast.error('Could not unarchive those leads. Please try again.')
+    } finally {
+      setUnarchiving(false)
     }
-  }
-
-  // Cancel a held order inside its cool-off window and refund any paid cards.
-  async function cancelOrder() {
-    if (!order) return
-    setSendState('cancelling')
-    try {
-      const res = await fetch('/api/postcards/cancel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: order.orderId }),
-      })
-      const data = await res.json()
-      if (res.ok && data.success) {
-        // Revert the optimistic hold. A re-sent lead keeps its old job link
-        // (it goes back to "Send again"); a fresh one is freed.
-        setLeads((prev) =>
-          prev.map((l) =>
-            pendingLeadIds.includes(l.id)
-              ? {
-                  ...l,
-                  postcard_job_id: pendingReactivate ? (previousJobLinks.current.get(l.id) ?? null) : null,
-                  selected_for_dispatch: false,
-                }
-              : l
-          )
-        )
-        const refund = data.refundFormatted ?? '£0.00'
-        setCancelInfo(
-          `Order cancelled — ${data.cancelled} postcard${data.cancelled === 1 ? '' : 's'} held back` +
-            (data.refundedPence > 0 ? `, ${refund} refunded.` : '.')
-        )
-        toast.success('Order cancelled')
-      } else {
-        setCancelInfo(data.error ?? 'This order can no longer be cancelled.')
-        setSendState('held')
-        return
-      }
-    } catch {
-      setCancelInfo('Could not cancel the order. Please try again.')
-      setSendState('held')
-      return
-    }
-    setSendState('held')
   }
 
   // --- Reveal-in-place ("Show more") ---
@@ -527,105 +419,10 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
     setMonthVisible((prev) => ({ ...prev, [month]: SECTION_PAGE_SIZE }))
   }
 
-  // --- Sub-components ---
-
-  function SortableHeader({
-    label,
-    field,
-    align,
-  }: {
-    label: string
-    field: SortField
-    align: 'left' | 'right' | 'center'
-  }) {
-    const stateMap = { distance: distanceSort, price: priceSort, type: typeSort, date: dateSort }
-    const state = stateMap[field]
-    const active = state !== 0
-
-    let Icon = ArrowUpDown
-    if (state === 1) Icon = ArrowDown
-    if (state === 2) Icon = ArrowUp
-
-    const justify =
-      align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'
-    const textAlign = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
-
-    return (
-      <th className={`px-4 py-3 font-medium ${textAlign}`}>
-        <button
-          type="button"
-          onClick={() => cycleSort(field)}
-          title={`Sort by ${label.toLowerCase()}`}
-          className={`group inline-flex items-center gap-1 ${justify} cursor-pointer select-none transition-colors ${
-            active ? 'font-semibold text-slate-900' : 'text-slate-600 hover:font-semibold hover:text-slate-900'
-          }`}
-        >
-          {label}
-          <Icon
-            className={`h-3 w-3 transition-opacity ${active ? 'opacity-100' : 'opacity-40 group-hover:opacity-100'}`}
-          />
-        </button>
-      </th>
-    )
-  }
-
-  function LeadRow({
-    lead,
-    index,
-    showCheckbox,
-    checked,
-    onToggle,
-  }: {
-    lead: Lead
-    index: number
-    showCheckbox: boolean
-    checked: boolean
-    onToggle: (id: string, checked: boolean) => void
-  }) {
-    const isBlurred = !isSubscribed && index >= 5
-
-    return (
-      <tr
-        className={`hover:bg-slate-50 transition-colors ${isBlurred ? 'blur-sm pointer-events-none select-none' : ''}`}
-      >
-        {showCheckbox && (
-          <td className="px-4 py-3">
-            <Checkbox
-              checked={checked}
-              onCheckedChange={(value) => onToggle(lead.id, !!value)}
-            />
-          </td>
-        )}
-        <td className="px-4 py-3">
-          <p className="font-medium text-slate-800">{formatAddressLine(lead.address_line)}</p>
-          <p className="text-xs text-slate-400">{formatPostcode(lead.postcode)}</p>
-        </td>
-        <td className="px-4 py-3 text-right font-semibold text-slate-800">
-          {lead.price != null ? formatPricePence(lead.price) : '–'}
-        </td>
-        <td className="px-4 py-3 text-center">
-          {lead.property_type ? (
-            <Badge variant="secondary" className="text-xs">
-              {PROPERTY_TYPE_LABELS[lead.property_type as keyof typeof PROPERTY_TYPE_LABELS] ?? lead.property_type}
-            </Badge>
-          ) : (
-            <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-500">Custom</Badge>
-          )}
-        </td>
-        <td className="px-4 py-3 text-right text-slate-600">
-          {lead.distance_miles != null ? `${lead.distance_miles.toFixed(1)} mi` : '–'}
-        </td>
-        <td className="px-4 py-3 text-slate-500 text-xs">
-          {lead.date_of_transfer ? formatDate(lead.date_of_transfer) : '–'}
-        </td>
-      </tr>
-    )
-  }
-
-  const selectionMode: 'active' | 'again' | 'none' =
-    tab === 'new' || tab === 'previous' ? 'active' : tab === 'targeted' ? 'again' : 'none'
-  const showCheckbox = selectionMode !== 'none'
-  const colCount = showCheckbox ? 6 : 5
+  const selectionMode: 'active' | 'again' | 'archived' =
+    tab === 'new' || tab === 'previous' ? 'active' : tab === 'targeted' ? 'again' : 'archived'
+  const colCount = 6
+  const sendBusy = sendFlow.sendState !== 'idle'
 
   return (
     <div className="space-y-4">
@@ -654,12 +451,25 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
       {/* Controls — new / previous tabs (un-dispatched leads) */}
       {(tab === 'new' || tab === 'previous') && (
         <div className="flex items-center justify-between flex-wrap gap-3">
-          {/* Add Address now occupies the freed top-left slot (8.4) */}
-          <Button size="sm" variant="outline" onClick={() => setShowAddAddress(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Add Address
-          </Button>
+          {/* Adding an address only makes sense on New leads (4.6). The empty
+              span keeps the right-hand buttons on the right on Previous. */}
+          {tab === 'new' ? (
+            <Button size="sm" variant="outline" onClick={() => setShowAddAddress(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Add Address
+            </Button>
+          ) : (
+            <span aria-hidden="true" />
+          )}
           <div className="flex items-center gap-3 flex-wrap">
+            {tab === 'new' && (
+              <Button asChild size="sm" variant="outline">
+                <Link href="/settings#lead-preferences">
+                  <SlidersHorizontal className="h-3.5 w-3.5 mr-1" />
+                  Change price, type or distance
+                </Link>
+              </Button>
+            )}
             <span className="text-sm text-slate-600">
               {selected.length} selected
               {selected.length > 0 && (
@@ -689,12 +499,10 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
                 </Button>
               </>
             )}
-            {/* Send button — secondary lighter blue (8.7) */}
             <Button
               size="sm"
-              className="bg-blue-500 text-white hover:bg-blue-600"
-              onClick={() => beginSend(selected.map((l) => l.id))}
-              disabled={sendState !== 'idle' || selected.length === 0}
+              onClick={() => sendFlow.beginSend(selected.map((l) => l.id))}
+              disabled={sendBusy || selected.length === 0}
             >
               <SendHorizonal className="h-4 w-4 mr-1.5" />
               {`Send ${selected.length > 0 ? selected.length : ''} Postcard${selected.length === 1 ? '' : 's'}`}
@@ -727,12 +535,10 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
                 {archiving ? 'Archiving…' : 'Archive All'}
               </Button>
             )}
-            {/* Send again — secondary lighter blue, same flow as the main send */}
             <Button
               size="sm"
-              className="bg-blue-500 text-white hover:bg-blue-600"
-              onClick={() => beginSend([...againSelected], true)}
-              disabled={sendState !== 'idle' || againSelected.size === 0}
+              onClick={() => sendFlow.beginSend([...againSelected], true)}
+              disabled={sendBusy || againSelected.size === 0}
             >
               <RotateCw className="h-4 w-4 mr-1.5" />
               {`Send Again ${againSelected.size > 0 ? `(${againSelected.size})` : ''}`}
@@ -741,19 +547,61 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
         </div>
       )}
 
+      {/* Controls — Archived tab: tick leads and bring them back (4.4) */}
+      {tab === 'archived' && dedupedArchived.length > 0 && (
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <span className="text-sm text-slate-600">
+            {archivedSelected.size} selected of {dedupedArchived.length} archived
+          </span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button size="sm" variant="outline" onClick={selectAllArchived}>
+              {archivedSelected.size === dedupedArchived.length ? 'Deselect All' : 'Select All'}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => unarchiveLeads([...archivedSelected])}
+              disabled={unarchiving || archivedSelected.size === 0}
+            >
+              <ArchiveRestore className="h-4 w-4 mr-1.5" />
+              {unarchiving
+                ? 'Unarchiving…'
+                : `Unarchive${archivedSelected.size > 0 ? ` (${archivedSelected.size})` : ''}`}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       <div className="relative rounded-lg border bg-white overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
+        {/* Fixed layout: every column is sized for the longest thing it can
+            hold (an 8-figure price, "Flat/Maisonette", the sort arrow), so
+            sorting never changes a column's width (4.2). */}
+        <table className="w-full min-w-[760px] table-fixed text-sm">
+          <colgroup>
+            <col className="w-12" />
+            <col />
+            <col className="w-[8.5rem]" />
+            <col className="w-40" />
+            <col className="w-[7.5rem]" />
+            <col className="w-32" />
+          </colgroup>
           <thead className="border-b bg-slate-50">
             <tr>
-              {showCheckbox && <th className="px-4 py-3 text-left w-10"></th>}
+              <th className="px-4 py-3 text-left"></th>
               {/* Clickable, sortable column headers (8.3) */}
               <th className="px-4 py-3 text-left font-medium text-slate-600">Address</th>
-              <SortableHeader label="Price" field="price" align="right" />
-              <SortableHeader label="Type" field="type" align="center" />
-              <SortableHeader label="Distance" field="distance" align="right" />
-              <SortableHeader label="Date" field="date" align="left" />
+              <SortableHeader label="Price" field="price" align="right" state={priceSort} onSort={cycleSort} />
+              <SortableHeader label="Type" field="type" align="center" state={typeSort} onSort={cycleSort} />
+              <SortableHeader label="Distance" field="distance" align="right" state={distanceSort} onSort={cycleSort} />
+              <SortableHeader
+                label="Date"
+                field="date"
+                align="left"
+                state={dateSort}
+                onSort={cycleSort}
+                hint="The date the sale completed"
+              />
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -781,16 +629,21 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
                     <LeadRow
                       key={lead.id}
                       lead={lead}
-                      index={index}
-                      showCheckbox={showCheckbox}
+                      blurred={!isSubscribed && index >= 5}
                       checked={
                         selectionMode === 'active'
                           ? lead.selected_for_dispatch
                           : selectionMode === 'again'
                           ? againSelected.has(lead.id)
-                          : false
+                          : archivedSelected.has(lead.id)
                       }
-                      onToggle={selectionMode === 'again' ? toggleAgain : toggleLead}
+                      onToggle={
+                        selectionMode === 'active'
+                          ? toggleLead
+                          : selectionMode === 'again'
+                          ? toggleAgain
+                          : toggleArchived
+                      }
                     />
                   ))}
 
@@ -833,7 +686,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
               <p className="text-sm font-medium text-slate-700">Subscribe to view all leads</p>
               <Link
                 href="/billing"
-                className="inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
+                className="inline-flex items-center rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark transition-colors"
               >
                 View plans
               </Link>
@@ -860,32 +713,7 @@ export function LeadsTable({ leads: initialLeads, subscriptionStatus, hasBackDes
         }}
       />
 
-      <SendModal
-        state={sendState}
-        preview={preview}
-        order={order}
-        error={sendError}
-        cancelInfo={cancelInfo}
-        reactivate={pendingReactivate}
-        onConfirm={confirmSend}
-        onCancelOrder={cancelOrder}
-        onClose={resetSend}
-      />
-
-      <ConfirmEmptyBackDialog
-        open={emptyBackPrompt !== null}
-        count={emptyBackPrompt?.leadIds.length ?? 0}
-        onSendAnyway={() => {
-          const pending = emptyBackPrompt
-          setEmptyBackPrompt(null)
-          if (pending) beginSend(pending.leadIds, pending.reactivate, true)
-        }}
-        onAddBack={() => {
-          setEmptyBackPrompt(null)
-          router.push('/postcards/design')
-        }}
-        onCancel={() => setEmptyBackPrompt(null)}
-      />
+      {sendFlow.dialogs}
     </div>
   )
 }
@@ -896,175 +724,153 @@ function MonthSection({ children }: { children: React.ReactNode }) {
 }
 
 /**
- * Cost-preview → confirm → cool-off/cancel modal (feature 8.6). Nothing is
- * charged or dispatched until the user confirms; after a 201 the order is held
- * and can be cancelled within the cool-off window.
+ * A sortable column header. The label reserves its bold width up front, so
+ * the arrow never shifts when a column becomes the active sort.
+ *
+ * `hint` adds a short explanation (4.3): shown on hover where the device can
+ * hover, and behind a small ⓘ button that toggles it on touch screens.
  */
-function SendModal({
+function SortableHeader({
+  label,
+  field,
+  align,
   state,
-  preview,
-  order,
-  error,
-  cancelInfo,
-  reactivate,
-  onConfirm,
-  onCancelOrder,
-  onClose,
+  onSort,
+  hint,
 }: {
-  state: SendState
-  preview: PreviewData | null
-  order: OrderResult | null
-  error: string | null
-  cancelInfo: string | null
-  reactivate: boolean
-  onConfirm: () => void
-  onCancelOrder: () => void
-  onClose: () => void
+  label: string
+  field: SortField
+  align: 'left' | 'right' | 'center'
+  state: SortState
+  onSort: (field: SortField) => void
+  hint?: string
 }) {
-  if (state === 'idle') return null
+  const [hintOpen, setHintOpen] = useState(false)
+  const cellRef = useRef<HTMLTableCellElement>(null)
 
-  const busy = state === 'previewing' || state === 'confirming' || state === 'cancelling'
-  const canConfirm =
-    !!preview && preview.quantity > 0 && preview.designsReady && !preview.wouldExceedCap
+  // Tap anywhere else to close the tapped-open hint.
+  useEffect(() => {
+    if (!hintOpen) return
+    const close = (e: PointerEvent) => {
+      if (!cellRef.current?.contains(e.target as Node)) setHintOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [hintOpen])
 
-  const breakdown = preview
-    ? preview.payable === 0
-      ? `${preview.quantity} card${preview.quantity === 1 ? '' : 's'}: all included in your plan — no charge.`
-      : `${preview.quantity} card${preview.quantity === 1 ? '' : 's'}: ${preview.includedApplied} included + ${preview.payable} × £${(preview.unitPricePence / 100).toFixed(2)} = ${preview.costFormatted}`
-    : ''
+  const active = state !== 0
+  let Icon = ArrowUpDown
+  if (state === 1) Icon = ArrowDown
+  if (state === 2) Icon = ArrowUp
+
+  const justify =
+    align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'
+  const textAlign = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
+  const hintId = hint ? `hint-${field}` : undefined
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="text-lg font-semibold text-slate-800">
-            {state === 'held' ? 'Order placed' : reactivate ? 'Send again' : 'Confirm your order'}
-          </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600" aria-label="Close">
-            <X size={20} />
+    <th ref={cellRef} className={`group/hint relative px-4 py-3 font-medium ${textAlign}`}>
+      <div className={`flex items-center gap-1 ${justify}`}>
+        <button
+          type="button"
+          onClick={() => onSort(field)}
+          title={hint ? undefined : `Sort by ${label.toLowerCase()}`}
+          aria-describedby={hintId}
+          className={`group inline-flex items-center gap-1 cursor-pointer select-none transition-colors ${
+            active ? 'text-slate-900' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <span className="grid">
+            <span aria-hidden="true" className="invisible col-start-1 row-start-1 font-semibold">
+              {label}
+            </span>
+            <span className={`col-start-1 row-start-1 ${active ? 'font-semibold' : 'group-hover:font-semibold'}`}>
+              {label}
+            </span>
+          </span>
+          <Icon
+            className={`h-3 w-3 shrink-0 transition-opacity ${active ? 'opacity-100' : 'opacity-40 group-hover:opacity-100'}`}
+          />
+        </button>
+        {hint && (
+          // Touch screens only: there's no hover to reveal the hint there.
+          <button
+            type="button"
+            onClick={() => setHintOpen((o) => !o)}
+            aria-label={`What does ${label} mean?`}
+            aria-expanded={hintOpen}
+            className="-m-1.5 hidden items-center justify-center p-1.5 text-slate-400 hover:text-slate-600 [@media(hover:none)]:inline-flex"
+          >
+            <Info className="h-3.5 w-3.5" />
           </button>
-        </div>
-
-        <div className="px-5 py-4 space-y-4 text-sm">
-          {/* Preparing preview */}
-          {state === 'previewing' && (
-            <div className="flex items-center gap-2 text-slate-500 py-4 justify-center">
-              <Loader2 size={18} className="animate-spin" />
-              Preparing your order…
-            </div>
-          )}
-
-          {/* Confirmation step */}
-          {(state === 'confirm' || state === 'confirming') && preview && (
-            <>
-              <p className="text-slate-700">{breakdown}</p>
-
-              {preview.alreadySent > 0 && (
-                <p className="text-xs text-slate-500">
-                  {preview.alreadySent} of your selected lead{preview.alreadySent === 1 ? ' was' : 's were'} already
-                  sent and skipped.
-                </p>
-              )}
-
-              {(preview.suppressed ?? 0) > 0 && (
-                <p className="text-xs text-slate-500">
-                  {preview.suppressed} {preview.suppressed === 1 ? 'address is' : 'addresses are'} on the
-                  do-not-contact list and {preview.suppressed === 1 ? 'was' : 'were'} removed.
-                </p>
-              )}
-
-              <p className="text-xs text-slate-500">
-                {preview.payable > 0
-                  ? `£${(preview.costPence / 100).toFixed(2)} will be charged to your saved card now. `
-                  : ''}
-                Orders are held for a short cool-off window before posting, so you can still cancel.
-              </p>
-
-              {!preview.designsReady && (
-                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-                  You need a postcard design before sending. Open Postcard Design to create or upload one.
-                </p>
-              )}
-
-              {preview.wouldExceedCap && (
-                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-                  This would exceed your monthly limit of {preview.cap} postcards. You have {preview.capRemaining}{' '}
-                  remaining this billing period.
-                </p>
-              )}
-
-              {error && (
-                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
-              )}
-            </>
-          )}
-
-          {/* Held / cool-off step */}
-          {(state === 'held' || state === 'cancelling') && order && (
-            <>
-              {!cancelInfo ? (
-                <>
-                  <div className="flex items-start gap-2 text-slate-700">
-                    <Clock size={18} className="mt-0.5 text-blue-500 shrink-0" />
-                    <p>
-                      {order.quantity} postcard{order.quantity === 1 ? '' : 's'} held and will send in about{' '}
-                      {order.coolOffMinutes} minutes. You can cancel until then for a full refund of any charge.
-                    </p>
-                  </div>
-                  {order.payable > 0 && (
-                    <p className="text-xs text-slate-500">{order.costFormatted} charged to your saved card.</p>
-                  )}
-                </>
-              ) : (
-                <p className="text-slate-700">{cancelInfo}</p>
-              )}
-            </>
-          )}
-        </div>
-
-        <div className="flex justify-end gap-2 px-5 py-4 border-t bg-slate-50 rounded-b-xl">
-          {(state === 'confirm' || state === 'confirming') && (
-            <>
-              <button
-                onClick={onClose}
-                disabled={busy}
-                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={onConfirm}
-                disabled={!canConfirm || busy}
-                className="flex items-center gap-1.5 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50"
-              >
-                {state === 'confirming' ? <Loader2 size={16} className="animate-spin" /> : <SendHorizonal size={16} />}
-                {preview && preview.payable > 0 ? `Confirm & pay ${preview.costFormatted}` : 'Confirm & send'}
-              </button>
-            </>
-          )}
-
-          {(state === 'held' || state === 'cancelling') && (
-            <>
-              {!cancelInfo && (
-                <button
-                  onClick={onCancelOrder}
-                  disabled={state === 'cancelling'}
-                  className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-                >
-                  {state === 'cancelling' ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
-                  Cancel order
-                </button>
-              )}
-              <button
-                onClick={onClose}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
-              >
-                Done
-              </button>
-            </>
-          )}
-        </div>
+        )}
       </div>
-    </div>
+      {hint && (
+        <span
+          id={hintId}
+          role="tooltip"
+          className={`pointer-events-none absolute right-2 top-full z-20 -mt-1 w-max max-w-[14rem] rounded-md bg-slate-900 px-2.5 py-1.5 text-left text-xs font-normal leading-snug text-white shadow-lg ${
+            hintOpen ? 'block' : 'hidden group-hover/hint:block'
+          }`}
+        >
+          {hint}
+        </span>
+      )}
+    </th>
+  )
+}
+
+function LeadRow({
+  lead,
+  blurred,
+  checked,
+  onToggle,
+}: {
+  lead: Lead
+  blurred: boolean
+  checked: boolean
+  onToggle: (id: string, checked: boolean) => void
+}) {
+  return (
+    <tr
+      className={`hover:bg-slate-50 transition-colors ${blurred ? 'blur-sm pointer-events-none select-none' : ''}`}
+    >
+      <td className="px-4 py-3">
+        <Checkbox
+          checked={checked}
+          onCheckedChange={(value) => onToggle(lead.id, !!value)}
+        />
+      </td>
+      <td className="px-4 py-3">
+        <p className="font-medium text-slate-800 break-words">
+          {formatAddressLine(lead.address_line)}
+          {/* Why this lead is here: the user brought it back from Archived (4.4). */}
+          {lead.unarchived_at && (
+            <span className="ml-2 inline-block whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 align-middle text-[11px] font-normal text-slate-400">
+              Unarchived {formatDayMonth(lead.unarchived_at)}
+            </span>
+          )}
+        </p>
+        <p className="text-xs text-slate-400">{formatPostcode(lead.postcode)}</p>
+      </td>
+      <td className="px-4 py-3 text-right font-semibold text-slate-800">
+        {lead.price != null ? formatPricePence(lead.price) : '–'}
+      </td>
+      <td className="px-4 py-3 text-center">
+        {lead.property_type ? (
+          <Badge variant="secondary" className="text-xs">
+            {PROPERTY_TYPE_LABELS[lead.property_type as keyof typeof PROPERTY_TYPE_LABELS] ?? lead.property_type}
+          </Badge>
+        ) : (
+          <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-500">Custom</Badge>
+        )}
+      </td>
+      <td className="px-4 py-3 text-right text-slate-600">
+        {lead.distance_miles != null ? `${lead.distance_miles.toFixed(1)} mi` : '–'}
+      </td>
+      <td className="px-4 py-3 text-slate-500 text-xs">
+        {lead.date_of_transfer ? formatDate(lead.date_of_transfer) : '–'}
+      </td>
+    </tr>
   )
 }

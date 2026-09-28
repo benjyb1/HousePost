@@ -92,7 +92,8 @@ just don't change the request/response logic, amounts, statuses or SQL.
   - `bg-brand` / `text-brand` — deep navy `#0f1f3d` (primary).
   - `brand-dark`, `brand-light`, `brand-border`, `brand-accent` (`#93c5fd`),
     `signal` (`#6ee7b7`).
-  - The "Send" actions use a lighter `blue-500`; keep that distinct from brand.
+  - Buttons, including "Send", use the brand navy (the `Button` default or
+    `bg-brand`). No lighter blues on buttons (fix list Sept 2026, 3.1).
 - **Components:** prefer the shadcn/ui primitives already in `components/ui`
   (Button, Card, Input, Badge, Checkbox, Label). Match existing patterns.
 - **Icons:** `lucide-react`.

@@ -1,10 +1,15 @@
 import Link from 'next/link'
 import Image from 'next/image'
+import { LandRegistryAttribution } from '@/components/layout/LandRegistryAttribution'
 
 /**
  * Shared site footer. Both columns share the same vertical rhythm: a logo-height
- * block at the top, then a single attribution line, then two stacked links — so
- * the right column lines up row-for-row with the left.
+ * block at the top, then the small print, then two stacked links, so the right
+ * column lines up with the left.
+ *
+ * The right-hand small print is the attribution the Price Paid Data licence
+ * requires wherever we use the data. It never names who prints or posts the
+ * cards.
  *
  * `variant` swaps the left-column links for the context:
  *  - "public" (homepage, auth pages): Login / Sign up
@@ -50,9 +55,7 @@ export function SiteFooter({ variant = 'public' }: { variant?: 'public' | 'porta
               side by side. Hidden on mobile, where it would just add dead space
               between the two stacked sections. */}
           <div className="hidden h-10 sm:block" aria-hidden="true" />
-          <p className="text-xs text-slate-400">
-            Data sourced from HM Land Registry &middot; Printed and posted via Royal Mail
-          </p>
+          <LandRegistryAttribution className="text-xs text-slate-400 sm:max-w-sm" />
           <div className="flex flex-col gap-1 text-sm text-slate-500 sm:items-end">
             <Link href="/opt-out" className="hover:text-slate-700 transition-colors">Opt out of mail</Link>
             <Link href="/privacy" className="hover:text-slate-700 transition-colors">Privacy policy</Link>

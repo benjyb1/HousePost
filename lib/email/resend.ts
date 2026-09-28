@@ -50,7 +50,7 @@ export async function sendLeadsReadyEmail(params: {
   await resend.emails.send({
     from: FROM,
     to,
-    subject: `Your ${leadCount} new leads are ready — ${monthLabel}`,
+    subject: `Your ${leadCount} new lead${leadCount === 1 ? '' : 's'} for ${monthLabel} ${leadCount === 1 ? 'is' : 'are'} ready`,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#333;">
         <div style="background:#152452;color:white;padding:24px;border-radius:8px 8px 0 0;">
@@ -153,7 +153,7 @@ export async function sendAdminImportFailureAlert(
   importMonth: string
 ): Promise<void> {
   await sendAdminAlert(
-    `[Housepost] Land Registry import failed — ${importMonth}`,
+    `[Housepost] Land Registry import failed – ${importMonth}`,
     `<p>The Land Registry import for <strong>${importMonth}</strong> failed.</p>
      <pre>${error}</pre>
      <p>Please retry manually via the admin panel or re-trigger the cron.</p>`

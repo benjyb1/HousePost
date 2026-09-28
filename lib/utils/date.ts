@@ -8,13 +8,43 @@ export function formatPricePence(pence: number): string {
   }).format(pounds)
 }
 
-/** Format an ISO date string as "15 Jan 2025" */
+// Always UK time. Pages render on the server (UTC on Vercel), so without this a
+// card posted at 00:30 BST would show the previous day.
+const UK_TIME_ZONE = 'Europe/London'
+
+/** Format an ISO date string as "15 Jan 2025" (UK time) */
 export function formatDate(isoDate: string): string {
   return new Date(isoDate).toLocaleDateString('en-GB', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
+    timeZone: UK_TIME_ZONE,
   })
+}
+
+/** Format an ISO timestamp as "27 Sept" (UK time), for short labels. */
+export function formatDayMonth(isoDate: string): string {
+  return new Date(isoDate).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: UK_TIME_ZONE,
+  })
+}
+
+/**
+ * Format an ISO timestamp as "28 Sept 2026, 14:03": 24-hour UK time, moving
+ * between GMT and BST on its own.
+ */
+export function formatDateTime(isoDate: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: UK_TIME_ZONE,
+  }).format(new Date(isoDate))
 }
 
 /** Format YYYY-MM as "January 2025" */

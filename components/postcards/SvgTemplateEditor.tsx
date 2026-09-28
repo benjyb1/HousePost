@@ -538,7 +538,7 @@ export function SvgTemplateEditor({
           <CardContent className="space-y-1 p-5">
             <h3 className="text-sm font-semibold text-slate-900">Design your postcard in the browser</h3>
             <p className="text-sm text-slate-600">
-              Pick a template, then edit both sides — the front and its own matching back — add your logo,
+              Pick a template, edit both sides (the front and its matching back), add your logo
               and see it all update live. When you&apos;re happy, &ldquo;Use this design&rdquo; saves both sides, print-ready
               at A6 300 DPI.
             </p>

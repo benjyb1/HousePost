@@ -1115,7 +1115,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'atelier',
     name: 'Atelier',
-    description: 'Editorial, calm and refined — made for interior designers and studios.',
+    description: 'Editorial, calm and refined. Made for interior designers and studios.',
     defaults: {
       businessName: 'Studio Larch',
       tagline: 'Interior design & styling',
@@ -1126,7 +1126,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
       accent: '#9c8466',
       backHeadline: 'Let’s design your space',
       backMessage:
-        'Thoughtful interiors for real life — considered, calm and made to last. Book a consultation and we’ll take it from there.',
+        'Thoughtful interiors for real life: considered, calm and made to last. Book a consultation and we’ll take it from there.',
       backCta: 'Arrange a consultation',
     },
     render: frontAtelier,
@@ -1135,7 +1135,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'bloom',
     name: 'Bloom',
-    description: 'Soft and botanical, with a hand-drawn sprig — lovely for florists.',
+    description: 'Soft and botanical, with a hand-drawn sprig. Lovely for florists.',
     defaults: {
       businessName: 'Fig & Fern',
       tagline: 'Seasonal flowers, grown with care',
@@ -1155,7 +1155,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'foundry',
     name: 'Foundry',
-    description: 'Bold industrial charcoal and amber — built for builders and trades.',
+    description: 'Bold industrial charcoal and amber, built for builders and trades.',
     defaults: {
       businessName: 'Kingsworth Build',
       tagline: 'Extensions · renovations · groundwork',
@@ -1175,7 +1175,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'spark',
     name: 'Spark',
-    description: 'High-voltage navy and yellow with a bolt — sharp for electricians.',
+    description: 'High-voltage navy and yellow with a bolt. Sharp for electricians.',
     defaults: {
       businessName: 'Voltway Electrical',
       tagline: 'NICEIC approved · fully insured',
@@ -1195,7 +1195,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'meadow',
     name: 'Meadow',
-    description: 'Layered green landscape — a natural fit for gardeners and landscapers.',
+    description: 'Layered green landscape, a natural fit for gardeners and landscapers.',
     defaults: {
       businessName: 'Rowan & Reed',
       tagline: 'Garden design & landscaping',
@@ -1215,7 +1215,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'fresh',
     name: 'Fresh',
-    description: 'Bright, bubbly and spotless — clean and friendly for cleaning services.',
+    description: 'Bright, bubbly and spotless. Clean and friendly for cleaning services.',
     defaults: {
       businessName: 'Brightwork Cleaning',
       tagline: 'Homes & offices, sparkling',
@@ -1235,11 +1235,11 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'vogue',
     name: 'Vogue',
-    description: 'Dark, luxe and fashion-led — chic for salons and beauty.',
+    description: 'Dark, luxe and fashion-led. Chic for salons and beauty.',
     defaults: {
       businessName: 'Maison Noir',
       tagline: 'Hair · colour · styling',
-      offer: 'New clients — 15% off',
+      offer: 'New clients – 15% off',
       areaServed: 'Marylebone, London',
       phone: '020 7123 8890',
       website: 'maisonnoir.co.uk',
@@ -1255,7 +1255,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'crust',
     name: 'Crust',
-    description: 'Warm cream and terracotta with a scalloped edge — inviting for bakeries and cafés.',
+    description: 'Warm cream and terracotta with a scalloped edge. Inviting for bakeries and cafés.',
     defaults: {
       businessName: 'Poppy & Rye',
       tagline: 'Freshly baked, every morning',
@@ -1275,7 +1275,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'frame',
     name: 'Frame',
-    description: 'Gallery-minimal with a bold border — for photographers and creatives.',
+    description: 'Gallery-minimal with a bold border, for photographers and creatives.',
     defaults: {
       businessName: 'North Light Studio',
       tagline: 'Portrait & wedding photography',
@@ -1295,7 +1295,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'ledger',
     name: 'Ledger',
-    description: 'Structured and corporate navy — trustworthy for professional services.',
+    description: 'Structured and corporate navy. Trustworthy for professional services.',
     defaults: {
       businessName: 'Hartley & Finch',
       tagline: 'Accountants for small business',
@@ -1315,7 +1315,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'pulse',
     name: 'Pulse',
-    description: 'Dark with a neon slash — energetic for gyms and personal trainers.',
+    description: 'Dark with a neon slash. Energetic for gyms and personal trainers.',
     defaults: {
       businessName: 'Iron & Oak',
       tagline: 'Personal training studio',
@@ -1335,7 +1335,7 @@ export const SVG_TEMPLATES: SvgTemplate[] = [
   {
     id: 'heritage',
     name: 'Heritage',
-    description: 'Traditional roundel and gold on deep green — an established feel for joiners and makers.',
+    description: 'Traditional roundel and gold on deep green, with an established feel for joiners and makers.',
     defaults: {
       businessName: 'Ashcombe Joinery',
       tagline: 'Bespoke carpentry since 1979',

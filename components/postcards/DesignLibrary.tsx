@@ -247,7 +247,7 @@ export function DesignLibrary({
 
             {!selected.back_url && !activeBack && (
               <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                This design has no back yet — the back will print as the reserved address area only.{' '}
+                This design has no back yet, so the back will print as the reserved address area only.{' '}
                 {onGoToUpload && (
                   <button type="button" onClick={onGoToUpload} className="font-medium underline underline-offset-2">
                     Add a back design

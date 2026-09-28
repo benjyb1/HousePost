@@ -13,9 +13,9 @@ import {
 } from '@/app/api/houses-sold/route'
 
 export const metadata: Metadata = {
-  title: 'Houses Sold Near You — Recent UK Sales by Postcode | Housepost',
+  title: 'Houses Sold Near You: Recent UK Sales by Postcode | Housepost',
   description:
-    'See how many homes recently sold near any UK postcode and the average price paid, straight from the official Land Registry data. Enter a postcode and radius to find out.',
+    'See how many homes recently sold near any UK postcode and the average price paid, straight from official government data. Enter a postcode and radius to find out.',
 }
 
 // Reads live data via the service-role client — always render on request.
@@ -63,7 +63,7 @@ export default async function HousesSoldPage({ searchParams }: PageProps) {
           <div className="mx-auto max-w-3xl px-5 pt-14 pb-16 sm:px-6 sm:pt-20">
             <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-sm text-white">
               <MapPin className="h-3.5 w-3.5" />
-              Official UK Land Registry data
+              Official government data
             </div>
             <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-white sm:text-4xl">
               How many homes recently sold near you?
@@ -231,12 +231,12 @@ function ResultCard({
             Average price paid
           </div>
           <p className="text-3xl font-extrabold text-slate-900">
-            {averagePricePence != null ? formatPricePence(averagePricePence) : '—'}
+            {averagePricePence != null ? formatPricePence(averagePricePence) : '–'}
           </p>
         </div>
       </div>
       <p className="bg-slate-50 px-6 py-3 text-center text-xs text-slate-400">
-        Based on {formatMonthKey(month)} data from the HM Land Registry Price Paid dataset
+        Based on official government data for {formatMonthKey(month)}
         {result.capped ? ' (showing a sample of a very large area)' : ''}.
       </p>
     </div>

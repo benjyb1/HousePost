@@ -92,7 +92,7 @@ export default function OptOutPage() {
                     Thank you. We&rsquo;ve added your address to our do-not-contact
                     list and won&rsquo;t include it in future postal marketing. If a
                     postcard was already in the post before you opted out, please
-                    accept our apologies &mdash; it should be the last one.
+                    accept our apologies. It should be the last one.
                   </p>
                   <p className="mt-3 text-sm leading-relaxed text-green-800">
                     If you have any questions, email us at{' '}

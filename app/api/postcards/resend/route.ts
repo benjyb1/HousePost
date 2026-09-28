@@ -224,7 +224,7 @@ export async function POST(request: Request) {
       await adminSupabase.from('postcard_jobs').update({ status: 'failed' }).eq('id', newJobId)
       try {
         await sendAdminAlert(
-          `[Housepost] Postcard resend charge failed and needs review — job ${newJobId}`,
+          `[Housepost] Postcard resend charge failed and needs review – job ${newJobId}`,
           `<p>A £${(POSTCARD_OVERAGE_PENCE / 100).toFixed(2)} resend charge for user
             <strong>${user.id}</strong> failed with a NON-decline error. The charge may have
             succeeded, so the card was NOT posted and the allowance was left counted. Please
@@ -236,7 +236,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            'Something went wrong while taking payment. Our team has been notified — please check with support before trying again.',
+            'Something went wrong while taking payment. Our team has been notified. Please check with support before trying again.',
         },
         { status: 500 }
       )
@@ -272,7 +272,7 @@ export async function POST(request: Request) {
         console.error(`Resend refund failed for job ${newJobId}:`, rmsg)
         try {
           await sendAdminAlert(
-            `[Housepost] Postcard resend failed AND refund failed — job ${newJobId}`,
+            `[Housepost] Postcard resend failed AND refund failed – job ${newJobId}`,
             `<p>Resend job <strong>${newJobId}</strong> failed to post and the automatic refund of
               ${POSTCARD_OVERAGE_PENCE}p against PaymentIntent <strong>${paymentIntentId}</strong>
               also failed. Please refund manually in Stripe.</p><pre>${rmsg}</pre>`

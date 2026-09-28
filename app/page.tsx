@@ -101,8 +101,12 @@ export default function HomePage() {
           <div className="max-w-3xl">
             <HeroTradeHeadline />
           </div>
+          {/* Mobile (2.2): the trade block always reserves two lines so nothing
+              jumps as trades rotate. A bigger gap above this line and a tight
+              one below it make "Local leads made easy" read as one unit with
+              the sentence under it, not float between the two. */}
           <p
-            className="mt-5 text-2xl font-semibold sm:text-3xl"
+            className="mt-9 text-2xl font-semibold sm:mt-5 sm:text-3xl"
             style={{
               backgroundImage: 'linear-gradient(135deg, #f1f5f9, #cbd5e1, #94a3b8)',
               backgroundClip: 'text',
@@ -113,7 +117,7 @@ export default function HomePage() {
           >
             Local leads made easy.
           </p>
-          <p className="mt-6 max-w-xl text-lg text-white/80 leading-relaxed sm:text-xl">
+          <p className="mt-2 max-w-xl text-lg text-white/80 leading-relaxed sm:mt-6 sm:text-xl">
             We find the new homeowners near you. You pick who gets a postcard.
           </p>
           <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row">
@@ -211,9 +215,9 @@ export default function HomePage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
               { icon: Clock, title: 'Runs by itself', body: 'Fires automatically every month, you just select and send.' },
-              { icon: Shield, title: 'Fresh data, every month', body: 'We use official UK property records, updated monthly.' },
+              { icon: Shield, title: 'Fresh data, every month', body: 'Official government data, updated every month.' },
               { icon: CheckCircle, title: 'Filter your way', body: 'Sort leads by distance, price, or property type.' },
-              { icon: Mail, title: 'Printed and posted', body: 'Professionally printed on 300gsm card and delivered by Royal Mail.' },
+              { icon: Mail, title: 'Printed and posted', body: 'Professionally printed on 300gsm card and posted for you.' },
               { icon: TrendingUp, title: 'Live tracking', body: 'Keep an eye on every postcard, from printer to postbox.' },
             ].map(({ icon: Icon, title, body }) => (
               <div key={title} className="flex gap-4 p-6 rounded-xl border border-slate-100 hover:border-brand-border hover:bg-brand-light/30 transition-colors">

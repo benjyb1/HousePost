@@ -37,7 +37,7 @@ export default function PrivacyPage() {
 
           {/* Draft banner — legal copy is not yet final. */}
           <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-900">
-            <strong>Draft &mdash; pending final review.</strong> This notice is a
+            <strong>Draft, pending final review.</strong> This notice is a
             working draft and is awaiting final review and approval by the business
             owner and their solicitor before go-live. It should not yet be relied
             upon as the definitive statement of our data-protection practices.
@@ -78,8 +78,8 @@ export default function PrivacyPage() {
               </h2>
               <p className="mt-2">
                 We use the address to send postal marketing on behalf of local
-                tradespeople &mdash; for example builders, decorators, plumbers and
-                electricians &mdash; who offer services relevant to people who have
+                tradespeople (for example builders, decorators, plumbers and
+                electricians) who offer services relevant to people who have
                 recently moved home. Marketing is delivered by post only.
               </p>
             </section>

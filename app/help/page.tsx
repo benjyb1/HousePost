@@ -78,8 +78,15 @@ export default function HelpPage() {
                 <li><strong>Received.</strong> Accepted for printing.</li>
                 <li><strong>Printing.</strong> On the press.</li>
                 <li><strong>Printed.</strong> Printed and waiting to be posted.</li>
-                <li><strong>Dispatched.</strong> Handed to Royal Mail. Second-class post usually arrives in two to three working days. We do not get a delivery scan for standard post, so Dispatched is the last status you will normally see.</li>
+                <li><strong>Dispatched.</strong> In the post. Most cards arrive within two to three working days.</li>
+                <li><strong>At delivery office.</strong> At the local delivery office, ready to go out.</li>
+                <li><strong>Delivered.</strong> Delivered, going by standard postal delivery times. The post does not scan every card at the door, so treat this as a good estimate rather than a signature.</li>
               </ol>
+              <p className="mt-3">
+                You get a notification when cards are dispatched and when they are delivered, grouped so a batch of
+                twelve is one message, not twelve. If the post cannot deliver a card it shows as <strong>Returned</strong>,
+                usually because the address is incomplete or no longer in use, and we email you about it.
+              </p>
             </section>
 
             <section id="problems">
@@ -99,9 +106,9 @@ export default function HelpPage() {
                   <p className="font-semibold text-red-900">Failed</p>
                   <p className="mt-1 text-red-900">
                     The card could not be printed for a reason specific to it, most often the address or the design.
-                    It has <em>not</em> been sent. Any charge for it is refunded to your card within a few days, the
-                    lead goes back into your list, and the reason is shown under the status. Fix the cause, then send
-                    again. You get one email per batch with the reasons.
+                    It has <em>not</em> been sent. Any charge for it is refunded to your card within a few days and the
+                    lead goes back into your list. You get one email per batch with the reasons, and &ldquo;What do
+                    these mean?&rdquo; on Tracking lists the usual ones. Fix the cause, then send again.
                   </p>
                 </div>
               </div>
