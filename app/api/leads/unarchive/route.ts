@@ -12,8 +12,8 @@ const CHUNK = 200
  * Every lead gets unarchived_at = now, which the UI shows as "Unarchived 27 Sep"
  * and the retention cron uses to restart its three-month auto-archive clock.
  * A lead that has never been sent rejoins the newest batch so it appears under
- * "New leads"; one that has been sent goes back under "Send again" with its
- * month untouched.
+ * "New leads", unticked (archiving leaves the tick in place); one that has been
+ * sent goes back under "Send again" with its month untouched.
  */
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
 
     const unsent = await supabase
       .from('leads')
-      .update({ archived_at: null, unarchived_at: unarchivedAt, lead_month: leadMonth })
+      .update({ archived_at: null, unarchived_at: unarchivedAt, lead_month: leadMonth, selected_for_dispatch: false })
       .in('id', chunk)
       .eq('user_id', user.id)
       .not('archived_at', 'is', null)

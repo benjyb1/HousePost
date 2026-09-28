@@ -38,6 +38,16 @@ export default function SettingsPage() {
       }))
   }, [])
 
+  // Deep links such as /settings#lead-preferences (the Leads page's "Change
+  // price, type or distance") arrive before the cards exist, so scroll once
+  // the profile has loaded. Keyed on `loaded`, not `profile`, so typing in a
+  // field never scrolls the page.
+  const loaded = profile !== null
+  useEffect(() => {
+    if (!loaded || !window.location.hash) return
+    document.getElementById(window.location.hash.slice(1))?.scrollIntoView({ block: 'start' })
+  }, [loaded])
+
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (!profile) return
@@ -108,7 +118,8 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        {/* Leads' "Change price, type or distance" button lands here (4.5). */}
+        <Card id="lead-preferences" className="scroll-mt-20">
           <CardHeader>
             <CardTitle>Location & Radius</CardTitle>
             <CardDescription>We search for newly bought homes within this radius of your office</CardDescription>

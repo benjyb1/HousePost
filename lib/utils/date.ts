@@ -22,6 +22,15 @@ export function formatDate(isoDate: string): string {
   })
 }
 
+/** Format an ISO timestamp as "27 Sept" (UK time), for short labels. */
+export function formatDayMonth(isoDate: string): string {
+  return new Date(isoDate).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: UK_TIME_ZONE,
+  })
+}
+
 /**
  * Format an ISO timestamp as "28 Sept 2026, 14:03": 24-hour UK time, moving
  * between GMT and BST on its own.
