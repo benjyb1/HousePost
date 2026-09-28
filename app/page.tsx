@@ -101,8 +101,12 @@ export default function HomePage() {
           <div className="max-w-3xl">
             <HeroTradeHeadline />
           </div>
+          {/* Mobile (2.2): the trade block always reserves two lines so nothing
+              jumps as trades rotate. A bigger gap above this line and a tight
+              one below it make "Local leads made easy" read as one unit with
+              the sentence under it, not float between the two. */}
           <p
-            className="mt-5 text-2xl font-semibold sm:text-3xl"
+            className="mt-9 text-2xl font-semibold sm:mt-5 sm:text-3xl"
             style={{
               backgroundImage: 'linear-gradient(135deg, #f1f5f9, #cbd5e1, #94a3b8)',
               backgroundClip: 'text',
@@ -113,7 +117,7 @@ export default function HomePage() {
           >
             Local leads made easy.
           </p>
-          <p className="mt-6 max-w-xl text-lg text-white/80 leading-relaxed sm:text-xl">
+          <p className="mt-2 max-w-xl text-lg text-white/80 leading-relaxed sm:mt-6 sm:text-xl">
             We find the new homeowners near you. You pick who gets a postcard.
           </p>
           <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row">
