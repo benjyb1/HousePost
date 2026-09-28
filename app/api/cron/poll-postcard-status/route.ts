@@ -5,6 +5,11 @@ import {
   isTerminalStatus,
   TERMINAL_STATUSES,
 } from '@/lib/postcards/stannp-status'
+import {
+  notifyStatusChanges,
+  isNotifiableStatus,
+  type StatusChange,
+} from '@/lib/postcards/customer-notify'
 
 export const maxDuration = 60
 
@@ -42,7 +47,7 @@ export async function POST(request: Request) {
   ).toISOString()
   const { data: jobs, error } = await supabase
     .from('postcard_jobs')
-    .select('id, postgrid_letter_id, status, postgrid_status')
+    .select('id, user_id, postgrid_letter_id, status, postgrid_status')
     .not('postgrid_letter_id', 'is', null)
     .gte('created_at', windowStartIso)
     .or(`postgrid_status.is.null,postgrid_status.not.in.(${terminalList})`)
@@ -63,6 +68,7 @@ export async function POST(request: Request) {
   let checked = 0
   let updated = 0
   let failed = 0
+  const changes: StatusChange[] = []
 
   for (const job of pending) {
     const itemId = job.postgrid_letter_id as string | null
@@ -85,10 +91,18 @@ export async function POST(request: Request) {
       // lifecycle out from under those queries and unbilled overage would become
       // invisible. The Tracking UI reads `postgrid_status ?? status`, so writing
       // postgrid_status alone keeps the on-screen status fully live.
-      const { error: updateError } = await supabase
+      //
+      // Compare-and-set on the value we read: pg_cron and the GitHub workflow
+      // both fire this every six hours, and only the run that actually moves
+      // the status may tell the customer about it.
+      let cas = supabase
         .from('postcard_jobs')
         .update({ postgrid_status: next })
         .eq('id', job.id)
+      cas = job.postgrid_status == null
+        ? cas.is('postgrid_status', null)
+        : cas.eq('postgrid_status', job.postgrid_status as string)
+      const { data: moved, error: updateError } = await cas.select('id')
 
       if (updateError) {
         failed++
@@ -98,7 +112,11 @@ export async function POST(request: Request) {
         )
         continue
       }
+      if (!moved || moved.length === 0) continue // another run got there first
       updated++
+      if (isNotifiableStatus(next)) {
+        changes.push({ userId: job.user_id as string, status: next })
+      }
     } catch (err) {
       // Tolerate individual upstream failures — log and keep going.
       failed++
@@ -107,12 +125,21 @@ export async function POST(request: Request) {
     }
   }
 
+  // Grouped customer notifications (fix list 7.2). Best-effort: a notification
+  // problem must never fail the poll, which has already saved the statuses.
+  try {
+    if (changes.length > 0) await notifyStatusChanges(changes)
+  } catch (err) {
+    console.error('poll-postcard-status: customer notification failed:', err)
+  }
+
   return NextResponse.json({
     success: true,
     scanned: jobs?.length ?? 0,
     checked,
     updated,
     failed,
+    notified: changes.length,
   })
 }
 

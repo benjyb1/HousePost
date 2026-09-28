@@ -61,3 +61,70 @@ export async function notifyCustomersFailed(cards: AffectedCard[]): Promise<void
     })
   }
 }
+
+/** A postcard's printer status moved on to one the customer hears about. */
+export interface StatusChange {
+  userId: string
+  status: NotifiableStatus
+}
+
+export type NotifiableStatus = 'dispatched' | 'delivered' | 'returned'
+
+// Which status changes become notifications, and which of those also email
+// (fix list 7.2). Posted and delivered are good news the customer can read in
+// the portal; a returned card needs their attention, so it emails too. Printing
+// and "at delivery office" show on Tracking but don't notify.
+const STATUS_NOTICES: Record<
+  NotifiableStatus,
+  { type: string; title: (n: number) => string; body: (n: number) => string; email: boolean }
+> = {
+  dispatched: {
+    type: 'postcard_dispatched',
+    title: (n) => `${n} ${plural(n)} dispatched`,
+    body: () => 'In the post now. Most arrive within 2 to 3 working days.',
+    email: false,
+  },
+  delivered: {
+    type: 'postcard_delivered',
+    title: (n) => `${n} ${plural(n)} delivered`,
+    body: () => 'Delivered, going by standard postal delivery times.',
+    email: false,
+  },
+  returned: {
+    type: 'postcard_returned',
+    title: (n) => `${n} ${plural(n)} returned`,
+    body: (n) =>
+      `The post couldn’t deliver ${n === 1 ? 'it' : 'them'}, usually because the address is incomplete or no longer in use. See which in Tracking.`,
+    email: true,
+  },
+}
+
+/**
+ * One notification per user per status per run ("12 postcards delivered"),
+ * never one per card. A batch posted together moves through the printer's
+ * statuses together, so a run normally sees the whole batch at once.
+ */
+export async function notifyStatusChanges(changes: StatusChange[]): Promise<void> {
+  const counts = new Map<string, { userId: string; status: NotifiableStatus; n: number }>()
+  for (const c of changes) {
+    const key = `${c.userId}:${c.status}`
+    const entry = counts.get(key) ?? { userId: c.userId, status: c.status, n: 0 }
+    entry.n++
+    counts.set(key, entry)
+  }
+  for (const { userId, status, n } of counts.values()) {
+    const notice = STATUS_NOTICES[status]
+    await createNotification({
+      userId,
+      type: notice.type,
+      title: notice.title(n),
+      body: notice.body(n),
+      href: '/postcards',
+      sendEmail: notice.email,
+    })
+  }
+}
+
+export function isNotifiableStatus(status: string): status is NotifiableStatus {
+  return status in STATUS_NOTICES
+}

@@ -1,6 +1,6 @@
 import { createElement } from 'react'
 import Link from 'next/link'
-import { MapPin, Mail, Bell, Clock, AlertTriangle } from 'lucide-react'
+import { MapPin, Mail, Bell, Clock, AlertTriangle, Truck, MailCheck, MailX } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatDateTime } from '@/lib/utils/date'
 import { cn } from '@/lib/utils'
@@ -17,6 +17,12 @@ function iconFor(type: string) {
       return Clock
     case 'postcard_failed':
       return AlertTriangle
+    case 'postcard_dispatched':
+      return Truck
+    case 'postcard_delivered':
+      return MailCheck
+    case 'postcard_returned':
+      return MailX
     default:
       return Bell
   }

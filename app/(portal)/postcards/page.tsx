@@ -2,64 +2,36 @@ export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
 import { formatMonthKey, formatDate } from '@/lib/utils/date'
+import { formatAddressLine, formatPostcode } from '@/lib/address/format'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Mail, ChevronDown } from 'lucide-react'
-import ResendButton from '@/components/postcards/ResendButton'
 import CancelOrderButton from '@/components/postcards/CancelOrderButton'
-import { StatusLegend } from '@/components/postcards/StatusLegend'
+import { StatusGuide } from '@/components/postcards/StatusGuide'
+import { SendAgainButton, TrackingSendProvider } from '@/components/postcards/TrackingSend'
+import {
+  IN_FLIGHT_JOB_STATUSES,
+  statusColour,
+  statusLabel,
+  trackingStatus,
+} from '@/components/postcards/status'
 
 // Show the first 15 rows of each month, with the rest behind a "Show more"
 // disclosure — mirrors the Previous leads table's page size.
 const SECTION_PAGE_SIZE = 15
 
-const statusColors: Record<string, string> = {
-  dispatched: 'bg-blue-100 text-blue-800',
-  delivered: 'bg-green-100 text-green-800',
-  pending: 'bg-slate-100 text-slate-600',
-  failed: 'bg-red-100 text-red-800',
-  cancelled: 'bg-slate-100 text-slate-400',
-  received: 'bg-yellow-100 text-yellow-800',
-  processing: 'bg-yellow-100 text-yellow-800',
-  production: 'bg-orange-100 text-orange-800',
-  printed: 'bg-orange-100 text-orange-800',
-  held: 'bg-purple-100 text-purple-800',
-  dispatching: 'bg-blue-100 text-blue-800',
-  provider_hold: 'bg-purple-100 text-purple-800',
-  refund_failed: 'bg-amber-100 text-amber-800',
-  error: 'bg-red-100 text-red-800',
-  delayed: 'bg-amber-100 text-amber-800',
-}
-
-// Map the pipeline's internal status keys to neutral, user-facing labels. No
-// print supplier is ever named — the customer only sees where their card is.
-const statusLabels: Record<string, string> = {
-  received: 'Received',
-  processing: 'Processing',
-  production: 'Printing',
-  printed: 'Printed',
-  dispatched: 'Dispatched',
-  delivered: 'Delivered',
-  held: 'Scheduled',
-  dispatching: 'Sending',
-  provider_hold: 'On hold',
-  refund_failed: 'Refund pending',
-  error: 'Error',
-  pending: 'Pending',
-  failed: 'Failed',
-  cancelled: 'Cancelled',
-  delayed: 'Delayed',
-}
-
-// Plain-English line shown under a status when the customer needs more than a
-// badge. No supplier is ever named (see lib/postcards/failure.ts).
+// A short line under a status when the badge alone isn't enough. A failed
+// card's reason isn't shown here any more (fix list 5.3); "What do these
+// mean?" explains the common reasons instead. No supplier is ever named.
 const statusNotes: Record<string, string> = {
   held: 'Queued. You can cancel until it goes to print.',
+  delayed: 'There is a temporary problem on our side with printing. This card will be sent automatically. Nothing more to pay.',
   refund_failed: 'This card was cancelled. The refund is being handled by our team.',
   error: 'Something went wrong after printing. Our team is looking into it.',
 }
 
 type Job = {
   id: string
+  lead_id: string | null
   recipient_address_line: string
   recipient_postcode: string
   charge_amount_pence: number
@@ -69,38 +41,29 @@ type Job = {
   batch_id: string | null
   lead_month: string
   created_at: string
-  failure_reason?: string | null
   retry_count?: number | null
 }
 
 // A single postcard row — shared between the always-visible rows and the ones
-// revealed by "Show more" so both render identically.
+// revealed by "Show more" so both render identically. Each row is one card
+// that went (or is going) out, so an address sent to twice shows twice.
 function JobRow({ job }: { job: Job }) {
-  // Stay tolerant of both columns during the postgrid_status → status
-  // consolidation (see the postcard_status migration): prefer the legacy
-  // column while it may still carry the freshest value.
-  const rawStatus = job.postgrid_status ?? job.status
-  // A held card that has already been retried is "Delayed": still queued, still
-  // cancellable, but the customer should know it is late and why.
-  const isDelayed = rawStatus === 'held' && (job.retry_count ?? 0) > 0
-  const displayStatus = isDelayed ? 'delayed' : rawStatus
-  const colorClass = statusColors[displayStatus] ?? 'bg-slate-100 text-slate-600'
-  const label = statusLabels[displayStatus] ?? displayStatus.replace(/_/g, ' ')
-  const note = isDelayed
-    ? 'There is a temporary problem on our side with printing. This card will be sent automatically. Nothing more to pay.'
-    : rawStatus === 'failed'
-      ? (job.failure_reason ?? 'This postcard was not sent. Any charge has been refunded and the lead is back in your list.')
-      : statusNotes[displayStatus]
+  const displayStatus = trackingStatus(job)
+  const note = statusNotes[displayStatus]
 
   return (
     <tr className="hover:bg-slate-50 transition-colors">
       <td className="px-4 py-3 align-top">
-        <p className="font-medium text-slate-800 break-words">{job.recipient_address_line}</p>
-        <p className="text-xs text-slate-400">{job.recipient_postcode}</p>
+        {/* Same title-casing as Leads (5.6), so an address reads the same everywhere. */}
+        <p className="font-medium text-slate-800 break-words">{formatAddressLine(job.recipient_address_line)}</p>
+        <p className="text-xs text-slate-400">{formatPostcode(job.recipient_postcode)}</p>
       </td>
       <td className="px-4 py-3 text-center text-slate-600 align-top">
         {job.charge_amount_pence === 0 ? (
-          <span className="text-green-600 text-xs">Included</span>
+          // Brand green label with navy text (5.4).
+          <span className="inline-block rounded-full bg-signal px-2.5 py-0.5 text-xs font-medium text-brand">
+            Included
+          </span>
         ) : (
           <span className="text-xs">£{(job.charge_amount_pence / 100).toFixed(2)}</span>
         )}
@@ -109,25 +72,20 @@ function JobRow({ job }: { job: Job }) {
         {job.dispatched_at ? formatDate(job.dispatched_at) : '–'}
       </td>
       <td className="px-4 py-3 text-center align-top">
-        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${colorClass}`}>
-          {label}
+        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColour(displayStatus)}`}>
+          {statusLabel(displayStatus)}
         </span>
         {note && (
           <p className="mt-1.5 text-left text-xs leading-snug text-slate-500">{note}</p>
         )}
       </td>
       <td className="px-4 py-3 text-center align-top">
-        {displayStatus === 'dispatched' || displayStatus === 'delivered' ? (
-          // Re-send is only offered once a card has actually been sent. Never for
-          // in-flight states (pending/held/dispatching/…) — resending those could
-          // double-send.
-          <ResendButton jobId={job.id} />
-        ) : rawStatus === 'held' && job.batch_id ? (
-          // Still in the cool-off window: let the user cancel from here.
-          <CancelOrderButton orderId={job.batch_id} />
-        ) : (
-          <span className="text-xs text-slate-300">–</span>
-        )}
+        {/* Cancel while it's still in the cool-off, and Send again on every
+            card (5.5), through the same review and cool-off as Leads. */}
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
+          {job.status === 'held' && job.batch_id && <CancelOrderButton orderId={job.batch_id} />}
+          <SendAgainButton leadId={job.lead_id} inFlight={IN_FLIGHT_JOB_STATUSES.has(job.status)} />
+        </div>
       </td>
     </tr>
   )
@@ -138,11 +96,11 @@ function JobRow({ job }: { job: Job }) {
 function ColGroup() {
   return (
     <colgroup>
-      <col className="w-[34%]" />
+      <col className="w-[30%]" />
       <col className="w-[12%]" />
-      <col className="w-[16%]" />
-      <col className="w-[26%]" />
-      <col className="w-[12%]" />
+      <col className="w-[14%]" />
+      <col className="w-[22%]" />
+      <col className="w-[22%]" />
     </colgroup>
   )
 }
@@ -152,18 +110,23 @@ export default async function PostcardsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: jobsData } = await supabase
-    .from('postcard_jobs')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+  const [{ data: jobsData }, { data: profile }] = await Promise.all([
+    supabase
+      .from('postcard_jobs')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false }),
+    supabase.from('profiles').select('postcard_design_back_url').eq('id', user.id).single(),
+  ])
 
   const jobs = (jobsData ?? []) as unknown as Job[]
+  // Empty back → the send warns before a blank back goes out, as on Leads.
+  const hasBackDesign = Boolean((profile?.postcard_design_back_url as string | null)?.trim())
 
   if (!jobs.length) {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-slate-900">Postcard Tracking</h1>
+        <h1 className="text-2xl font-bold text-slate-900">Tracking</h1>
         <div className="rounded-lg border border-dashed py-16 text-center">
           <Mail className="mx-auto h-10 w-10 text-slate-300 mb-3" />
           <p className="font-medium text-slate-600">No postcards sent yet</p>
@@ -185,71 +148,73 @@ export default async function PostcardsPage() {
   const monthGroups = [...byMonth.entries()].sort(([a], [b]) => b.localeCompare(a))
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Postcard Tracking</h1>
-        <StatusLegend />
+    <TrackingSendProvider hasBackDesign={hasBackDesign}>
+      <div className="space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h1 className="text-2xl font-bold text-slate-900">Tracking</h1>
+          <StatusGuide />
+        </div>
+
+        {monthGroups.map(([month, monthJobs]) => {
+          const visible = monthJobs.slice(0, SECTION_PAGE_SIZE)
+          const overflow = monthJobs.slice(SECTION_PAGE_SIZE)
+          const hasMore = overflow.length > 0
+
+          return (
+            <Card key={month}>
+              <CardHeader>
+                <CardTitle className="text-base">
+                  {formatMonthKey(month)}
+                  <span className="ml-2 text-sm font-normal text-slate-400">
+                    {monthJobs.length} postcard{monthJobs.length === 1 ? '' : 's'}
+                  </span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[720px] table-fixed text-sm">
+                    <ColGroup />
+                    <thead className="border-b bg-slate-50">
+                      <tr>
+                        <th className="px-4 py-2.5 text-left font-medium text-slate-600">Address</th>
+                        <th className="px-4 py-2.5 text-center font-medium text-slate-600">Cost</th>
+                        <th className="px-4 py-2.5 text-left font-medium text-slate-600">Dispatched</th>
+                        <th className="px-4 py-2.5 text-center font-medium text-slate-600">Status</th>
+                        <th className="px-4 py-2.5 text-center font-medium text-slate-600">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {visible.map((job) => (
+                        <JobRow key={job.id} job={job} />
+                      ))}
+                    </tbody>
+                  </table>
+
+                  {/* Progressive disclosure for months with more than 15 cards.
+                      Pure CSS via <details> keeps this a server component. */}
+                  {hasMore && (
+                    <details className="group border-t">
+                      <summary className="flex cursor-pointer items-center justify-center gap-1 px-4 py-2.5 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors list-none [&::-webkit-details-marker]:hidden">
+                        <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
+                        <span className="group-open:hidden">Show more ({overflow.length} remaining)</span>
+                        <span className="hidden group-open:inline">Show fewer</span>
+                      </summary>
+                      <table className="w-full min-w-[720px] table-fixed text-sm">
+                        <ColGroup />
+                        <tbody className="divide-y border-t">
+                          {overflow.map((job) => (
+                            <JobRow key={job.id} job={job} />
+                          ))}
+                        </tbody>
+                      </table>
+                    </details>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
       </div>
-
-      {monthGroups.map(([month, monthJobs]) => {
-        const visible = monthJobs.slice(0, SECTION_PAGE_SIZE)
-        const overflow = monthJobs.slice(SECTION_PAGE_SIZE)
-        const hasMore = overflow.length > 0
-
-        return (
-          <Card key={month}>
-            <CardHeader>
-              <CardTitle className="text-base">
-                {formatMonthKey(month)}
-                <span className="ml-2 text-sm font-normal text-slate-400">
-                  {monthJobs.length} postcard{monthJobs.length === 1 ? '' : 's'}
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] table-fixed text-sm">
-                  <ColGroup />
-                  <thead className="border-b bg-slate-50">
-                    <tr>
-                      <th className="px-4 py-2.5 text-left font-medium text-slate-600">Address</th>
-                      <th className="px-4 py-2.5 text-center font-medium text-slate-600">Cost</th>
-                      <th className="px-4 py-2.5 text-left font-medium text-slate-600">Dispatched</th>
-                      <th className="px-4 py-2.5 text-center font-medium text-slate-600">Status</th>
-                      <th className="px-4 py-2.5 text-center font-medium text-slate-600">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {visible.map((job) => (
-                      <JobRow key={job.id} job={job} />
-                    ))}
-                  </tbody>
-                </table>
-
-                {/* Progressive disclosure for months with more than 15 cards.
-                    Pure CSS via <details> keeps this a server component. */}
-                {hasMore && (
-                  <details className="group border-t">
-                    <summary className="flex cursor-pointer items-center justify-center gap-1 px-4 py-2.5 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors list-none [&::-webkit-details-marker]:hidden">
-                      <ChevronDown className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
-                      <span className="group-open:hidden">Show more ({overflow.length} remaining)</span>
-                      <span className="hidden group-open:inline">Show fewer</span>
-                    </summary>
-                    <table className="w-full min-w-[640px] table-fixed text-sm">
-                      <ColGroup />
-                      <tbody className="divide-y border-t">
-                        {overflow.map((job) => (
-                          <JobRow key={job.id} job={job} />
-                        ))}
-                      </tbody>
-                    </table>
-                  </details>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )
-      })}
-    </div>
+    </TrackingSendProvider>
   )
 }
