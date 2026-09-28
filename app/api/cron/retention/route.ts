@@ -26,7 +26,9 @@ function monthsAgoIso(months: number): string {
  *
  *   1. ARCHIVE — unused leads (postcard_job_id IS NULL) that have sat in an
  *      account for ARCHIVE_AFTER_MONTHS get archived_at set to now(), moving
- *      them to the "Archived" tab.
+ *      them to the "Archived" tab. For a lead the user has unarchived, the
+ *      clock runs from unarchived_at instead of created_at (fix list 4.4), so
+ *      it isn't archived again the next morning.
  *
  *   2. DELETE — leads archived more than DELETE_AFTER_MONTHS ago are permanently
  *      removed. This covers both auto-archived leads and ones the user archived
@@ -45,13 +47,18 @@ export async function POST(request: Request) {
   const supabase = createAdminClient()
 
   // ── Step 1: archive unused leads older than the archive window ─────────────
+  // The window starts at unarchived_at when the user has brought the lead back
+  // from Archived, otherwise at created_at. Timestamps are quoted because
+  // PostgREST treats ":" and "." as reserved inside or().
   const archiveCutoff = monthsAgoIso(ARCHIVE_AFTER_MONTHS)
   const { data: archivedRows, error: archiveErr } = await supabase
     .from('leads')
     .update({ archived_at: new Date().toISOString() })
     .is('archived_at', null)
     .is('postcard_job_id', null)
-    .lt('created_at', archiveCutoff)
+    .or(
+      `unarchived_at.lt."${archiveCutoff}",and(unarchived_at.is.null,created_at.lt."${archiveCutoff}")`
+    )
     .select('id')
 
   if (archiveErr) {

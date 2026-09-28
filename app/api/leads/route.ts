@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { currentMonthKey } from '@/lib/utils/date'
+import { latestBatchMonth } from '@/lib/leads/batch-month'
 import { isAddressSuppressed } from '@/lib/leads/suppression'
 
 export async function GET(request: Request) {
@@ -72,7 +72,15 @@ export async function POST(request: Request) {
     )
   }
 
-  const leadMonth = currentMonthKey()
+  // Join the user's newest batch so the lead lands in "New leads" alongside
+  // what's already there. Only the monthly drop starts a new batch.
+  let leadMonth: string
+  try {
+    leadMonth = await latestBatchMonth(supabase, user.id)
+  } catch (err) {
+    console.error('Custom lead: could not read the latest batch:', err)
+    return NextResponse.json({ error: 'Could not add the address just now. Please try again.' }, { status: 500 })
+  }
 
   const { data, error } = await supabase.from('leads').insert({
     user_id: user.id,
