@@ -139,7 +139,7 @@ export async function POST(request: Request) {
     if (result.totalLeads === 0 || result.errors.length > 0) {
       try {
         await sendAdminAlert(
-          `[Housepost] Lead run needs a look — ${leadMonth}`,
+          `[Housepost] Lead run needs a look – ${leadMonth}`,
           `<p>Lead generation for <strong>${leadMonth}</strong> completed but looks off.</p>
            <ul>
              <li>Users processed: ${result.usersProcessed}</li>

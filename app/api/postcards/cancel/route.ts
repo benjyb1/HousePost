@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     // Nothing cancellable — already sent, already cancelled, past the window, or
     // not this user's order.
     return NextResponse.json(
-      { error: 'This order can no longer be cancelled — it may already have been sent.' },
+      { error: 'This order can no longer be cancelled. It may already have been sent.' },
       { status: 409 }
     )
   }
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
 
       try {
         await sendAdminAlert(
-          `[Housepost] Postcard cancel refund FAILED — order ${orderId}`,
+          `[Housepost] Postcard cancel refund FAILED – order ${orderId}`,
           `<p>A cancelled postcard order could not be refunded automatically and needs a manual
             refund in Stripe.</p>
            <ul>
@@ -166,7 +166,7 @@ export async function POST(request: Request) {
   await createNotification({
     userId: user.id,
     type: 'order_cancelled',
-    title: `Order cancelled — ${cancelledCount} postcard${cancelledCount === 1 ? '' : 's'} held back`,
+    title: `Order cancelled: ${cancelledCount} postcard${cancelledCount === 1 ? '' : 's'} held back`,
     body:
       refundedPence > 0
         ? `£${(refundedPence / 100).toFixed(2)} has been refunded to your card.`

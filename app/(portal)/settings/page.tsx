@@ -206,7 +206,7 @@ export default function SettingsPage() {
                   Email me about new notifications
                 </span>
                 <span className="block text-xs text-slate-400">
-                  Get an email whenever something happens in your account — such as a new
+                  Get an email whenever something happens in your account, such as a new
                   batch of leads or a postcard order. You&apos;ll still see everything in the
                   app, and we&apos;ll always send essential emails like receipts. Switch this
                   off any time.

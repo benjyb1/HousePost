@@ -211,9 +211,9 @@ export default function HomePage() {
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
               { icon: Clock, title: 'Runs by itself', body: 'Fires automatically every month, you just select and send.' },
-              { icon: Shield, title: 'Fresh data, every month', body: 'We use official UK property records, updated monthly.' },
+              { icon: Shield, title: 'Fresh data, every month', body: 'Official government data, updated every month.' },
               { icon: CheckCircle, title: 'Filter your way', body: 'Sort leads by distance, price, or property type.' },
-              { icon: Mail, title: 'Printed and posted', body: 'Professionally printed on 300gsm card and delivered by Royal Mail.' },
+              { icon: Mail, title: 'Printed and posted', body: 'Professionally printed on 300gsm card and posted for you.' },
               { icon: TrendingUp, title: 'Live tracking', body: 'Keep an eye on every postcard, from printer to postbox.' },
             ].map(({ icon: Icon, title, body }) => (
               <div key={title} className="flex gap-4 p-6 rounded-xl border border-slate-100 hover:border-brand-border hover:bg-brand-light/30 transition-colors">

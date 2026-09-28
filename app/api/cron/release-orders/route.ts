@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     if (await shouldAlert(supabase, 'stuck-dispatching', DELAYED_ALERT_MINUTES)) {
       try {
         await sendAdminAlert(
-          `[Housepost] ${stuck.length} postcard job(s) stuck 'dispatching' — needs review`,
+          `[Housepost] ${stuck.length} postcard job(s) stuck 'dispatching' – needs review`,
           `<p><strong>${stuck.length}</strong> postcard job(s) have been in the transient
             <code>dispatching</code> state for over ${STUCK_DISPATCHING_MINUTES} minutes, which points to a
             crash mid-send. They were NOT auto-retried (a retry could double-print). Check the print
@@ -139,7 +139,7 @@ export async function POST(request: Request) {
     if (await shouldAlert(supabase, 'stuck-pending', DELAYED_ALERT_MINUTES)) {
       try {
         await sendAdminAlert(
-          `[Housepost] ${stuckPending.length} postcard job(s) stuck 'pending' — needs review`,
+          `[Housepost] ${stuckPending.length} postcard job(s) stuck 'pending' – needs review`,
           `<p><strong>${stuckPending.length}</strong> postcard job(s) have sat in <code>pending</code>
             for over ${STUCK_PENDING_MINUTES} minutes. This points to a charge whose outcome was
             ambiguous. Check Stripe for each batch before deciding whether to release, refund, or free
@@ -317,7 +317,7 @@ export async function POST(request: Request) {
           await supabase.from('postcard_jobs').update({ postgrid_status: 'refund_failed' }).eq('id', jobId)
           try {
             await sendAdminAlert(
-              `[Housepost] Postcard send failed AND refund failed — job ${jobId}`,
+              `[Housepost] Postcard send failed AND refund failed – job ${jobId}`,
               `<p>Postcard job <strong>${jobId}</strong> failed to send and the automatic refund of
                 ${chargePence}p against PaymentIntent <strong>${paymentIntentId}</strong> also failed.
                 Please refund manually in Stripe.</p><pre>${escapeHtml(rmsg)}</pre>`

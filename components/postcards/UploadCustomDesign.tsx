@@ -432,8 +432,8 @@ export function UploadCustomDesign({
       const timedOut = err instanceof Error && err.message === 'PDF render timed out'
       toast.error(
         timedOut
-          ? 'That PDF took too long to render — check your connection and try again.'
-          : 'Failed to render PDF — make sure it is a valid PDF file.'
+          ? 'That PDF took too long to render. Check your connection and try again.'
+          : 'We couldn’t render that PDF. Make sure it is a valid PDF file.'
       )
     } finally {
       setRendering(false)
@@ -582,7 +582,7 @@ export function UploadCustomDesign({
               This is now your active postcard
             </CardTitle>
             <CardDescription className="text-green-700/90">
-              Here&apos;s how it will print — front and back. The back&apos;s right half is reserved for the
+              Here&apos;s how it will print, front and back. The back&apos;s right half is reserved for the
               address the printer adds.
             </CardDescription>
           </CardHeader>
@@ -597,7 +597,7 @@ export function UploadCustomDesign({
             />
             {!confirmPair.back && (
               <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                No back design yet. The back will print as the reserved address area only —{' '}
+                No back design yet, so the back will print as the reserved address area only.{' '}
                 <button
                   type="button"
                   onClick={() => {
@@ -606,7 +606,7 @@ export function UploadCustomDesign({
                   }}
                   className="font-medium underline underline-offset-2"
                 >
-                  add a back design
+                  Add a back design
                 </button>
                 .
               </p>
@@ -783,7 +783,7 @@ export function UploadCustomDesign({
                   <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
                     Your file looks {uploadPortrait ? 'portrait' : 'landscape'}, but the {activeSide}{' '}
                     {isFront ? 'is landscape (wider than tall)' : 'design half is portrait (taller than wide)'}. It&apos;ll
-                    be cropped to fit — for a clean result, upload artwork sized {sizeHint.split(' · ')[1]}.
+                    be cropped to fit. For a clean result, upload artwork sized {sizeHint.split(' · ')[1]}.
                   </div>
                 )}
 
@@ -792,10 +792,10 @@ export function UploadCustomDesign({
                   <input type="checkbox" checked={passthrough} onChange={(e) => setPassthrough(e.target.checked)} className="mt-0.5 h-4 w-4" />
                   <span>
                     <span className="flex items-center gap-1.5 font-medium text-indigo-900">
-                      <Sparkles className="h-3.5 w-3.5" /> Send my PDF as-is — maximum quality
+                      <Sparkles className="h-3.5 w-3.5" /> Send my PDF as-is, at maximum quality
                     </span>
                     <span className="mt-0.5 block text-xs text-indigo-700/80">
-                      Skips cropping and rasterising — your vector PDF prints straight through, zero quality loss.{' '}
+                      Skips cropping and rasterising, so your vector PDF prints straight through with no quality loss.{' '}
                       {isFront
                         ? 'Use when your file is already a full A6 card, 154×111mm with 3mm bleed.'
                         : 'Use when your file is already a full A6 back (154×111mm, 3mm bleed) with the right half kept clear for the address.'}
@@ -809,7 +809,7 @@ export function UploadCustomDesign({
                     <label className="flex items-start gap-2 rounded-md bg-slate-50 p-3 text-sm">
                       <input type="checkbox" checked={addBleed} onChange={(e) => setAddBleed(e.target.checked)} className="mt-0.5 h-4 w-4" />
                       <span>
-                        <span className="font-medium text-slate-700">My design doesn&apos;t include bleed — add it for me</span>
+                        <span className="font-medium text-slate-700">My design doesn&apos;t include bleed. Add it for me</span>
                         <span className="mt-0.5 block text-xs text-slate-500">
                           Tick this if your artwork is exactly the finished size with no bleed. We&apos;ll extend the
                           edges by 3mm so no white shows after trimming.
@@ -819,13 +819,13 @@ export function UploadCustomDesign({
 
                     <p className="text-xs text-slate-500">
                       {addBleed
-                        ? 'Blue line is the safe zone — keep text and logos inside it.'
+                        ? 'The blue line is the safe zone. Keep text and logos inside it.'
                         : 'Red line is the cut. Let the background run to the outer edge; keep text inside the blue safe line.'}
                     </p>
 
                     {lowRes && (
                       <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                        This crop is about {effectiveDpi} DPI, below the {MIN_PRINT_DPI} DPI we print at — it may
+                        This crop is about {effectiveDpi} DPI, below the {MIN_PRINT_DPI} DPI we print at, so it may
                         look soft. Zoom out, or upload a higher-resolution PDF.
                       </div>
                     )}
@@ -856,7 +856,7 @@ export function UploadCustomDesign({
           </CardTitle>
           <CardDescription>
             The real print-ready PDF, rendered from both sides of your card with a sample address. Nothing is
-            printed, posted or charged — this is exactly what lands on the doormat.
+            printed, posted or charged. This is exactly what lands on the doormat.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -883,7 +883,7 @@ export function UploadCustomDesign({
           <p className="text-sm text-slate-600">
             <strong>Tip:</strong> Design at 300 DPI with 3mm bleed. The front is a full landscape card
             ({TARGET_PX.w}×{TARGET_PX.h}px); the back design is portrait and goes on the left half
-            ({HALF_PX_W}×{TARGET_PX.h}px) — keep text {CARD.safe}mm inside the cut. Only the first page of the PDF is used.
+            ({HALF_PX_W}×{TARGET_PX.h}px). Keep text {CARD.safe}mm inside the cut. Only the first page of the PDF is used.
           </p>
         </CardContent>
       </Card>

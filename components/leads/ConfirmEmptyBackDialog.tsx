@@ -38,7 +38,7 @@ export function ConfirmEmptyBackDialog({
           <AlertDialogTitle>Send without a back design?</AlertDialogTitle>
           <AlertDialogDescription>
             You haven&apos;t set a design for the back of your postcard, so {count === 1 ? 'it' : `all ${count}`} will print
-            with a blank back — just the address area on the right. You can add a back design first, or send as is.
+            with a blank back, with just the address area on the right. You can add a back design first, or send as is.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

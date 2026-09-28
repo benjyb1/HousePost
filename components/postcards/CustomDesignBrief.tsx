@@ -106,7 +106,7 @@ export function CustomDesignBrief() {
         throw new Error(data.error ?? 'Something went wrong. Please try again.')
       }
       setDone(true)
-      toast.success(data.duplicate ? 'We already have this brief — no second charge was taken' : 'Design request received')
+      toast.success(data.duplicate ? 'We already have this brief. No second charge was taken.' : 'Design request received')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to submit your request')
     } finally {
@@ -121,7 +121,7 @@ export function CustomDesignBrief() {
           <CheckCircle2 className="h-10 w-10 text-green-600" />
           <h3 className="text-lg font-semibold text-slate-900">Your request is in</h3>
           <p className="max-w-md text-sm text-slate-600">
-            Thanks — we&apos;ve received your brief and taken the {CUSTOM_DESIGN_FEE} design fee. Our team will get
+            Thanks, we&apos;ve received your brief and taken the {CUSTOM_DESIGN_FEE} design fee. Our team will get
             started and be in touch about your postcard. Once your design is ready it&apos;ll be added to your
             account, and you can send it just like any other postcard.
           </p>

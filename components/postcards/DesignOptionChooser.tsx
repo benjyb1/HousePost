@@ -15,7 +15,7 @@ const OPTIONS: {
   {
     id: 'template',
     title: 'Use a template',
-    blurb: 'Start from a ready-made design and personalise it in the browser — no downloads.',
+    blurb: 'Start from a ready-made design and personalise it in the browser. No downloads.',
     icon: LayoutTemplate,
   },
   {

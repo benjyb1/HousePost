@@ -18,7 +18,9 @@ export async function POST() {
 
   if (!process.env.STANNP_API_KEY) {
     return NextResponse.json(
-      { error: 'Preview is not configured yet. Add your Stannp key as STANNP_API_KEY.' },
+      // Missing print credentials is our problem, not the customer's. Never
+      // name the supplier in anything the customer can see.
+      { error: 'The printed preview isn’t available right now. Please try again later.' },
       { status: 503 }
     )
   }
@@ -52,8 +54,11 @@ export async function POST() {
     const { url } = await createPostcardPreview({ to: recipient, frontUrl, backUrl })
     return NextResponse.json({ url })
   } catch (err) {
+    // The raw error carries the print supplier's name and API text, so it goes
+    // to the logs only.
+    console.error('Postcard preview failed:', err instanceof Error ? err.message : err)
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Failed to render preview' },
+      { error: 'We couldn’t render the printed preview just now. Please try again in a minute.' },
       { status: 502 }
     )
   }

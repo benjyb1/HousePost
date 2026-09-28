@@ -57,7 +57,7 @@ export async function PATCH(request: Request) {
       updates.office_lng = geo.lng
     } else {
       return NextResponse.json(
-        { error: 'Invalid postcode — could not be geocoded' },
+        { error: 'We couldn’t find that postcode. Please check it and try again.' },
         { status: 400 }
       )
     }

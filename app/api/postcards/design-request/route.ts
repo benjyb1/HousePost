@@ -229,7 +229,7 @@ export async function POST(request: Request) {
     console.error(`[design-request] charge failed (non-decline) for user ${user.id}:`, msg)
     try {
       await sendAdminAlert(
-        `[Housepost] Custom design charge failed and needs review — ${businessName}`,
+        `[Housepost] Custom design charge failed and needs review – ${businessName}`,
         `<p>A £75 custom-design charge for user <strong>${escapeHtml(user.id)}</strong>
           (<strong>${escapeHtml(businessName)}</strong>, request <strong>${escapeHtml(requestId)}</strong>) failed
           with a NON-decline error. The charge MAY have succeeded. The idempotency key is stable, so a
@@ -241,7 +241,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          'Something went wrong while taking payment. Our team has been notified — please check with support before trying again.',
+          'Something went wrong while taking payment. Our team has been notified. Please check with support before trying again.',
       },
       { status: 500 }
     )
@@ -278,23 +278,23 @@ export async function POST(request: Request) {
       const link = signed?.signedUrl
         ? `<a href="${escapeHtml(signed.signedUrl)}">${escapeHtml(a.name)}</a>`
         : escapeHtml(a.name)
-      assetLines.push(`<li>${link} (${escapeHtml(a.type)}, ${Math.round(a.size / 1024)} KB) — <code>${escapeHtml(a.path)}</code></li>`)
+      assetLines.push(`<li>${link} (${escapeHtml(a.type)}, ${Math.round(a.size / 1024)} KB) – <code>${escapeHtml(a.path)}</code></li>`)
     }
 
     await sendAdminAlert(
-      `[Housepost] New custom design request — ${businessName}`,
+      `[Housepost] New custom design request – ${businessName}`,
       `<p>A customer has requested a custom postcard design (£75 paid).</p>
        <p><strong>Request id:</strong> ${escapeHtml(requestId)}<br/>
           <strong>User id:</strong> ${escapeHtml(user.id)}<br/>
           <strong>Business:</strong> ${escapeHtml(businessName)}<br/>
-          <strong>Colours / style:</strong> ${escapeHtml(colourScheme || '—')}<br/>
+          <strong>Colours / style:</strong> ${escapeHtml(colourScheme || '–')}<br/>
           <strong>Payment intent:</strong> ${escapeHtml(paymentIntentId)}</p>
-       <p><strong>Card text:</strong><br/>${escapeHtml(text || '—').replace(/\n/g, '<br/>')}</p>
-       <p><strong>Notes / pointers:</strong><br/>${escapeHtml(notes || '—').replace(/\n/g, '<br/>')}</p>
+       <p><strong>Card text:</strong><br/>${escapeHtml(text || '–').replace(/\n/g, '<br/>')}</p>
+       <p><strong>Notes / pointers:</strong><br/>${escapeHtml(notes || '–').replace(/\n/g, '<br/>')}</p>
        <p><strong>Assets</strong> (links valid for 7 days; the files stay in the private
           <code>${ASSET_BUCKET}</code> bucket):</p>
        ${assetLines.length ? `<ul>${assetLines.join('')}</ul>` : '<p>No assets attached.</p>'}
-       ${insertError ? '<p style="color:#c53030;"><strong>Warning:</strong> the design_requests row failed to save — action from this email.</p>' : ''}`
+       ${insertError ? '<p style="color:#c53030;"><strong>Warning:</strong> the design_requests row failed to save, so action this from the email.</p>' : ''}`
     )
   } catch (err) {
     console.error('[design-request] admin alert failed:', err)
@@ -306,7 +306,7 @@ export async function POST(request: Request) {
       userId: user.id,
       type: 'custom_design_requested',
       title: 'Custom design request received',
-      body: 'Thanks — we’ve got your brief and taken the £75 design fee. Our team will be in touch about your postcard.',
+      body: 'Thanks, we’ve got your brief and taken the £75 design fee. Our team will be in touch about your postcard.',
       href: '/postcards/design',
     })
   } catch (err) {
