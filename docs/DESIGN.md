@@ -68,7 +68,8 @@ and a couple of modals use `blue-900` instead of a token. If you want a single
 - `components/leads/` — `LeadsTable` (the big leads screen), `AddAddressModal`.
 - `components/postcards/` — the design/upload/preview flow (`DesignOptionChooser`,
   `SvgTemplateEditor`, `UploadCustomDesign`, `CustomDesignBrief`, `DesignLibrary`,
-  `PostcardPreview`, `ResendButton`, `CancelOrderButton`).
+  `PostcardPreview`, `CancelOrderButton`), plus the shared send flow (`SendFlow`) and Tracking's
+  statuses panel (`StatusGuide`).
 - `components/dashboard/RecentActivity.tsx` — the dashboard activity feed.
 
 ## Pages, and how to preview each
