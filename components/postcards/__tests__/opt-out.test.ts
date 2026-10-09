@@ -7,7 +7,11 @@ import {
   OPT_OUT_COLOUR,
   OPT_OUT_FONT_FAMILY,
   optOutPlacement,
+  privacyPlacement,
   drawOptOutOnCanvas,
+  PRIVACY_TEXT,
+  PRIVACY_BASELINE,
+  COMPLIANCE_LINE_GAP,
 } from '../opt-out'
 import { SVG_TEMPLATES } from '../svg-templates/templates'
 
@@ -89,10 +93,10 @@ describe('optOutPlacement geometry', () => {
 })
 
 describe('drawOptOutOnCanvas', () => {
-  it('draws the opt-out once, centred, mid-grey, on the print canvas', () => {
+  it('draws the opt-out (and the privacy link above it), centred, mid-grey, on the print canvas', () => {
     const { ctx, calls, state, saveDepth } = recordingCtx()
     drawOptOutOnCanvas(ctx, CARD_W, CARD_H)
-    expect(calls).toHaveLength(1)
+    expect(calls).toHaveLength(2)
     expect(calls[0].text).toBe(OPT_OUT_TEXT)
     expect(calls[0].x).toBeCloseTo(OPT_OUT_CX, 6)
     expect(calls[0].y).toBeCloseTo(OPT_OUT_BASELINE, 6)
@@ -143,5 +147,60 @@ describe('template back opt-out (byte-identity + same spot as the canvas stamp)'
     // And those are the very numbers hard-baked into the template element above.
     expect(expectedElement).toContain(`x="${OPT_OUT_CX}"`)
     expect(expectedElement).toContain(`y="${OPT_OUT_BASELINE}"`)
+  })
+})
+
+describe('privacy-notice link (stacked above the opt-out line)', () => {
+  const expectedPrivacyElement =
+    `<text id="privacy-link" x="1365" y="1181" text-anchor="middle" ` +
+    `font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" ` +
+    `font-weight="400" font-size="30" fill="#666666">housepost.co.uk/privacy</text>`
+
+  it('is housepost.co.uk/privacy, one line above the opt-out, same centre/size/colour', () => {
+    expect(PRIVACY_TEXT).toBe('housepost.co.uk/privacy')
+    expect(PRIVACY_BASELINE).toBe(OPT_OUT_BASELINE - COMPLIANCE_LINE_GAP)
+    const p = privacyPlacement(CARD_W, CARD_H)
+    expect(p.text).toBe(PRIVACY_TEXT)
+    expect(p.cx).toBeCloseTo(OPT_OUT_CX, 6)
+    expect(p.baseline).toBeCloseTo(1181, 6)
+    expect(p.size).toBeCloseTo(OPT_OUT_SIZE, 6)
+    expect(p.colour).toBe(OPT_OUT_COLOUR)
+  })
+
+  it('stays inside the safe box and clear of Stannp\'s no-print address block', () => {
+    const SAFE = 71
+    const CLEAR_ZONE_BOTTOM = 1085.6
+    const topOfText = PRIVACY_BASELINE - OPT_OUT_SIZE
+    expect(topOfText).toBeGreaterThan(CLEAR_ZONE_BOTTOM + 40)
+    // The opt-out line below it (descender allowance of a quarter em) must still
+    // sit inside the bottom safe margin.
+    expect(OPT_OUT_BASELINE + OPT_OUT_SIZE * 0.25).toBeLessThan(CARD_H - SAFE)
+    // The two lines don't overlap: the gap exceeds the font size.
+    expect(COMPLIANCE_LINE_GAP).toBeGreaterThan(OPT_OUT_SIZE)
+  })
+
+  it('every template back carries exactly one privacy link, byte-exact', () => {
+    for (const tpl of SVG_TEMPLATES) {
+      const back = tpl.renderBack(tpl.defaults)
+      expect(back.match(/id="privacy-link"/g) ?? []).toHaveLength(1)
+      expect(back).toContain(expectedPrivacyElement)
+    }
+  })
+
+  it('the canvas stamp draws opt-out then privacy, at the template coords', () => {
+    const { ctx, calls } = recordingCtx()
+    drawOptOutOnCanvas(ctx, CARD_W, CARD_H)
+    expect(calls).toHaveLength(2)
+    expect(calls[0].text).toBe(OPT_OUT_TEXT)
+    expect(calls[1].text).toBe(PRIVACY_TEXT)
+    expect(calls[1].x).toBeCloseTo(OPT_OUT_CX, 6)
+    expect(calls[1].y).toBeCloseTo(PRIVACY_BASELINE, 6)
+  })
+
+  it('the canvas stamp scales the privacy line with the canvas', () => {
+    const { ctx, calls } = recordingCtx()
+    drawOptOutOnCanvas(ctx, CARD_W * 2, CARD_H * 2)
+    expect(calls[1].x).toBeCloseTo(OPT_OUT_CX * 2, 6)
+    expect(calls[1].y).toBeCloseTo(PRIVACY_BASELINE * 2, 6)
   })
 })
