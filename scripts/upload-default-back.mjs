@@ -24,7 +24,7 @@ const outPath = outIdx !== -1 ? args[outIdx + 1] : 'back-blank.png'
 
 if (!doUpload) {
   fs.writeFileSync(outPath, png)
-  console.log(`wrote ${outPath} (${png.length} bytes, ${GEOM.W}x${GEOM.H}, grayscale, opt-out stamped)`)
+  console.log(`wrote ${outPath} (${png.length} bytes, ${GEOM.W}x${GEOM.H}, grayscale, opt-out + privacy stamped)`)
   console.log('Not uploaded. Re-run with --upload to replace defaults/back-blank.png in production.')
   process.exit(0)
 }
@@ -44,4 +44,4 @@ if (error) {
   console.error('upload failed:', error.message)
   process.exit(1)
 }
-console.log(`uploaded defaults/back-blank.png (${png.length} bytes, ${GEOM.W}x${GEOM.H}, opt-out stamped)`)
+console.log(`uploaded defaults/back-blank.png (${png.length} bytes, ${GEOM.W}x${GEOM.H}, opt-out + privacy stamped)`)

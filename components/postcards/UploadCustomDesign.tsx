@@ -15,6 +15,8 @@ import {
   OPT_OUT_TEXT,
   OPT_OUT_CX_FRAC,
   OPT_OUT_BASELINE_FROM_BOTTOM_FRAC,
+  PRIVACY_TEXT,
+  PRIVACY_BASELINE_FROM_BOTTOM_FRAC,
   OPT_OUT_SIZE_FRAC,
 } from './opt-out'
 
@@ -225,7 +227,7 @@ async function getCroppedImg(imageSrc: string, cropArea: Area, addBleed: boolean
   ctx.fillStyle = '#ffffff'
   ctx.fillRect(0, 0, full.width, full.height)
   ctx.drawImage(cropped, 0, 0, cropped.width, cropped.height, 0, 0, HALF_PX_W, TARGET_PX.h)
-  // Every back must carry the opt-out line. Stamp it onto the composite (right/
+  // Every back must carry the opt-out and privacy lines. Stamp them onto the composite (right/
   // address half, bottom-centre) at the exact spot the templates draw it, so an
   // uploaded image back is compliant the moment it's saved. The front returns
   // above, so only the back is ever stamped.
@@ -234,7 +236,7 @@ async function getCroppedImg(imageSrc: string, cropArea: Area, addBleed: boolean
 }
 
 /**
- * Stamp the opt-out line onto page 1 of a print-ready PDF back, in the browser,
+ * Stamp the opt-out and privacy lines onto page 1 of a print-ready PDF back, in the browser,
  * before it's uploaded as-is (passthrough). Centred in the right/address half at
  * the same relative spot the templates and composited backs use, sized to
  * ~30px @ 300 DPI relative to the page, mid-grey, in a standard Helvetica. Only
@@ -247,17 +249,23 @@ async function stampOptOutOnPdfBack(file: File): Promise<Blob> {
   const { width, height } = page.getSize()
   const font = await pdf.embedFont(StandardFonts.Helvetica)
   const size = height * OPT_OUT_SIZE_FRAC
-  const textWidth = font.widthOfTextAtSize(OPT_OUT_TEXT, size)
   // PDF origin is bottom-left (y up): drawText's y is the baseline, measured up
   // from the bottom; x is the text's left edge, so subtract half the width to
-  // centre it.
-  page.drawText(OPT_OUT_TEXT, {
-    x: width * OPT_OUT_CX_FRAC - textWidth / 2,
-    y: height * OPT_OUT_BASELINE_FROM_BOTTOM_FRAC,
-    size,
-    font,
-    color: rgb(0.4, 0.4, 0.4), // #666666
-  })
+  // centre it. Opt-out sits on the bottom line, the privacy link just above.
+  const lines = [
+    { text: OPT_OUT_TEXT, y: height * OPT_OUT_BASELINE_FROM_BOTTOM_FRAC },
+    { text: PRIVACY_TEXT, y: height * PRIVACY_BASELINE_FROM_BOTTOM_FRAC },
+  ]
+  for (const line of lines) {
+    const textWidth = font.widthOfTextAtSize(line.text, size)
+    page.drawText(line.text, {
+      x: width * OPT_OUT_CX_FRAC - textWidth / 2,
+      y: line.y,
+      size,
+      font,
+      color: rgb(0.4, 0.4, 0.4), // #666666
+    })
+  }
   const bytes = await pdf.save()
   // Copy into an ArrayBuffer-backed view so it satisfies BlobPart (pdf-lib types
   // the result as Uint8Array<ArrayBufferLike>).

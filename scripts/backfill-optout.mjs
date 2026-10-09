@@ -1,7 +1,9 @@
-// Back-fill the opt-out line onto EXISTING uploaded backs already in the
+// Back-fill the compliance lines onto EXISTING uploaded backs already in the
 // postcard-designs bucket (`<userId>/design-back.png`). For each PNG it decodes
-// the image, stamps `housepost.co.uk/opt-out` at the fixed spot (idempotent —
-// re-running writes the same grey pixels), and re-uploads.
+// the image, stamps `housepost.co.uk/opt-out` and `housepost.co.uk/privacy` at
+// their fixed spots (idempotent — re-running writes the same grey pixels), and
+// re-uploads. Run it again after the privacy line was added, so backs saved with
+// only the opt-out line pick up the privacy link.
 //
 //   node scripts/backfill-optout.mjs            # DRY RUN — lists what it would do, writes nothing
 //   node scripts/backfill-optout.mjs --commit   # actually re-uploads the stamped PNGs
