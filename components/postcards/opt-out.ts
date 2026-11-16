@@ -1,6 +1,11 @@
-// Single source of truth for the compliance opt-out line that EVERY postcard
-// BACK must carry: `housepost.co.uk/opt-out`, sitting bottom-centre of the
-// printer's address (right) half, inside Stannp's safe box.
+// Single source of truth for the two compliance lines that EVERY postcard BACK
+// must carry, stacked bottom-centre of the printer's address (right) half,
+// inside Stannp's safe box:
+//   housepost.co.uk/privacy   (where recipients find our privacy notice)
+//   housepost.co.uk/opt-out   (how they stop the mail)
+// The opt-out line keeps the position it has always had; the privacy line sits
+// directly above it. Both clear Stannp's no-print address block (x ≥ 912,
+// y ≤ 1086) by a wide margin.
 //
 // The SVG templates (svg-templates/templates.ts) draw this line directly in
 // their markup; the uploaded-image backs, the uploaded print-ready PDF backs,
@@ -30,6 +35,13 @@ export const OPT_OUT_SIZE = 30
 /** Mid-grey, so the line reads without competing with the design. */
 export const OPT_OUT_COLOUR = '#666666'
 
+/** The privacy-notice link line, stacked directly above the opt-out line. */
+export const PRIVACY_TEXT = 'housepost.co.uk/privacy'
+/** Distance between the two lines' baselines (1.47 × the 30px font size). */
+export const COMPLIANCE_LINE_GAP = 44
+/** Alphabetic baseline y of the privacy line: one line above the opt-out. */
+export const PRIVACY_BASELINE = OPT_OUT_BASELINE - COMPLIANCE_LINE_GAP // 1181
+
 // The same geometry as fractions of the card, so the line maps onto any canvas
 // or PDF page whose pixel/point size differs from the 300 DPI reference (a
 // print-ready PDF is measured in points, not pixels).
@@ -42,6 +54,9 @@ export const OPT_OUT_SIZE_FRAC = OPT_OUT_SIZE / CARD_H // ≈ 0.022883
  * Equals 86 / 1311.
  */
 export const OPT_OUT_BASELINE_FROM_BOTTOM_FRAC = (CARD_H - OPT_OUT_BASELINE) / CARD_H
+/** The privacy line's equivalents (baseline 1181, so 130 / 1311 up from the bottom). */
+export const PRIVACY_BASELINE_FRAC = PRIVACY_BASELINE / CARD_H
+export const PRIVACY_BASELINE_FROM_BOTTOM_FRAC = (CARD_H - PRIVACY_BASELINE) / CARD_H
 
 // The web-safe sans stack the templates render with, so a canvas-stamped line
 // matches the template's Helvetica/Arial line rather than drifting to a
@@ -77,23 +92,33 @@ export function optOutPlacement(cardW: number, cardH: number): OptOutPlacement {
   }
 }
 
+/** Same as optOutPlacement, for the privacy-notice line above it. */
+export function privacyPlacement(cardW: number, cardH: number): OptOutPlacement {
+  return {
+    ...optOutPlacement(cardW, cardH),
+    text: PRIVACY_TEXT,
+    baseline: cardH * PRIVACY_BASELINE_FRAC,
+  }
+}
+
 /**
- * Draw the opt-out line onto a 2D canvas, centred in the right/address half at
- * the scaled baseline (mid-grey, sans-serif). Used by every in-browser back
- * that is composited on a canvas — the uploaded image backs and the default
- * blank back. Only ever called for the BACK, so the front stays untouched.
+ * Draw both compliance lines (opt-out, then the privacy link above it) onto a
+ * 2D canvas, centred in the right/address half at the scaled baselines
+ * (mid-grey, sans-serif). Used by every in-browser back that is composited on a
+ * canvas: the uploaded image backs. Only ever called for the BACK, so the front
+ * stays untouched.
  */
 export function drawOptOutOnCanvas(
   ctx: CanvasRenderingContext2D,
   cardW: number,
   cardH: number
 ): void {
-  const p = optOutPlacement(cardW, cardH)
+  const lines = [optOutPlacement(cardW, cardH), privacyPlacement(cardW, cardH)]
   ctx.save()
-  ctx.fillStyle = p.colour
+  ctx.fillStyle = lines[0].colour
   ctx.textAlign = 'center'
   ctx.textBaseline = 'alphabetic'
-  ctx.font = `${p.size}px ${p.fontFamily}`
-  ctx.fillText(p.text, p.cx, p.baseline)
+  ctx.font = `${lines[0].size}px ${lines[0].fontFamily}`
+  for (const p of lines) ctx.fillText(p.text, p.cx, p.baseline)
   ctx.restore()
 }

@@ -19,13 +19,15 @@ export const GEOM = {
   TEXT: 'housepost.co.uk/opt-out',
   CX: 1365, // centre x (right/address half)
   BASELINE: 1225, // alphabetic baseline y (CARD_H − 86)
+  PRIVACY_TEXT: 'housepost.co.uk/privacy', // stacked directly above the opt-out line
+  PRIVACY_BASELINE: 1181, // BASELINE − 44
   GREY: 0x66, // #666666 as an 8-bit grey level
   SCALE: 3, // px per font cell — 5×7 glyph ≈ 15px x-height / 21px cap, ~30px feel
 }
 
 // A compact 5-wide font. Each glyph is 9 rows (indices 0–8); the baseline is the
-// BOTTOM of row 6, so rows 7–8 hold descenders (only 'p' needs one). Only the
-// glyphs in `housepost.co.uk/opt-out` are defined.
+// BOTTOM of row 6, so rows 7–8 hold descenders ('p' and 'y'). Only the glyphs in
+// `housepost.co.uk/opt-out` and `housepost.co.uk/privacy` are defined.
 const GLYPHS = {
   h: ['#....', '#....', '#.##.', '##..#', '#...#', '#...#', '#...#', '.....', '.....'],
   o: ['.....', '.....', '.###.', '#...#', '#...#', '#...#', '.###.', '.....', '.....'],
@@ -39,6 +41,11 @@ const GLYPHS = {
   k: ['#....', '#....', '#..#.', '#.#..', '##...', '#.#..', '#..#.', '.....', '.....'],
   '/': ['....#', '...#.', '...#.', '..#..', '.#...', '.#...', '#....', '.....', '.....'],
   '-': ['.....', '.....', '.....', '.....', '.###.', '.....', '.....', '.....', '.....'],
+  r: ['.....', '.....', '#.##.', '##..#', '#....', '#....', '#....', '.....', '.....'],
+  i: ['..#..', '.....', '.##..', '..#..', '..#..', '..#..', '.###.', '.....', '.....'],
+  v: ['.....', '.....', '#...#', '#...#', '#...#', '.#.#.', '..#..', '.....', '.....'],
+  a: ['.....', '.....', '.###.', '....#', '.####', '#...#', '.####', '.....', '.....'],
+  y: ['.....', '.....', '#...#', '#...#', '#...#', '.####', '....#', '....#', '.###.'],
 }
 
 const GLYPH_ROWS = 9
@@ -51,11 +58,18 @@ function textWidthPx(text, s) {
 }
 
 /**
- * Stamp the opt-out line into a raster { width, height, channels, data }, using
- * the shared geometry. `data` is row-major, `channels` bytes/pixel (1 grey, 2
- * grey+α, 3 rgb, 4 rgba). Idempotent: re-stamping writes the same grey pixels.
+ * Stamp both compliance lines (opt-out, and the privacy link above it) into a
+ * raster { width, height, channels, data }, using the shared geometry. `data`
+ * is row-major, `channels` bytes/pixel (1 grey, 2 grey+α, 3 rgb, 4 rgba).
+ * Idempotent: re-stamping writes the same grey pixels.
  */
-export function stampOptOut(raster, { text = GEOM.TEXT, cx = GEOM.CX, baseline = GEOM.BASELINE, scale = GEOM.SCALE } = {}) {
+export function stampOptOut(raster, { cx = GEOM.CX, scale = GEOM.SCALE } = {}) {
+  stampLine(raster, GEOM.PRIVACY_TEXT, cx, GEOM.PRIVACY_BASELINE, scale)
+  stampLine(raster, GEOM.TEXT, cx, GEOM.BASELINE, scale)
+  return raster
+}
+
+function stampLine(raster, text, cx, baseline, scale) {
   const s = scale
   const advance = (GLYPH_COLS + 1) * s
   let x = Math.round(cx - textWidthPx(text, s) / 2)
