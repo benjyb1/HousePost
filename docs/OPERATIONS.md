@@ -69,7 +69,9 @@ curl -s -u "$STANNP_API_KEY:" https://api-eu1.stannp.com/v1/accounts/balance
 ## Email
 
 All customer email and admin alerts go through Resend from
-`RESEND_FROM_EMAIL`. The sending domain must be verified on the **same Resend
+`RESEND_FROM_EMAIL`, which should be `Housepost <info@housepost.co.uk>`. It is set
+in Vercel and as a GitHub Actions secret (the lead and billing workflows send
+email too). The sending domain must be verified on the **same Resend
 team whose API key is in Vercel**, otherwise every send is rejected and nothing
 is logged. If customers stop getting "your leads are ready" or "postcards on
 the way" emails, check Resend's domain page first.
