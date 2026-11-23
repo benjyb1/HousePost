@@ -21,19 +21,26 @@ export default async function HomePage() {
 
   const PAGE = 1000
   const MAX = 5000 // safety bound: newest leads first, so older ones drop off
-  const leadsQuery = (from: number) =>
-    supabase
+  // Unsent homes only (sent ones live in Tracking), each with its map position
+  // from property_transactions in the same query. RLS denies users that table,
+  // so this one read uses the admin client, scoped to this user's own leads.
+  const admin = createAdminClient()
+  const LEAD_COLUMNS =
+    'id, address_line, postcode, price, property_type, distance_miles, date_of_transfer, lead_month, selected_for_dispatch, postcard_job_id, is_custom, transaction_id, property_transactions(lat, lng)'
+  const leadsQuery = (from: number, withCount = false) =>
+    admin
       .from('leads')
-      .select('*')
+      .select(LEAD_COLUMNS, withCount ? { count: 'exact' } : undefined)
       .eq('user_id', user.id)
       .is('archived_at', null)
+      .is('postcard_job_id', null)
       .order('lead_month', { ascending: false })
       .order('distance_miles', { ascending: true })
       .range(from, from + PAGE - 1)
 
   const thirtyDaysAgoIso = new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
   const [firstPage, { data: profile }, { data: recentFailures }] = await Promise.all([
-    leadsQuery(0),
+    leadsQuery(0, true),
     supabase
       .from('profiles')
       .select('subscription_status, postcard_design_url, postcard_design_back_url, postcards_used_this_period, search_radius_miles, min_price, max_price, property_types, office_lat, office_lng, failed_notice_dismissed_at')
@@ -42,37 +49,29 @@ export default async function HomePage() {
     supabase.from('postcard_jobs').select('failed_at').eq('user_id', user.id).eq('status', 'failed').gte('failed_at', thirtyDaysAgoIso),
   ])
 
-  // Page past PostgREST's 1000-row cap so earlier homes aren't truncated.
-  const rows = firstPage.data ?? []
-  if (rows.length === PAGE) {
-    for (let from = PAGE; from < MAX; from += PAGE) {
-      const { data } = await leadsQuery(from)
-      if (!data || data.length === 0) break
-      rows.push(...data)
-      if (data.length < PAGE) break
-    }
+  // Past PostgREST's 1000-row cap: fetch the remaining pages in parallel.
+  type Row = {
+    id: string; address_line: string; postcode: string | null; price: number | null; property_type: string | null
+    distance_miles: number | null; date_of_transfer: string | null; lead_month: string; selected_for_dispatch: boolean | null
+    postcard_job_id: string | null; is_custom: boolean | null; transaction_id: string | null
+    property_transactions: { lat: number | null; lng: number | null } | { lat: number | null; lng: number | null }[] | null
+  }
+  const rows: Row[] = [...((firstPage.data ?? []) as unknown as Row[])]
+  const total = Math.min(firstPage.count ?? rows.length, MAX)
+  if (total > PAGE) {
+    const starts: number[] = []
+    for (let from = PAGE; from < total; from += PAGE) starts.push(from)
+    const pages = await Promise.all(starts.map((from) => leadsQuery(from)))
+    for (const { data } of pages) rows.push(...((data ?? []) as unknown as Row[]))
   }
 
-  // Map positions. Unsent leads only: sent ones live in Tracking.
-  const unsent = rows.filter((r) => !r.postcard_job_id)
   const coords = new Map<string, { lat: number; lng: number }>()
-  const txIds = [...new Set(unsent.map((r) => r.transaction_id as string | null).filter((v): v is string => !!v))]
-  if (txIds.length) {
-    const admin = createAdminClient()
-    const CHUNK = 200
-    const chunks: string[][] = []
-    for (let i = 0; i < txIds.length; i += CHUNK) chunks.push(txIds.slice(i, i + CHUNK))
-    const results = await Promise.all(
-      chunks.map((ids) => admin.from('property_transactions').select('id, lat, lng').in('id', ids))
-    )
-    for (const { data } of results) {
-      for (const t of data ?? []) {
-        if (t.lat != null && t.lng != null) coords.set(`tx:${t.id}`, { lat: t.lat as number, lng: t.lng as number })
-      }
-    }
+  for (const r of rows) {
+    const t = Array.isArray(r.property_transactions) ? r.property_transactions[0] : r.property_transactions
+    if (t && t.lat != null && t.lng != null) coords.set(`tx:${r.transaction_id}`, { lat: t.lat, lng: t.lng })
   }
   // Homes added by hand have no transaction: place them by postcode.
-  const customPostcodes = [...new Set(unsent.filter((r) => !r.transaction_id).map((r) => String(r.postcode ?? '').toUpperCase().trim()).filter(Boolean))]
+  const customPostcodes = [...new Set(rows.filter((r) => !r.transaction_id).map((r) => String(r.postcode ?? '').toUpperCase().trim()).filter(Boolean))]
   if (customPostcodes.length) {
     try {
       const geo = await geocodeWithCache(customPostcodes)
@@ -88,16 +87,16 @@ export default async function HomePage() {
   const leads: HomeLead[] = rows.map((r) => {
     const pos = r.transaction_id ? coords.get(`tx:${r.transaction_id}`) : coords.get(`pc:${String(r.postcode ?? '').toUpperCase().trim()}`)
     return {
-      id: r.id as string,
-      addressLine: r.address_line as string,
-      postcode: r.postcode as string,
-      price: (r.price as number | null) ?? null,
-      propertyType: (r.property_type as string | null) ?? null,
-      distance: (r.distance_miles as number | null) ?? null,
-      soldOn: (r.date_of_transfer as string | null) ?? null,
-      month: r.lead_month as string,
+      id: r.id,
+      addressLine: r.address_line,
+      postcode: r.postcode ?? '',
+      price: r.price ?? null,
+      propertyType: r.property_type ?? null,
+      distance: r.distance_miles ?? null,
+      soldOn: r.date_of_transfer ?? null,
+      month: r.lead_month,
       selected: !!r.selected_for_dispatch,
-      jobId: (r.postcard_job_id as string | null) ?? null,
+      jobId: r.postcard_job_id ?? null,
       custom: !!r.is_custom,
       lat: pos?.lat ?? null,
       lng: pos?.lng ?? null,

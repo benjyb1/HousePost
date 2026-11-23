@@ -18,10 +18,24 @@ type Props = {
   onHot: (id: string | null) => void
 }
 
-// OpenFreeMap: free vector tiles, no key. MapLibre is pinned to 5.24.0 because
-// 6.x loads its worker from a separate file that Next doesn't copy (blank map).
+/*
+  The street map beside the list. Homes are drawn by the map engine on the GPU
+  (a circle layer plus a label layer), not as page elements, so thousands of
+  homes pan and zoom without lag. Prices show as tags once you zoom in, and
+  hide themselves rather than overlap; picked homes win when space is tight.
+  One small page element follows whichever home you hover, so its price is
+  always visible.
+
+  OpenFreeMap: free vector tiles, no key. MapLibre is pinned to 5.24.0 because
+  6.x loads its worker from a separate file that Next doesn't copy (blank map).
+*/
 const STYLE = 'https://tiles.openfreemap.org/styles/positron'
 const NAVY = '#0f1f3d'
+const INK = '#1c2420'
+const ORANGE = '#ff7614'
+const ORANGE_DEEP = '#e0620a'
+const LINE_2 = '#cfc4b1'
+const TAG_ZOOM = 13.5
 
 function circle(lat: number, lng: number, miles: number, steps = 72): [number, number][] {
   const pts: [number, number][] = []
@@ -40,16 +54,46 @@ function circleBounds(lat: number, lng: number, miles: number): maplibregl.LngLa
   return [[lng - dLng, lat - dLat], [lng + dLng, lat + dLat]]
 }
 
-/** The real street map beside the list: a price tag per home, your office, your patch. */
+/** A stretchable rounded tag for the price labels, drawn once at 2x. */
+function tagImage(fill: string, stroke: string) {
+  const r = 2
+  const w = 32 * r
+  const h = 24 * r
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const g = c.getContext('2d') as CanvasRenderingContext2D
+  const rad = 4 * r
+  g.beginPath()
+  g.moveTo(rad + 1, 1)
+  g.arcTo(w - 1, 1, w - 1, h - 1, rad)
+  g.arcTo(w - 1, h - 1, 1, h - 1, rad)
+  g.arcTo(1, h - 1, 1, 1, rad)
+  g.arcTo(1, 1, w - 1, 1, rad)
+  g.closePath()
+  g.fillStyle = fill
+  g.fill()
+  g.lineWidth = 2
+  g.strokeStyle = stroke
+  g.stroke()
+  return {
+    data: g.getImageData(0, 0, w, h),
+    options: { pixelRatio: r, stretchX: [[10, w - 10]] as [number, number][], stretchY: [[10, h - 10]] as [number, number][], content: [12, 8, w - 12, h - 8] as [number, number, number, number] },
+  }
+}
+
+type Feature = GeoJSON.Feature<GeoJSON.Point, { hid: string; label: string; sel: number; locked: number }>
+
 export default function LeadsMap({ leads, selected, locked, hot, office, radius, onToggle, onHot }: Props) {
   const boxRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
-  const markers = useRef(new Map<string, { m: maplibregl.Marker; el: HTMLButtonElement }>())
+  const readyRef = useRef(false)
+  const dataRef = useRef<GeoJSON.FeatureCollection>({ type: 'FeatureCollection', features: [] })
+  const indexRef = useRef(new Map<string, number>())
+  const hotRef = useRef<{ fid: number | null; marker: maplibregl.Marker | null; el: HTMLDivElement | null }>({ fid: null, marker: null, el: null })
   const cb = useRef({ onToggle, onHot })
-  const countRef = useRef(leads.length)
   useEffect(() => {
     cb.current = { onToggle, onHot }
-    countRef.current = leads.length
   })
 
   // the map itself, once
@@ -64,16 +108,10 @@ export default function LeadsMap({ leads, selected, locked, hot, office, radius,
       attributionControl: { compact: true },
       dragRotate: false,
       pitchWithRotate: false,
-      cooperativeGestures: false,
     })
     map.touchZoomRotate.disableRotation()
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
     mapRef.current = map
-
-    const box = boxRef.current
-    const setFar = () => box.classList.toggle(styles.far, map.getZoom() < 13 && countRef.current > 25)
-    map.on('zoom', setFar)
-    map.on('load', setFar)
 
     if (office) {
       const pin = document.createElement('div')
@@ -85,20 +123,95 @@ export default function LeadsMap({ leads, selected, locked, hot, office, radius,
       new maplibregl.Marker({ element: pin, anchor: 'bottom' }).setLngLat([office.lng, office.lat]).addTo(map)
     }
 
+    // the one tag that follows the hovered home
+    const hotEl = document.createElement('div')
+    hotEl.className = styles.hotTag
+    hotEl.setAttribute('aria-hidden', 'true')
+    hotRef.current.el = hotEl
+    hotRef.current.marker = new maplibregl.Marker({ element: hotEl, anchor: 'bottom', offset: [0, -10] })
+
+    map.on('load', () => {
+      const plain = tagImage('#ffffff', LINE_2)
+      const picked = tagImage(ORANGE, ORANGE_DEEP)
+      map.addImage('hp-tag', plain.data, plain.options)
+      map.addImage('hp-tag-on', picked.data, picked.options)
+      map.addSource('homes', { type: 'geojson', data: dataRef.current })
+      // a wider invisible ring so homes are easy to tap
+      map.addLayer({ id: 'homes-hit', type: 'circle', source: 'homes', paint: { 'circle-radius': 12, 'circle-opacity': 0 } })
+      map.addLayer({
+        id: 'homes-dot',
+        type: 'circle',
+        source: 'homes',
+        paint: {
+          'circle-radius': [
+            'interpolate', ['linear'], ['zoom'],
+            9, ['case', ['boolean', ['feature-state', 'hot'], false], 6, 3],
+            13, ['case', ['boolean', ['feature-state', 'hot'], false], 8, 5],
+            16, ['case', ['boolean', ['feature-state', 'hot'], false], 10, 7],
+          ],
+          'circle-color': ['case', ['==', ['get', 'sel'], 1], ORANGE, ['==', ['get', 'locked'], 1], '#d6d1c6', '#ffffff'],
+          'circle-stroke-color': ['case', ['boolean', ['feature-state', 'hot'], false], INK, ['==', ['get', 'sel'], 1], ORANGE_DEEP, NAVY],
+          'circle-stroke-width': ['case', ['boolean', ['feature-state', 'hot'], false], 2.5, 1.5],
+        },
+      })
+      map.addLayer({
+        id: 'homes-tag',
+        type: 'symbol',
+        source: 'homes',
+        minzoom: TAG_ZOOM,
+        filter: ['!=', ['get', 'locked'], 1],
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-font': ['Noto Sans Bold'],
+          'text-size': 12,
+          'text-anchor': 'bottom',
+          'text-offset': [0, -0.95],
+          'icon-image': ['case', ['==', ['get', 'sel'], 1], 'hp-tag-on', 'hp-tag'],
+          'icon-text-fit': 'both',
+          'icon-text-fit-padding': [3, 7, 3, 7],
+          'symbol-sort-key': ['case', ['==', ['get', 'sel'], 1], 0, 1],
+          'text-padding': 2,
+        },
+        paint: { 'text-color': INK },
+      })
+      readyRef.current = true
+
+      const pick = (e: maplibregl.MapLayerMouseEvent) => {
+        const f = e.features?.[0]
+        if (f && f.properties?.locked !== 1) cb.current.onToggle(String(f.properties?.hid))
+      }
+      const hover = (e: maplibregl.MapLayerMouseEvent) => {
+        map.getCanvas().style.cursor = 'pointer'
+        const f = e.features?.[0]
+        if (f) cb.current.onHot(String(f.properties?.hid))
+      }
+      const leave = () => {
+        map.getCanvas().style.cursor = ''
+        cb.current.onHot(null)
+      }
+      for (const layer of ['homes-hit', 'homes-tag']) {
+        map.on('click', layer, pick)
+        map.on('mousemove', layer, hover)
+        map.on('mouseleave', layer, leave)
+      }
+    })
+
+    const box = boxRef.current
     const ro = new ResizeObserver(() => map.resize())
     ro.observe(box)
-    const live = markers.current
+    const hotState = hotRef.current
     return () => {
       ro.disconnect()
-      live.clear()
+      hotState.marker?.remove()
       map.remove()
       mapRef.current = null
+      readyRef.current = false
     }
-    // The map is created once; leads, radius and selection update it below.
+    // The map is created once; homes, distance and selection update it below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // your patch: a dashed circle at the saved distance, framed to fit
+  // your patch: a dashed circle at the chosen distance, framed to fit
   useEffect(() => {
     const map = mapRef.current
     if (!map || !office) return
@@ -108,53 +221,60 @@ export default function LeadsMap({ leads, selected, locked, hot, office, radius,
       if (src) src.setData(data)
       else {
         map.addSource('patch', { type: 'geojson', data })
-        map.addLayer({ id: 'patch-fill', type: 'fill', source: 'patch', paint: { 'fill-color': NAVY, 'fill-opacity': 0.04 } })
-        map.addLayer({ id: 'patch-line', type: 'line', source: 'patch', paint: { 'line-color': NAVY, 'line-opacity': 0.4, 'line-width': 1.5, 'line-dasharray': [3, 3] } })
+        const before = map.getLayer('homes-hit') ? 'homes-hit' : undefined
+        map.addLayer({ id: 'patch-fill', type: 'fill', source: 'patch', paint: { 'fill-color': NAVY, 'fill-opacity': 0.04 } }, before)
+        map.addLayer({ id: 'patch-line', type: 'line', source: 'patch', paint: { 'line-color': NAVY, 'line-opacity': 0.4, 'line-width': 1.5, 'line-dasharray': [3, 3] } }, before)
       }
       map.fitBounds(circleBounds(office.lat, office.lng, radius), { padding: 28, duration: 0 })
     }
-    if (map.isStyleLoaded()) apply()
+    if (readyRef.current) apply()
     else map.once('load', apply)
   }, [office, radius])
 
-  // one marker per home: a price tag, or a dot when zoomed out over a busy patch
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-    const current = markers.current
-    const keep = new Set(leads.map((l) => l.id))
-    for (const [id, { m }] of current) {
-      if (!keep.has(id)) { m.remove(); current.delete(id) }
-    }
-    for (const l of leads) {
-      if (current.has(l.id)) continue
-      const el = document.createElement('button')
-      el.type = 'button'
-      el.className = styles.marker
-      el.setAttribute('aria-label', l.title)
-      el.innerHTML = `<span class="${styles.tag}">${l.label}</span><span class="${styles.dotM}"></span>`
-      el.addEventListener('click', (e) => { e.stopPropagation(); cb.current.onToggle(l.id) })
-      el.addEventListener('mouseenter', () => cb.current.onHot(l.id))
-      el.addEventListener('mouseleave', () => cb.current.onHot(null))
-      el.addEventListener('focus', () => cb.current.onHot(l.id))
-      el.addEventListener('blur', () => cb.current.onHot(null))
-      const m = new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, -4] }).setLngLat([l.lng, l.lat]).addTo(map)
-      current.set(l.id, { m, el })
-    }
-    boxRef.current?.classList.toggle(styles.far, map.getZoom() < 13 && leads.length > 25)
-  }, [leads])
-
-  // selection, locks and hover
+  // homes, picks and locks: one GeoJSON update, drawn by the GPU
   useEffect(() => {
     const on = new Set(selected)
     const lockedSet = new Set(locked)
-    for (const [id, { el }] of markers.current) {
-      el.classList.toggle(styles.mOn, on.has(id))
-      el.classList.toggle(styles.mHot, hot === id)
-      el.disabled = lockedSet.has(id)
-      el.setAttribute('aria-pressed', String(on.has(id)))
+    const index = new Map<string, number>()
+    const features: Feature[] = leads.map((l, i) => {
+      index.set(l.id, i)
+      return {
+        type: 'Feature',
+        id: i,
+        geometry: { type: 'Point', coordinates: [l.lng, l.lat] },
+        properties: { hid: l.id, label: l.label, sel: on.has(l.id) ? 1 : 0, locked: lockedSet.has(l.id) ? 1 : 0 },
+      }
+    })
+    indexRef.current = index
+    dataRef.current = { type: 'FeatureCollection', features }
+    const map = mapRef.current
+    if (map && readyRef.current) {
+      ;(map.getSource('homes') as maplibregl.GeoJSONSource | undefined)?.setData(dataRef.current)
+      hotRef.current.fid = null
     }
-  }, [selected, locked, hot, leads])
+  }, [leads, selected, locked])
 
-  return <div ref={boxRef} style={{ position: 'absolute', inset: 0 }} aria-label="Map of these homes" role="region" />
+  // hover, from the list or the map
+  useEffect(() => {
+    const map = mapRef.current
+    const h = hotRef.current
+    if (!map || !readyRef.current) return
+    if (h.fid != null) map.setFeatureState({ source: 'homes', id: h.fid }, { hot: false })
+    const fid = hot != null ? indexRef.current.get(hot) : undefined
+    const lead = fid != null ? leads[fid] : undefined
+    if (fid != null && lead) {
+      map.setFeatureState({ source: 'homes', id: fid }, { hot: true })
+      h.fid = fid
+      if (h.el && h.marker) {
+        h.el.textContent = lead.label
+        h.el.classList.toggle(styles.hotOn, selected.includes(lead.id))
+        h.marker.setLngLat([lead.lng, lead.lat]).addTo(map)
+      }
+    } else {
+      h.fid = null
+      h.marker?.remove()
+    }
+  }, [hot, leads, selected])
+
+  return <div ref={boxRef} style={{ position: 'absolute', inset: 0 }} aria-label="Map of these homes. Pick homes from the list, or tap a home on the map." role="region" />
 }

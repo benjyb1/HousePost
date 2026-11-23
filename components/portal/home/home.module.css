@@ -794,3 +794,27 @@
     transform: none;
   }
 }
+
+/* long lists */
+.showMore {
+  display: flex;
+  gap: 20px;
+  padding: 10px 2px 0;
+}
+
+/* the one price tag that follows the hovered home on the map */
+.hotTag {
+  padding: 5px 8px;
+  background: #fff;
+  border: 1.5px solid var(--color-ink);
+  border-radius: 4px;
+  font: 600 12.5px/1 var(--font-sans);
+  color: var(--color-ink);
+  white-space: nowrap;
+  box-shadow: 0 4px 10px -4px rgba(40, 30, 15, 0.45);
+  pointer-events: none;
+}
+.hotTag.hotOn {
+  background: var(--color-orange);
+  border-color: var(--color-orange-deep);
+}

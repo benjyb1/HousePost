@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -102,6 +102,32 @@ function dedupeByAddress(list: HomeLead[]) {
   return [...byKey.values()]
 }
 
+const PAGE_ROWS = 50
+
+/** One home in the list. Memoised, so hovering one row doesn't redraw the others. */
+const LeadRow = memo(function LeadRow({ lead: l, hot, locked, onToggle, onHot }: { lead: HomeLead; hot: boolean; locked: boolean; onToggle: (id: string) => void; onHot: (id: string | null) => void }) {
+  const meta = [l.propertyType ? TYPE_NAME[l.propertyType] ?? 'Other' : null, l.distance != null ? `${l.distance.toFixed(1)} mi` : null, l.soldOn ? `Sold ${formatDayMonth(l.soldOn)}` : formatPostcode(l.postcode)]
+    .filter(Boolean).join(' · ')
+  const name = formatAddressLine(l.addressLine)
+  return (
+    <li>
+      <label
+        className={`${s.row} ${l.selected ? s.on : ''} ${hot ? s.hot : ''} ${locked ? s.locked : ''}`}
+        onMouseEnter={() => onHot(l.id)}
+        onMouseLeave={() => onHot(null)}
+        aria-disabled={locked || undefined}
+      >
+        <input className={s.cb} type="checkbox" checked={l.selected} disabled={locked} onChange={() => onToggle(l.id)} aria-label={`${name}${l.price ? ', ' + pounds(l.price) : ''}`} />
+        <span className={s.addr}>
+          <span className={s.street}>{name}</span>
+          <span className={s.meta}>{meta}</span>
+        </span>
+        <span className={s.price}>{l.price ? pounds(l.price) : ''}</span>
+      </label>
+    </li>
+  )
+})
+
 type Sort = 'distance' | 'price-desc' | 'price-asc' | 'newest'
 type Archived = { id: string; address_line: string; postcode: string; price: number | null }
 
@@ -155,16 +181,19 @@ export function HomeClient(props: {
   const active = useMemo(() => dedupeByAddress(leads.filter((l) => !l.jobId)), [leads])
   const latestMonth = useMemo(() => [...new Set(active.map((l) => l.month))].sort().pop() ?? '', [active])
   const visible = useMemo(() => active.filter((l) => matches(l, applied)), [active, applied])
-  const sorter = (a: HomeLead, b: HomeLead) => {
-    if (sort === 'price-desc') return (b.price ?? 0) - (a.price ?? 0)
-    if (sort === 'price-asc') return (a.price ?? 0) - (b.price ?? 0)
-    if (sort === 'newest') return Date.parse(b.soldOn ?? '0') - Date.parse(a.soldOn ?? '0')
-    return (a.distance ?? Infinity) - (b.distance ?? Infinity)
-  }
-  const newList = visible.filter((l) => l.month === latestMonth).sort(sorter)
-  const earlierList = visible.filter((l) => l.month !== latestMonth).sort(sorter)
-  const allSelected = active.filter((l) => l.selected)
-  const picked = visible.filter((l) => l.selected)
+  const [newList, earlierList] = useMemo(() => {
+    const sorter = (a: HomeLead, b: HomeLead) => {
+      if (sort === 'price-desc') return (b.price ?? 0) - (a.price ?? 0)
+      if (sort === 'price-asc') return (a.price ?? 0) - (b.price ?? 0)
+      if (sort === 'newest') return Date.parse(b.soldOn ?? '0') - Date.parse(a.soldOn ?? '0')
+      return (a.distance ?? Infinity) - (b.distance ?? Infinity)
+    }
+    return [visible.filter((l) => l.month === latestMonth).sort(sorter), visible.filter((l) => l.month !== latestMonth).sort(sorter)]
+  }, [visible, latestMonth, sort])
+  const allSelected = useMemo(() => active.filter((l) => l.selected), [active])
+  const picked = useMemo(() => visible.filter((l) => l.selected), [visible])
+  // Long lists show 50 at a time per group.
+  const [shown, setShown] = useState<Record<string, number>>({})
 
   // Before subscribing you can see and pick five homes; the rest are shown blurred.
   const lockedIds = useMemo(() => {
@@ -201,6 +230,13 @@ export function HomeClient(props: {
     if (!lead.selected && picked.length === 0) setFace('back')
     void setSelected([id], !lead.selected)
   }
+  const toggleRef = useRef(toggle)
+  useEffect(() => {
+    toggleRef.current = toggle
+  })
+  const onToggle = useCallback((id: string) => toggleRef.current(id), [])
+  const onHot = useCallback((id: string | null) => setHot(id), [])
+
   function selectAll(list: HomeLead[]) {
     const open = list.filter((l) => !lockedIds.has(l.id))
     const allOn = open.length > 0 && open.every((l) => l.selected)
@@ -335,47 +371,30 @@ export function HomeClient(props: {
   const pickedIds = useMemo(() => picked.map((l) => l.id), [picked])
   const lockedList = useMemo(() => [...lockedIds], [lockedIds])
 
-  function renderRow(l: HomeLead) {
-    const locked = lockedIds.has(l.id)
-    const meta = [l.propertyType ? TYPE_NAME[l.propertyType] ?? 'Other' : null, l.distance != null ? `${l.distance.toFixed(1)} mi` : null, l.soldOn ? `Sold ${formatDayMonth(l.soldOn)}` : formatPostcode(l.postcode)]
-      .filter(Boolean).join(' · ')
-    return (
-      <li key={l.id}>
-        <label
-          className={`${s.row} ${l.selected ? s.on : ''} ${hot === l.id ? s.hot : ''} ${locked ? s.locked : ''}`}
-          onMouseEnter={() => setHot(l.id)}
-          onMouseLeave={() => setHot((h) => (h === l.id ? null : h))}
-          aria-disabled={locked || undefined}
-        >
-          <input
-            className={s.cb}
-            type="checkbox"
-            checked={l.selected}
-            disabled={locked}
-            onChange={() => toggle(l.id)}
-            aria-label={`${formatAddressLine(l.addressLine)}${l.price ? ', ' + pounds(l.price) : ''}`}
-          />
-          <span className={s.addr}>
-            <span className={s.street}>{formatAddressLine(l.addressLine)}</span>
-            <span className={s.meta}>{meta}</span>
-          </span>
-          <span className={s.price}>{l.price ? pounds(l.price) : ''}</span>
-        </label>
-      </li>
-    )
-  }
-  function renderGroup(title: string, list: HomeLead[], sub?: string) {
+  function renderGroup(key: string, title: string, list: HomeLead[], sub?: string) {
     const open = list.filter((l) => !lockedIds.has(l.id))
     const allOn = open.length > 0 && open.every((l) => l.selected)
+    const limit = shown[key] ?? PAGE_ROWS
+    const rest = list.length - limit
     return (
       <div className={s.group}>
         <div className={s.gHead}>
-          <div><h2>{title}</h2>{sub && <p className={s.gSub}>{sub}</p>}</div>
+          <div><h2>{title}</h2><p className={s.gSub}>{list.length === 1 ? '1 home' : `${list.length.toLocaleString('en-GB')} homes`}{sub ? ` · ${sub}` : ''}</p></div>
           {open.length > 0 && <button type="button" className={s.textBtn} onClick={() => selectAll(list)}>{allOn ? 'Clear' : 'Select all'}</button>}
         </div>
         <ul className={s.rows}>
-          {list.length ? list.map(renderRow) : <li className={s.empty}>No homes here match your filters. A wider distance or price range will bring more in.</li>}
+          {list.length
+            ? list.slice(0, limit).map((l) => (
+                <LeadRow key={l.id} lead={l} hot={hot === l.id} locked={lockedIds.has(l.id)} onToggle={onToggle} onHot={onHot} />
+              ))
+            : <li className={s.empty}>No homes here match your filters. A wider distance or price range will bring more in.</li>}
         </ul>
+        {rest > 0 && (
+          <div className={s.showMore}>
+            <button type="button" className={s.textBtn} onClick={() => setShown((m) => ({ ...m, [key]: limit + PAGE_ROWS }))}>Show {Math.min(PAGE_ROWS, rest)} more</button>
+            {rest > PAGE_ROWS && <button type="button" className={s.textBtn} onClick={() => setShown((m) => ({ ...m, [key]: list.length }))}>Show all {list.length.toLocaleString('en-GB')}</button>}
+          </div>
+        )}
       </div>
     )
   }
@@ -496,8 +515,8 @@ export function HomeClient(props: {
             <option value="price-asc">Lowest price</option>
           </select>
         </div>
-        {renderGroup('New this month', newList)}
-        {earlierList.length > 0 && renderGroup('Earlier homes', earlierList, 'Not sent yet')}
+        {renderGroup('new', 'New this month', newList)}
+        {earlierList.length > 0 && renderGroup('earlier', 'Earlier homes', earlierList, 'not sent yet')}
         {!subscribed && lockedIds.size > 0 && (
           <p className={s.subscribe}>You can see and pick five homes for now. <Link href="/billing">Subscribe</Link> to see every home near you.</p>
         )}
