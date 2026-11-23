@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import Image from 'next/image'
+import { PublicNav } from '@/components/layout/PublicNav'
 import { SiteFooter } from '@/components/layout/SiteFooter'
+import styles from '@/components/layout/public.module.css'
 
 export const metadata: Metadata = {
   title: 'Privacy Notice | Housepost',
@@ -9,49 +10,38 @@ export const metadata: Metadata = {
     'How Housepost uses personal data from HM Land Registry public records for postal marketing, the legal basis, and how to object.',
 }
 
+// The wording below is legal copy. Restyle freely, but change none of the words.
 export default function PrivacyPage() {
   return (
-    <div className="flex min-h-screen flex-col bg-white">
-      {/* ── Nav ── */}
-      <nav className="border-b bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4 sm:px-6">
-          <Link href="/" className="shrink-0">
-            <Image
-              src="/logo-wordmark.png"
-              alt="Housepost"
-              width={600}
-              height={150}
-              className="h-8 w-auto sm:h-9"
-              priority
-            />
-          </Link>
-        </div>
-      </nav>
+    <div className={styles.shell}>
+      <PublicNav />
 
-      <main className="flex-1">
-        <div className="mx-auto max-w-3xl px-5 py-12 sm:px-6 sm:py-16">
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
-            Privacy notice
-          </h1>
-          <p className="mt-3 text-sm text-slate-500">Last updated: September 2026</p>
+      <main className={styles.main}>
+        <div className={styles.doc}>
+          <header className={styles.rail}>
+            <h1 className={styles.title}>
+              Privacy notice
+            </h1>
+            <p className={styles.meta}>Last updated: September 2026</p>
+          </header>
 
-          {/* Draft banner — legal copy is not yet final. */}
-          <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-relaxed text-amber-900">
-            <strong>Draft, pending final review.</strong> This notice is a
-            working draft and is awaiting final review and approval by the business
-            owner and their solicitor before go-live. It should not yet be relied
-            upon as the definitive statement of our data-protection practices.
-          </div>
+          <div className={styles.prose}>
+            {/* Draft banner — legal copy is not yet final. */}
+            <div className={styles.aside}>
+              <strong>Draft, pending final review.</strong> This notice is a
+              working draft and is awaiting final review and approval by the business
+              owner and their solicitor before go-live. It should not yet be relied
+              upon as the definitive statement of our data-protection practices.
+            </div>
 
-          <div className="mt-8 space-y-8 text-[15px] leading-relaxed text-slate-700">
             <section>
-              <h2 className="text-lg font-semibold text-slate-900">Who we are</h2>
-              <p className="mt-2">
+              <h2>Who we are</h2>
+              <p>
                 Housepost provides a postal marketing service for local tradespeople.
                 For the purposes of UK data-protection law, Housepost is the data
                 controller for the personal data described below. You can contact us
                 at{' '}
-                <a className="font-medium text-brand underline" href="mailto:info@housepost.co.uk">
+                <a href="mailto:info@housepost.co.uk">
                   info@housepost.co.uk
                 </a>
                 .
@@ -59,10 +49,10 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-slate-900">
+              <h2>
                 What data we process
               </h2>
-              <p className="mt-2">
+              <p>
                 We process the name and postal address associated with recent
                 residential property sales. This information is taken from the{' '}
                 <strong>HM Land Registry Price Paid Data</strong>, which is published
@@ -73,10 +63,10 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-slate-900">
+              <h2>
                 Why we process it
               </h2>
-              <p className="mt-2">
+              <p>
                 We use the address to send postal marketing on behalf of local
                 tradespeople (for example builders, decorators, plumbers and
                 electricians) who offer services relevant to people who have
@@ -85,8 +75,8 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-slate-900">Our legal basis</h2>
-              <p className="mt-2">
+              <h2>Our legal basis</h2>
+              <p>
                 Our legal basis for processing this data is{' '}
                 <strong>legitimate interests</strong> (Article 6(1)(f) UK GDPR). Our
                 legitimate interest is to promote relevant local services to new
@@ -98,19 +88,19 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-slate-900">Your right to object</h2>
-              <p className="mt-2">
+              <h2>Your right to object</h2>
+              <p>
                 You have the right to object to this processing at any time. If you do,
                 we will stop sending postal marketing to your address and add it to our
                 suppression (do-not-contact) list.
               </p>
-              <p className="mt-2">
+              <p>
                 The easiest way to opt out is to use our{' '}
-                <Link href="/opt-out" className="font-medium text-brand underline">
+                <Link href="/opt-out">
                   opt-out page
                 </Link>
                 . You can also object by emailing{' '}
-                <a className="font-medium text-brand underline" href="mailto:info@housepost.co.uk">
+                <a href="mailto:info@housepost.co.uk">
                   info@housepost.co.uk
                 </a>
                 .
@@ -118,10 +108,10 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-slate-900">
+              <h2>
                 How long we keep it
               </h2>
-              <p className="mt-2">
+              <p>
                 We retain address data only for as long as it is needed for the
                 marketing purpose described above. Where you have opted out, we keep a
                 minimal record of your address on our suppression list so that we can
@@ -130,13 +120,13 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-slate-900">Your other rights</h2>
-              <p className="mt-2">
+              <h2>Your other rights</h2>
+              <p>
                 Subject to the conditions in UK data-protection law, you also have the
                 right to access the personal data we hold about you, to have
                 inaccurate data corrected, and to request erasure. To exercise any of
                 these rights, contact{' '}
-                <a className="font-medium text-brand underline" href="mailto:info@housepost.co.uk">
+                <a href="mailto:info@housepost.co.uk">
                   info@housepost.co.uk
                 </a>
                 .
@@ -144,13 +134,12 @@ export default function PrivacyPage() {
             </section>
 
             <section>
-              <h2 className="text-lg font-semibold text-slate-900">Complaints</h2>
-              <p className="mt-2">
+              <h2>Complaints</h2>
+              <p>
                 If you are unhappy with how we have handled your personal data, you
                 have the right to complain to the Information Commissioner&rsquo;s
                 Office (ICO) at{' '}
                 <a
-                  className="font-medium text-brand underline"
                   href="https://ico.org.uk"
                   target="_blank"
                   rel="noopener noreferrer"

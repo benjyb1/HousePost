@@ -1,22 +1,17 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import { LandRegistryAttribution } from '@/components/layout/LandRegistryAttribution'
+import styles from './public.module.css'
 
 /**
- * Shared site footer. Both columns share the same vertical rhythm: a logo-height
- * block at the top, then the small print, then two stacked links, so the right
- * column lines up with the left.
+ * Shared site footer. Both variants carry the attribution the Price Paid Data
+ * licence requires wherever we use the data. It never names who prints or
+ * posts the cards.
  *
- * The right-hand small print is the attribution the Price Paid Data licence
- * requires wherever we use the data. It never names who prints or posts the
- * cards.
- *
- * `variant` swaps the left-column links for the context:
- *  - "public" (homepage, auth pages): Login / Sign up
- *  - "portal" (signed-in app): Dashboard / Account
+ *  - "public" (Privacy, Opt out, Help, Houses sold): the homepage's footer,
+ *    so the public pages end the same way the homepage does.
+ *  - "portal" (signed-in app, sign-in pages): one quiet Paper line.
  */
 export function SiteFooter({ variant = 'public' }: { variant?: 'public' | 'portal' }) {
-  // Signed in: one quiet Paper line that keeps the licence attribution.
   if (variant === 'portal') {
     return (
       <footer className="border-t border-line">
@@ -32,45 +27,17 @@ export function SiteFooter({ variant = 'public' }: { variant?: 'public' | 'porta
     )
   }
 
-  const leftLinks = [
-    { href: '/login', label: 'Login' },
-    { href: '/help', label: 'Help' },
-  ]
-
   return (
-    <footer className="border-t py-12">
-      <div className="mx-auto max-w-6xl px-6 flex flex-col gap-5 sm:flex-row sm:justify-between sm:gap-8">
-        {/* Left */}
-        <div className="flex flex-col gap-3">
-          {/* On mobile the logo fills the column width but keeps its aspect
-              ratio (h-auto); from sm up it's a fixed height. */}
-          <Image
-            src="/logo-wordmark.png"
-            alt="Housepost"
-            width={600}
-            height={150}
-            className="h-auto w-full max-w-xs sm:h-10 sm:w-auto sm:max-w-none"
-          />
-          <p className="text-xs text-slate-400">Copyright &copy; 2026 | Housepost</p>
-          <div className="flex flex-col gap-1 text-sm text-slate-500">
-            {leftLinks.map(({ href, label }) => (
-              <Link key={href} href={href} className="hover:text-slate-700 transition-colors">{label}</Link>
-            ))}
-          </div>
-        </div>
-
-        {/* Right — mirrors the left column's rows */}
-        <div className="flex flex-col gap-3 sm:items-end sm:text-right">
-          {/* Spacer matches the logo height so rows line up when the columns sit
-              side by side. Hidden on mobile, where it would just add dead space
-              between the two stacked sections. */}
-          <div className="hidden h-10 sm:block" aria-hidden="true" />
-          <LandRegistryAttribution className="text-xs text-slate-400 sm:max-w-sm" />
-          <div className="flex flex-col gap-1 text-sm text-slate-500 sm:items-end">
-            <Link href="/opt-out" className="hover:text-slate-700 transition-colors">Opt out of mail</Link>
-            <Link href="/privacy" className="hover:text-slate-700 transition-colors">Privacy policy</Link>
-          </div>
-        </div>
+    <footer className={styles.foot}>
+      <span>© 2026 Housepost</span>
+      <nav aria-label="Footer">
+        <Link href="/help">Help</Link>
+        <Link href="/privacy">Privacy</Link>
+        <Link href="/opt-out">Opt out of mail</Link>
+        <Link href="/login">Log in</Link>
+      </nav>
+      <div className={styles.lic}>
+        <LandRegistryAttribution className="" />
       </div>
     </footer>
   )
