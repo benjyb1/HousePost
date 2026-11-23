@@ -66,7 +66,7 @@ export default function SignupPage() {
         office_postcode: officePostcode.toUpperCase().trim(),
       }).eq('id', data.user.id)
 
-      toast.success('Account created! Redirecting to billing setup…')
+      toast.success('Account created. Taking you to billing…')
       // Keep the button in its loading state and do a full navigation so the
       // server reliably picks up the new session cookie.
       window.location.assign('/billing')
@@ -80,18 +80,18 @@ export default function SignupPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Check your email</CardTitle>
+          <CardTitle className="text-[22px] tracking-[-0.01em]">Check your email</CardTitle>
           <CardDescription>
-            We&apos;ve sent a confirmation link to <strong>{email}</strong>.
-            Click the link in the email to activate your account.
+            We&apos;ve sent a link to <strong className="font-semibold text-ink">{email}</strong>. Open it to
+            confirm your account.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-slate-500">
-            Didn&apos;t receive the email? Check your spam folder or{' '}
+          <p className="text-[14px] text-ink-2">
+            Nothing there? Check your spam folder or{' '}
             <button
               type="button"
-              className="text-primary hover:underline"
+              className="font-semibold text-navy-ink underline-offset-4 hover:underline"
               onClick={() => setSubmitted(false)}
             >
               try again
@@ -105,8 +105,8 @@ export default function SignupPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create account</CardTitle>
-        <CardDescription>£15/month</CardDescription>
+        <CardTitle className="text-[22px] tracking-[-0.01em]">Create your account</CardTitle>
+        <CardDescription>£15 a month, cancel anytime</CardDescription>
       </CardHeader>
       <form onSubmit={handleSignup} className="flex flex-col gap-6">
         <CardContent className="space-y-4">
@@ -173,7 +173,7 @@ export default function SignupPage() {
             />
           </div>
           {error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 border border-red-200">
+            <p role="alert" className="text-[14px] leading-normal text-[#8a3324]">
               {error}
             </p>
           )}
@@ -182,9 +182,9 @@ export default function SignupPage() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Creating account…' : 'Create account'}
           </Button>
-          <p className="text-sm text-slate-500">
+          <p className="text-[14px] text-ink-2">
             Already have an account?{' '}
-            <Link href="/login" className="text-primary hover:underline">
+            <Link href="/login" className="font-semibold text-navy-ink underline-offset-4 hover:underline">
               Sign in
             </Link>
           </p>

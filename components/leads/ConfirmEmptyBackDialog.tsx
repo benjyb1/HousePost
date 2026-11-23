@@ -1,6 +1,6 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,12 +37,14 @@ export function ConfirmEmptyBackDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Send without a back design?</AlertDialogTitle>
           <AlertDialogDescription>
-            You haven&apos;t set a design for the back of your postcard, so {count === 1 ? 'it' : `all ${count}`} will print
-            with a blank back, with just the address area on the right. You can add a back design first, or send as is.
+            You haven&apos;t set a back design, so {count === 1 ? 'this card' : `all ${count} cards`} will print with a
+            blank back apart from the address area. Add one first, or send as is.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel onClick={onCancel} className={buttonVariants({ variant: 'ghost' })}>
+            Cancel
+          </AlertDialogCancel>
           <Button variant="outline" onClick={onAddBack}>
             Add a back design
           </Button>

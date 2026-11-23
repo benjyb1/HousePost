@@ -16,16 +16,26 @@ import { LandRegistryAttribution } from '@/components/layout/LandRegistryAttribu
  *  - "portal" (signed-in app): Dashboard / Account
  */
 export function SiteFooter({ variant = 'public' }: { variant?: 'public' | 'portal' }) {
-  const leftLinks =
-    variant === 'portal'
-      ? [
-          { href: '/dashboard', label: 'Dashboard' },
-          { href: '/help', label: 'Help' },
-        ]
-      : [
-          { href: '/login', label: 'Login' },
-          { href: '/help', label: 'Help' },
-        ]
+  // Signed in: one quiet Paper line that keeps the licence attribution.
+  if (variant === 'portal') {
+    return (
+      <footer className="border-t border-line">
+        <div className="mx-auto flex max-w-[1480px] flex-col gap-3 px-4 py-6 text-[13px] text-ink-2 sm:flex-row sm:items-start sm:justify-between sm:px-8">
+          <LandRegistryAttribution className="max-w-xl text-[13px] leading-relaxed text-ink-2" />
+          <nav aria-label="Footer" className="flex shrink-0 flex-wrap gap-x-5 gap-y-1">
+            <Link href="/help" className="hover:text-ink">Help</Link>
+            <Link href="/privacy" className="hover:text-ink">Privacy</Link>
+            <Link href="/opt-out" className="hover:text-ink">Opt out of mail</Link>
+          </nav>
+        </div>
+      </footer>
+    )
+  }
+
+  const leftLinks = [
+    { href: '/login', label: 'Login' },
+    { href: '/help', label: 'Help' },
+  ]
 
   return (
     <footer className="border-t py-12">

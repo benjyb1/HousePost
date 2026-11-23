@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Plus, Loader2 } from 'lucide-react'
+import { X, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface Props {
   open: boolean
@@ -39,13 +40,13 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error ?? 'Failed to add address')
+        setError(data.error ?? 'Could not add that address. Please try again.')
       } else {
         onAdded()
         handleClose()
       }
     } catch {
-      setError('Failed to add address')
+      setError('Could not add that address. Please try again.')
     } finally {
       setAdding(false)
     }
@@ -61,58 +62,73 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
   const canSubmit = address.trim() && postcode.trim()
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="text-lg font-semibold text-slate-800">Add Custom Address</h2>
-          <button onClick={handleClose} className="text-slate-400 hover:text-slate-600">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-address-title"
+        className="w-full max-w-md rounded-lg border border-line bg-paper-hi text-ink shadow-[0_16px_36px_-18px_rgba(40,30,15,0.4)]"
+      >
+        <div className="flex items-center justify-between gap-4 border-b border-line py-3 pl-5 pr-3">
+          <h2 id="add-address-title" className="text-lg font-semibold leading-snug">
+            Add an address
+          </h2>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="grid size-10 shrink-0 place-items-center rounded-[3px] text-ink-2 transition-colors hover:bg-accent hover:text-ink focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-navy"
+            aria-label="Close"
+          >
             <X size={20} />
           </button>
         </div>
 
-        <div className="px-5 py-4 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Address</label>
+        <div className="space-y-4 px-5 py-5">
+          <div className="space-y-1.5">
+            <label htmlFor="add-address-line" className="block text-[13.5px] text-ink-2">
+              Address
+            </label>
             <input
+              id="add-address-line"
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder="e.g. 10 Downing Street, London"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand"
+              placeholder="e.g. 14 Croft Road, Godalming"
+              autoComplete="off"
+              className="h-10 w-full rounded-md border border-line-2 bg-paper-hi px-3 text-[15px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2/70 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-solid focus-visible:outline-navy"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">Postcode</label>
+          <div className="space-y-1.5">
+            <label htmlFor="add-address-postcode" className="block text-[13.5px] text-ink-2">
+              Postcode
+            </label>
             <input
+              id="add-address-postcode"
               type="text"
               value={postcode}
               onChange={(e) => setPostcode(formatPostcode(e.target.value))}
-              placeholder="e.g. SW1A 1AA"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand"
+              placeholder="e.g. GU7 1BE"
+              autoComplete="off"
+              className="h-10 w-full rounded-md border border-line-2 bg-paper-hi px-3 text-[15px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2/70 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-solid focus-visible:outline-navy sm:max-w-[200px]"
             />
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+            <p role="alert" className="text-[14px] text-[#8a3324]">
+              {error}
+            </p>
           )}
         </div>
 
-        <div className="flex justify-end gap-2 px-5 py-4 border-t bg-slate-50 rounded-b-xl">
-          <button
-            onClick={handleClose}
-            className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
-          >
+        <div className="flex flex-col-reverse gap-2 rounded-b-lg border-t border-line bg-paper px-5 py-4 sm:flex-row sm:justify-end">
+          <Button variant="ghost" onClick={handleClose}>
             Cancel
-          </button>
-          <button
-            onClick={handleAdd}
-            disabled={!canSubmit || adding}
-            className="flex items-center gap-1.5 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50"
-          >
-            {adding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-            Add to Leads
-          </button>
+          </Button>
+          <Button onClick={handleAdd} disabled={!canSubmit || adding}>
+            {adding && <Loader2 size={16} className="animate-spin" />}
+            Add to your list
+          </Button>
         </div>
       </div>
     </div>

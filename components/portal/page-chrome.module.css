@@ -1,0 +1,130 @@
+/* Paper page chrome for the signed-in pages: the page column, the title row,
+   panels and the three button styles (navy filled, ghost, navy text link).
+   Used by Account, Notifications and Designs. Colours are the @theme tokens in
+   app/globals.css; the paper background itself comes from the portal layout. */
+
+.page {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 36px 32px 120px;
+  color: var(--color-ink);
+}
+
+.title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 24px;
+}
+.titleFlush {
+  margin-bottom: 0;
+}
+.title h1 {
+  font: 600 28px/1.1 var(--font-sans);
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--color-ink);
+}
+
+.intro {
+  margin: 10px 0 0;
+  max-width: 62ch;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+
+.panel {
+  background: var(--color-paper-hi);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  padding: 22px 24px;
+}
+
+/* Navy filled primary button, 3px corners. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--color-navy);
+  color: var(--color-paper);
+  font: 600 15px/1 var(--font-sans);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn:hover {
+  background: var(--color-navy-hi);
+}
+
+/* Outlined, for quieter actions such as Sign out. */
+.btnGhost {
+  background: transparent;
+  color: var(--color-ink);
+  box-shadow: inset 0 0 0 1px var(--color-line-2);
+}
+.btnGhost:hover {
+  background: #f1ebe0;
+}
+
+/* Navy text link styled as a button, for secondary actions. */
+.textbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  padding: 12px 4px;
+  font: 600 14px/1 var(--font-sans);
+  color: var(--color-navy-ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+.textbtn:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.btn:focus-visible,
+.textbtn:focus-visible {
+  outline: 2px solid var(--color-navy);
+  outline-offset: 3px;
+}
+.btn:disabled,
+.textbtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.btn:disabled:hover {
+  background: var(--color-navy);
+}
+.btnGhost:disabled:hover {
+  background: transparent;
+}
+.textbtn:disabled:hover {
+  text-decoration: none;
+}
+
+@media (max-width: 979px) {
+  .page {
+    padding: 18px 16px 72px;
+  }
+  .panel {
+    padding: 18px 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn {
+    transition: none;
+  }
+}

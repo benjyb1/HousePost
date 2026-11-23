@@ -26,8 +26,8 @@ export function ConfirmLeaveDialog({
         <AlertDialogHeader>
           <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
           <AlertDialogDescription>
-            Your edits to this postcard haven&apos;t been saved. If you leave now they&apos;ll be lost. Click
-            &ldquo;Use this design&rdquo; first to keep them.
+            Your changes to this postcard aren&apos;t saved yet, so leaving now loses them. To keep them, press
+            &ldquo;Use this design&rdquo; first.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

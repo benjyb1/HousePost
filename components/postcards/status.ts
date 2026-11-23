@@ -93,7 +93,7 @@ export const EXCEPTIONS: StatusGuideEntry[] = [
     meaning: 'Not sent. Any charge is refunded and the lead goes back into your list. The usual reasons:',
     reasons: [
       'The address couldn’t be used for posting. Check it, then send again.',
-      'Your design couldn’t be printed. Check both sides in Postcard Design, then send again.',
+      'Your design couldn’t be printed. Check both sides in Designs, then send again.',
       'A printing problem on our side didn’t clear after several tries. Send it again.',
     ],
   },
