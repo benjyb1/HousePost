@@ -10,7 +10,20 @@ function getResend(): Resend {
   return _resend
 }
 
-const FROM = process.env.RESEND_FROM_EMAIL ?? 'info@housepost.co.uk'
+const DEFAULT_FROM = 'Housepost <info@housepost.co.uk>'
+
+/**
+ * The From header for every email we send. A bare address in RESEND_FROM_EMAIL
+ * is shown as "Housepost <address>" so the display name never depends on how the
+ * variable was typed into hosting; a value that already has a name is kept.
+ */
+export function formatSender(raw: string | undefined): string {
+  const value = raw?.trim()
+  if (!value) return DEFAULT_FROM
+  return value.includes('<') ? value : `Housepost <${value}>`
+}
+
+const FROM = formatSender(process.env.RESEND_FROM_EMAIL)
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://housepost.co.uk'
 
 // Escape values that are interpolated into email HTML so a name/title/body
