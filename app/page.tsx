@@ -1,302 +1,184 @@
 import Link from 'next/link'
 import Image from 'next/image'
-import {
-  MapPin,
-  Mail,
-  TrendingUp,
-  Shield,
-  Clock,
-  CheckCircle,
-  ArrowRight,
-} from 'lucide-react'
 import type { Metadata } from 'next'
-import { SiteFooter } from '@/components/layout/SiteFooter'
-import { HeroBackground } from '@/components/marketing/HeroBackground'
-import { HeroTradeHeadline } from '@/components/marketing/HeroTradeHeadline'
+import { League_Spartan, Figtree } from 'next/font/google'
+import { LandRegistryAttribution } from '@/components/layout/LandRegistryAttribution'
+import { Logo, HOUSE_WINDOW } from '@/components/marketing/home/Logo'
+import { RollerHeadline } from '@/components/marketing/home/RollerHeadline'
+import { NewSalesSection } from '@/components/marketing/home/NewSalesSection'
+import { HowItWorks } from '@/components/marketing/home/HowItWorks'
+import { SalesCheck } from '@/components/marketing/home/SalesCheck'
+import styles from '@/components/marketing/home/home.module.css'
+
+const display = League_Spartan({ subsets: ['latin'], weight: ['700'], variable: '--font-display' })
+const text = Figtree({ subsets: ['latin'], weight: ['400', '600'], variable: '--font-text' })
 
 // Trade terms live in the title/description so queries like
 // "leads for builders" / "leads for plumbers" have something to match.
 export const metadata: Metadata = {
   title: 'Local leads for builders, plumbers, electricians & more | Housepost',
   description:
-    'Housepost finds the new homeowners near you and posts your marketing postcards to them. Local leads made easy for builders, decorators, plumbers, architects, electricians, landscapers, interior designers and carpenters.',
+    'Housepost posts your postcard to the people who have just bought a home near you. Local leads for builders, plumbers, electricians, kitchen fitters, architects and interior designers.',
 }
 
-// Fully static marketing page — no Supabase calls needed
-// Logged-in users navigating to /dashboard are handled by middleware
+// Static marketing page. The order is Freddie's: hero, the map animation,
+// price, how it works, try it yourself, sign up.
 export default function HomePage() {
-
   return (
-    <div className="min-h-screen bg-white">
-      {/* ── Nav ── */}
-      <nav className="sticky top-0 z-50 border-b bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <Link href="/" className="shrink-0">
-            <Image
-              src="/logo-wordmark.png"
-              alt="Housepost"
-              width={600}
-              height={150}
-              className="h-8 w-auto sm:h-10"
-              priority
-            />
-          </Link>
-          <div className="flex items-center gap-3 sm:gap-6">
-            <Link
-              href="#how-it-works"
-              className="hidden sm:inline text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              How it works
+    <div className={`${display.variable} ${text.variable} ${styles.page}`}>
+      {/* ── 1. Hero ── */}
+      <header className={styles.hero}>
+        <div className={styles.wrap}>
+          <nav className={styles.nav} aria-label="Main">
+            <Link href="/" className={styles.logoLink} aria-label="Housepost home">
+              <Logo priority />
             </Link>
-            <Link
-              href="#pricing"
-              className="hidden sm:inline text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              Pricing
-            </Link>
-            {/* Divider separating the section links from the account actions */}
-            <span
-              aria-hidden="true"
-              className="hidden sm:inline-block h-4 w-px bg-slate-300"
-            />
-            <Link
-              href="/login"
-              className="whitespace-nowrap text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-            >
-              Sign in
-            </Link>
-            <Link
-              href="/signup"
-              className="whitespace-nowrap rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white hover:bg-brand-dark transition-colors"
-            >
-              Get started
-            </Link>
+            <div className={styles.navLinks}>
+              <a href="#how" className={styles.navOptional}>
+                How it works
+              </a>
+              <a href="#pricing" className={styles.navOptional}>
+                Pricing
+              </a>
+              <Link href="/login">Log in</Link>
+              <Link href="/signup" className={`${styles.button} ${styles.buttonInk}`}>
+                Sign up
+              </Link>
+            </div>
+          </nav>
+        </div>
+
+        <div className={`${styles.wrap} ${styles.heroBody}`}>
+          <div className={styles.heroText}>
+            <RollerHeadline />
+            <p className={styles.heroLine}>
+              Each month we post your card to the people who have just bought a home near you.
+              Nearly half of them renovate in their first year.
+            </p>
+            <div className={styles.heroActions}>
+              <Link href="/signup" className={`${styles.button} ${styles.buttonAccent}`}>
+                Start for £15 a month
+              </Link>
+              <a href="#how" className={styles.textLink}>
+                How it works
+              </a>
+            </div>
           </div>
         </div>
-      </nav>
 
-      {/* ── Hero ── */}
-      <section className="relative overflow-hidden bg-brand">
-        {/* Aerial-houses background with a heavy navy duotone over the top */}
-        <HeroBackground />
-        {/* Navy duotone: heavier on the left for text legibility, lighter on the
-            right so the aerial houses stay visible. On mobile the left-to-right
-            contrast is gentler — a steep gradient over a narrow screen looks
-            harsh, so we keep it subtle there and only ramp it up from sm up. */}
-        <div className="absolute inset-0 bg-gradient-to-r from-brand/90 to-brand/65 sm:from-brand/95 sm:via-brand/75 sm:to-brand/40" />
-        <div className="absolute inset-0 bg-gradient-to-t from-brand/60 to-transparent" />
-        {/* Subtle dot texture */}
-        <div className="pointer-events-none absolute inset-0" style={{ opacity: 0.06 }}>
-          <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-            <defs>
-              <pattern id="hero-dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-                <circle cx="2" cy="2" r="1.2" fill="white" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#hero-dots)" />
+        {/* The house from the logo, as a window onto rows of terraced houses */}
+        <div className={styles.heroShape} aria-hidden="true">
+          <div className={styles.shutter}>
+            <Image
+              src="/home/aerial-terraces.jpg"
+              alt=""
+              fill
+              priority
+              sizes="(max-width: 900px) 130vw, 76vw"
+              style={{ objectFit: 'cover', objectPosition: 'center 65%' }}
+            />
+          </div>
+          <svg className={styles.heroWindow} viewBox="0 0 3000 3000" aria-hidden="true">
+            <path d={HOUSE_WINDOW} fill="#ff7614" fillRule="evenodd" />
           </svg>
         </div>
+      </header>
 
-        <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-24 text-left">
-          <div className="max-w-3xl">
-            <HeroTradeHeadline />
+      <main>
+        {/* ── 2. The premise: new sales near you, every month ── */}
+        <NewSalesSection />
+
+        {/* ── 3. Price ── */}
+        <section id="pricing" className={`${styles.wrap} ${styles.price}`} aria-labelledby="price-title">
+          <div className={`${styles.priceIntro} ${styles.reveal}`}>
+            <h2 id="price-title" className={styles.head}>
+              What it costs
+            </h2>
+            <p>One subscription with five postcards included every month, and no setup fee.</p>
           </div>
-          {/* Mobile (2.2): the trade block always reserves two lines so nothing
-              jumps as trades rotate. A bigger gap above this line and a tight
-              one below it make "Local leads made easy" read as one unit with
-              the sentence under it, not float between the two. */}
-          <p
-            className="mt-9 text-2xl font-semibold sm:mt-5 sm:text-3xl"
-            style={{
-              backgroundImage: 'linear-gradient(135deg, #f1f5f9, #cbd5e1, #94a3b8)',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              color: 'transparent',
-            }}
-          >
-            Local leads made easy.
-          </p>
-          <p className="mt-2 max-w-xl text-lg text-white/80 leading-relaxed sm:mt-6 sm:text-xl">
-            We find the new homeowners near you. You pick who gets a postcard.
-          </p>
-          <div className="mt-10 flex flex-col items-start gap-4 sm:flex-row">
-            <Link
-              href="/signup"
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3.5 text-base font-semibold text-brand shadow-lg hover:bg-white/90 transition-all"
-            >
-              Start for £15/month
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 rounded-xl border border-white/30 px-8 py-3.5 text-base font-semibold text-white hover:bg-white/10 transition-colors"
-            >
-              Sign in
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      {/* ── How it works ── */}
-      <section id="how-it-works" className="scroll-mt-20 bg-slate-50 py-20">
-        <div className="mx-auto max-w-6xl px-6">
-          <h2 className="text-center text-3xl font-bold text-slate-900 mb-4">
-            Three steps. Fully automatic.
-          </h2>
-          <p className="text-center text-slate-500 mb-14 max-w-xl mx-auto">
-            We do the heavy lifting – you just choose which properties to target.
-          </p>
-          <div className="grid gap-8 md:grid-cols-3">
-            {[
-              {
-                icon: TrendingUp,
-                step: '01',
-                title: (
-                  <>
-                    We find new <span className="font-bold text-slate-700">homeowners</span>
-                  </>
-                ),
-                body: 'Every month we find the newly bought homes in your local area and build a list of the new homeowners near you.',
-              },
-              {
-                icon: MapPin,
-                step: '02',
-                title: (
-                  <>
-                    You pick your <span className="font-bold text-slate-700">targets</span>
-                  </>
-                ),
-                body: 'Log in, review the list, select the ones you want to contact. Filter by distance, price, or property type.',
-              },
-              {
-                icon: Mail,
-                step: '03',
-                title: (
-                  <>
-                    We send the <span className="font-bold text-slate-700">postcards</span>
-                  </>
-                ),
-                body: 'We handle the printing and postage of every postcard. Track each one in real time.',
-              },
-            ].map(({ icon: Icon, step, title, body }, index) => (
-              <div
-                key={step}
-                className="relative rounded-2xl bg-white p-8 shadow-sm border border-slate-100"
-              >
-                <div className="flex items-center gap-3 mb-4">
-                  <span className="text-xs font-bold text-brand tracking-widest">{step}</span>
-                  <div className="h-10 w-10 rounded-xl bg-brand-light flex items-center justify-center">
-                    <Icon className="h-5 w-5 text-brand" />
-                  </div>
-                </div>
-                <h3 className="text-lg font-semibold text-slate-900 mb-2">{title}</h3>
-                <p className="text-slate-500 text-sm leading-relaxed">{body}</p>
-
-                {/* Arrow to the next step (desktop only), with a subtle pulse */}
-                {index < 2 && (
-                  <ArrowRight
-                    aria-hidden="true"
-                    className="hidden md:block absolute top-1/2 -right-7 -translate-y-1/2 h-6 w-6 text-brand-accent animate-pulse"
-                  />
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Features ── */}
-      <section className="py-20">
-        <div className="mx-auto max-w-6xl px-6">
-          <h2 className="text-center text-3xl font-bold text-slate-900 mb-14">
-            Everything included
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              { icon: Clock, title: 'Runs by itself', body: 'Fires automatically every month, you just select and send.' },
-              { icon: Shield, title: 'Fresh data, every month', body: 'Official government data, updated every month.' },
-              { icon: CheckCircle, title: 'Filter your way', body: 'Sort leads by distance, price, or property type.' },
-              { icon: Mail, title: 'Printed and posted', body: 'Professionally printed on 300gsm card and posted for you.' },
-              { icon: TrendingUp, title: 'Live tracking', body: 'Keep an eye on every postcard, from printer to postbox.' },
-            ].map(({ icon: Icon, title, body }) => (
-              <div key={title} className="flex gap-4 p-6 rounded-xl border border-slate-100 hover:border-brand-border hover:bg-brand-light/30 transition-colors">
-                <div className="h-9 w-9 shrink-0 rounded-lg bg-brand-light flex items-center justify-center mt-0.5">
-                  <Icon className="h-4 w-4 text-brand" />
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-800 mb-1">{title}</p>
-                  <p className="text-sm text-slate-500 leading-relaxed">{body}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Pricing ── */}
-      <section id="pricing" className="scroll-mt-20 bg-slate-50 py-20">
-        <div className="mx-auto max-w-md px-6 text-center">
-          <h2 className="text-3xl font-bold text-slate-900 mb-4">Simple pricing</h2>
-          <p className="text-slate-500 mb-10">One plan. All the features.</p>
-          <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden">
-            <div className="bg-brand px-8 py-8 text-white">
-              <p className="text-sm font-medium opacity-80 mb-1">Monthly subscription</p>
-              <div className="flex items-end justify-center gap-1">
-                <span className="text-5xl font-extrabold">£15</span>
-                <span className="text-xl opacity-70 mb-1">/month</span>
+          <div className={`${styles.figureBlock} ${styles.reveal2}`}>
+            <div className={styles.figureWrap}>
+              <p className={styles.figure}>
+                <span className={styles.figureSign}>£</span>15
+                <span className={styles.figurePer}>a month</span>
+              </p>
+              <div className={styles.figureHouse} aria-hidden="true">
+                <Image src="/home/aerial-leafy.jpg" alt="" fill sizes="160px" />
               </div>
             </div>
-            <div className="px-8 py-8 space-y-3">
-              {[
-                'Includes 5 free postcards per month',
-                'Each additional postcard just £1.50',
-                'Email alerts when your leads are ready',
-                'Live tracking',
-                'No setup fee',
-                'Cancel anytime',
-              ].map((item) => (
-                <div key={item} className="flex items-start gap-3 text-sm text-slate-700">
-                  <CheckCircle className="h-4 w-4 text-signal shrink-0 mt-0.5" />
-                  {item}
-                </div>
-              ))}
-              <div className="pt-4">
-                <Link
-                  href="/signup"
-                  className="block w-full rounded-xl bg-brand py-3 text-center text-sm font-semibold text-white hover:bg-brand-dark transition-colors"
-                >
-                  Get started
-                </Link>
-              </div>
+            <ul className={styles.included}>
+              <li>Five postcards every month, printed and posted</li>
+              <li>Extra postcards £1.50 each</li>
+              <li>Fresh leads every month</li>
+              <li>Cancel anytime</li>
+            </ul>
+            <Link href="/signup" className={`${styles.button} ${styles.buttonAccent}`}>
+              Start today
+            </Link>
+          </div>
+        </section>
+
+        {/* ── 4. How it works ── */}
+        <HowItWorks />
+
+        {/* ── 5. Try it yourself ── */}
+        <SalesCheck />
+
+        {/* ── 6. Sign up ── */}
+        <section className={`${styles.wrap} ${styles.cta}`} aria-labelledby="cta-title">
+          <h2 id="cta-title" className={`${styles.head} ${styles.reveal}`}>
+            Be the first name through the door.
+          </h2>
+          <div className={styles.ctaSide}>
+            <p>£15 a month with five postcards included. Cancel anytime.</p>
+            <Link href="/signup" className={`${styles.button} ${styles.buttonAccent}`}>
+              Sign up today
+            </Link>
+          </div>
+        </section>
+      </main>
+
+      <footer className={styles.footer}>
+        <div className={styles.wrap}>
+          <Logo tone="white" className={styles.footerMark} wordWidth={1080} />
+          <div className={styles.footerCols}>
+            <ul>
+              <li>
+                <a href="#how">How it works</a>
+              </li>
+              <li>
+                <a href="#pricing">Pricing</a>
+              </li>
+              <li>
+                <a href="#check">Try it yourself</a>
+              </li>
+            </ul>
+            <ul>
+              <li>
+                <Link href="/login">Log in</Link>
+              </li>
+              <li>
+                <Link href="/signup">Sign up</Link>
+              </li>
+              <li>
+                <Link href="/help">Help</Link>
+              </li>
+            </ul>
+            <ul>
+              <li>
+                <Link href="/opt-out">Opt out of mail</Link>
+              </li>
+              <li>
+                <Link href="/privacy">Privacy policy</Link>
+              </li>
+            </ul>
+            <div>
+              <LandRegistryAttribution className={styles.footerSmall} />
             </div>
           </div>
+          <p className={styles.footerLast}>© 2026 Housepost. Aerial photographs by Ben Elliott on Unsplash.</p>
         </div>
-      </section>
-
-      {/* ── CTA ── */}
-      <section className="bg-brand py-20 text-center">
-        <div className="mx-auto max-w-2xl px-6">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            Ready to reach{' '}
-            <span className="font-bold text-brand-accent">new homeowners</span> near
-            you?
-          </h2>
-          <p className="text-white/70 mb-8">
-            Local leads, automated. Direct marketing couldn&apos;t be easier.
-          </p>
-          <Link
-            href="/signup"
-            className="inline-flex items-center gap-2 rounded-xl bg-white px-8 py-3.5 text-base font-semibold text-brand shadow-lg hover:bg-white/90 transition-all"
-          >
-            Start for £15/month
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </section>
-
-      {/* ── Footer ── */}
-      <SiteFooter />
+      </footer>
     </div>
   )
 }
