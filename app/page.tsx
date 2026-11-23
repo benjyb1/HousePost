@@ -11,7 +11,7 @@ import { SalesCheck } from '@/components/marketing/home/SalesCheck'
 import styles from '@/components/marketing/home/home.module.css'
 
 // Paper's typeface, the one Freddie liked for being quick to read
-const text = Hanken_Grotesk({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-text' })
+const text = Hanken_Grotesk({ subsets: ['latin'], variable: '--font-text' }) // variable font: every weight from one file
 
 // Trade terms live in the title/description so queries like
 // "leads for builders" / "leads for plumbers" have something to match.
