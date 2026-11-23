@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import type { Metadata } from 'next'
-import { League_Spartan, Figtree } from 'next/font/google'
+import { Hanken_Grotesk } from 'next/font/google'
 import { LandRegistryAttribution } from '@/components/layout/LandRegistryAttribution'
 import { Logo, HOUSE_WINDOW } from '@/components/marketing/home/Logo'
 import { RollerHeadline } from '@/components/marketing/home/RollerHeadline'
@@ -10,8 +10,8 @@ import { HowItWorks } from '@/components/marketing/home/HowItWorks'
 import { SalesCheck } from '@/components/marketing/home/SalesCheck'
 import styles from '@/components/marketing/home/home.module.css'
 
-const display = League_Spartan({ subsets: ['latin'], weight: ['700'], variable: '--font-display' })
-const text = Figtree({ subsets: ['latin'], weight: ['400', '600'], variable: '--font-text' })
+// Paper's typeface, the one Freddie liked for being quick to read
+const text = Hanken_Grotesk({ subsets: ['latin'], weight: ['400', '500', '600', '700'], variable: '--font-text' })
 
 // Trade terms live in the title/description so queries like
 // "leads for builders" / "leads for plumbers" have something to match.
@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 // price, how it works, try it yourself, sign up.
 export default function HomePage() {
   return (
-    <div className={`${display.variable} ${text.variable} ${styles.page}`}>
+    <div className={`${text.variable} ${styles.page}`}>
       {/* ── 1. Hero ── */}
       <header className={styles.hero}>
         <div className={styles.wrap}>

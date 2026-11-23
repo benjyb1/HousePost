@@ -109,7 +109,7 @@ export function NewSalesSection() {
         const w = lines[i + 1] - lines[i] - 18
         const h = lines[j + 1] - lines[j] - 18
         const park = lines[i] === 400 && lines[j] === 400
-        mk('rect', { x, y, width: w, height: h, fill: park ? '#dbe8d1' : '#eceef1' }, grid)
+        mk('rect', { x, y, width: w, height: h, fill: park ? '#dbe6cf' : '#ebe5da' }, grid)
         if (park)
           for (let t = 0; t < 6; t++)
             mk('circle', { cx: x + 16 + ((t * 31) % (w - 32)), cy: y + 18 + ((t * 23) % (h - 36)), r: 6 + (t % 3), fill: '#c8ddb9' }, grid)
