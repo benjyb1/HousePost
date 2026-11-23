@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Clock, Loader2, SendHorizonal, X } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { ConfirmEmptyBackDialog } from '@/components/leads/ConfirmEmptyBackDialog'
+import { POSTCARD_COOL_OFF_MINUTES } from '@/types/profile'
 
 // Cost preview returned by POST /api/postcards { action: 'preview' }.
 export type PreviewData = {
@@ -286,67 +287,86 @@ function SendModal({
     !!preview && preview.quantity > 0 && preview.designsReady && !preview.wouldExceedCap
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="text-lg font-semibold text-slate-800">
-            {state === 'held' ? 'Order placed' : reactivate ? 'Send again' : 'Confirm your order'}
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="send-modal-title"
+        className="w-full max-w-md rounded-lg border border-line bg-paper-hi text-ink shadow-[0_16px_36px_-18px_rgba(40,30,15,0.4)]"
+      >
+        <div className="flex items-center justify-between gap-4 border-b border-line py-3 pl-5 pr-3">
+          <h2 id="send-modal-title" className="text-lg font-semibold leading-snug">
+            {state === 'held' || state === 'cancelling'
+              ? cancelInfo
+                ? 'Your order'
+                : 'Order placed'
+              : reactivate
+                ? 'Send again'
+                : 'Check your order'}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600" aria-label="Close">
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid size-10 shrink-0 place-items-center rounded-[3px] text-ink-2 transition-colors hover:bg-accent hover:text-ink focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-navy"
+            aria-label="Close"
+          >
             <X size={20} />
           </button>
         </div>
 
-        <div className="px-5 py-4 space-y-4 text-sm">
+        <div className="space-y-3 px-5 py-5 text-[15px] leading-normal">
           {/* Preparing preview */}
           {state === 'previewing' && (
-            <div className="flex items-center gap-2 text-slate-500 py-4 justify-center">
+            <div className="flex items-center justify-center gap-2 py-4 text-ink-2">
               <Loader2 size={18} className="animate-spin" />
-              Preparing your order…
+              Working out the cost…
             </div>
           )}
 
           {/* Confirmation step */}
           {(state === 'confirm' || state === 'confirming') && preview && (
             <>
-              <p className="text-slate-700">{orderBreakdown(preview)}</p>
+              <p className="font-semibold">{orderBreakdown(preview)}</p>
 
               {preview.alreadySent > 0 && (
-                <p className="text-xs text-slate-500">
-                  {preview.alreadySent} of your selected lead{preview.alreadySent === 1 ? ' was' : 's were'} already
-                  sent and skipped.
+                <p className="text-[14px] text-ink-2">
+                  {preview.alreadySent} of the homes you picked {preview.alreadySent === 1 ? 'has' : 'have'} already
+                  had a card, so {preview.alreadySent === 1 ? 'it is' : 'they are'} left out.
                 </p>
               )}
 
               {(preview.suppressed ?? 0) > 0 && (
-                <p className="text-xs text-slate-500">
+                <p className="text-[14px] text-ink-2">
                   {preview.suppressed} {preview.suppressed === 1 ? 'address is' : 'addresses are'} on the
-                  do-not-contact list and {preview.suppressed === 1 ? 'was' : 'were'} removed.
+                  do-not-contact list, so {preview.suppressed === 1 ? 'it was' : 'they were'} removed.
                 </p>
               )}
 
-              <p className="text-xs text-slate-500">
+              <p className="text-[14px] text-ink-2">
                 {preview.payable > 0
                   ? `£${(preview.costPence / 100).toFixed(2)} will be charged to your saved card now. `
                   : ''}
-                Orders are held for a short cool-off window before posting, so you can still cancel.
+                We hold the order for {POSTCARD_COOL_OFF_MINUTES} minutes before it goes to print, and you can
+                cancel in that time.
               </p>
 
               {!preview.designsReady && (
-                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-                  You need a postcard design before sending. Open Postcard Design to create or upload one.
+                <p role="alert" className="text-[14px] text-[#8a3324]">
+                  You need a postcard design before you can send. Make or upload one in Designs.
                 </p>
               )}
 
               {preview.wouldExceedCap && (
-                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-                  This would exceed your monthly limit of {preview.cap} postcards. You have {preview.capRemaining}{' '}
-                  remaining this billing period.
+                <p role="alert" className="text-[14px] text-[#8a3324]">
+                  This would go over your monthly limit of {preview.cap} postcards. You have {preview.capRemaining}{' '}
+                  left this billing period.
                 </p>
               )}
 
               {error && (
-                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+                <p role="alert" className="text-[14px] text-[#8a3324]">
+                  {error}
+                </p>
               )}
             </>
           )}
@@ -356,33 +376,30 @@ function SendModal({
             <>
               {!cancelInfo ? (
                 <>
-                  <div className="flex items-start gap-2 text-slate-700">
-                    <Clock size={18} className="mt-0.5 text-brand shrink-0" />
-                    <p>
-                      {order.quantity} postcard{order.quantity === 1 ? '' : 's'} held and will send in about{' '}
-                      {order.coolOffMinutes} minutes. You can cancel until then for a full refund of any charge.
-                    </p>
-                  </div>
+                  <p>
+                    {order.quantity} postcard{order.quantity === 1 ? '' : 's'} will go to print in about{' '}
+                    {order.coolOffMinutes} minutes. You can cancel until then for a full refund of any charge.
+                  </p>
                   {order.payable > 0 && (
-                    <p className="text-xs text-slate-500">{order.costFormatted} charged to your saved card.</p>
+                    <p className="text-[14px] text-ink-2">{order.costFormatted} charged to your saved card.</p>
                   )}
                 </>
               ) : (
-                <p className="text-slate-700">{cancelInfo}</p>
+                <p>{cancelInfo}</p>
               )}
             </>
           )}
         </div>
 
-        <div className="flex justify-end gap-2 px-5 py-4 border-t bg-slate-50 rounded-b-xl">
+        <div className="flex flex-col-reverse gap-2 rounded-b-lg border-t border-line bg-paper px-5 py-4 sm:flex-row sm:justify-end">
           {(state === 'confirm' || state === 'confirming') && (
             <>
               <Button variant="ghost" onClick={onClose} disabled={busy}>
                 Cancel
               </Button>
               <Button onClick={onConfirm} disabled={!canConfirm || busy}>
-                {state === 'confirming' ? <Loader2 size={16} className="animate-spin" /> : <SendHorizonal size={16} />}
-                {preview && preview.payable > 0 ? `Confirm & pay ${preview.costFormatted}` : 'Confirm & send'}
+                {state === 'confirming' && <Loader2 size={16} className="animate-spin" />}
+                {preview && preview.payable > 0 ? `Confirm and pay ${preview.costFormatted}` : 'Confirm and send'}
               </Button>
             </>
           )}
@@ -391,7 +408,7 @@ function SendModal({
             <>
               {!cancelInfo && (
                 <Button variant="outline" onClick={onCancelOrder} disabled={state === 'cancelling'}>
-                  {state === 'cancelling' ? <Loader2 size={16} className="animate-spin" /> : <X size={16} />}
+                  {state === 'cancelling' && <Loader2 size={16} className="animate-spin" />}
                   Cancel order
                 </Button>
               )}

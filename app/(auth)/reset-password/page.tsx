@@ -115,7 +115,7 @@ export default function ResetPasswordPage() {
       return
     }
 
-    toast.success('Password updated. Taking you to your dashboard…')
+    toast.success('Password updated. Taking you to Home…')
     // Full navigation so the server reliably picks up the session cookie,
     // matching how sign-in redirects.
     window.location.assign('/dashboard')
@@ -125,8 +125,8 @@ export default function ResetPasswordPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Just a moment</CardTitle>
-          <CardDescription>Checking your reset link…</CardDescription>
+          <CardTitle className="text-[22px] tracking-[-0.01em]">Checking your link</CardTitle>
+          <CardDescription>This takes a second or two.</CardDescription>
         </CardHeader>
       </Card>
     )
@@ -136,15 +136,14 @@ export default function ResetPasswordPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Link expired</CardTitle>
+          <CardTitle className="text-[22px] tracking-[-0.01em]">Link expired</CardTitle>
           <CardDescription>
-            This password reset link is invalid or has expired. Reset links can
-            only be used once, and don&apos;t last forever.
+            This reset link has expired or has already been used. Each link works once, so ask for a new one.
           </CardDescription>
         </CardHeader>
         <CardFooter>
-          <p className="text-sm text-slate-500">
-            <Link href="/forgot-password" className="text-primary hover:underline">
+          <p className="text-[14px] text-ink-2">
+            <Link href="/forgot-password" className="font-semibold text-navy-ink underline-offset-4 hover:underline">
               Request a new link
             </Link>
           </p>
@@ -156,8 +155,8 @@ export default function ResetPasswordPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Set a new password</CardTitle>
-        <CardDescription>Choose a new password for your account.</CardDescription>
+        <CardTitle className="text-[22px] tracking-[-0.01em]">Set a new password</CardTitle>
+        <CardDescription>At least 8 characters.</CardDescription>
       </CardHeader>
       <form onSubmit={handleUpdate} className="flex flex-col gap-6">
         <CardContent className="space-y-4">
@@ -186,7 +185,7 @@ export default function ResetPasswordPage() {
             />
           </div>
           {error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 border border-red-200">
+            <p role="alert" className="text-[14px] leading-normal text-[#8a3324]">
               {error}
             </p>
           )}

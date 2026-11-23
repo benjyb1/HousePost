@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -43,8 +43,7 @@ export default function LoginPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Sign in</CardTitle>
-        <CardDescription>Enter your details to access your account</CardDescription>
+        <CardTitle className="text-[22px] tracking-[-0.01em]">Sign in</CardTitle>
       </CardHeader>
       <form onSubmit={handleLogin} className="flex flex-col gap-6">
         <CardContent className="space-y-4">
@@ -64,7 +63,7 @@ export default function LoginPage() {
               <Label htmlFor="password">Password</Label>
               <Link
                 href="/forgot-password"
-                className="text-sm text-slate-500 hover:text-primary hover:underline"
+                className="text-[13.5px] font-semibold text-navy-ink underline-offset-4 hover:underline"
               >
                 Forgot your password?
               </Link>
@@ -79,7 +78,7 @@ export default function LoginPage() {
             />
           </div>
           {error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 border border-red-200">
+            <p role="alert" className="text-[14px] leading-normal text-[#8a3324]">
               {error}
             </p>
           )}
@@ -88,9 +87,9 @@ export default function LoginPage() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Signing in…' : 'Sign in'}
           </Button>
-          <p className="text-sm text-slate-500">
+          <p className="text-[14px] text-ink-2">
             Don&apos;t have an account?{' '}
-            <Link href="/signup" className="text-primary hover:underline">
+            <Link href="/signup" className="font-semibold text-navy-ink underline-offset-4 hover:underline">
               Sign up
             </Link>
           </p>

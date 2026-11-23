@@ -52,18 +52,17 @@ export default function ForgotPasswordPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Check your email</CardTitle>
+          <CardTitle className="text-[22px] tracking-[-0.01em]">Check your email</CardTitle>
           <CardDescription>
-            If that email is registered, we&apos;ve sent a link to reset your password.
-            Click the link in the email to choose a new one.
+            If that email has an account, we&apos;ve sent it a link. Open the link to choose a new password.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-slate-500">
-            Didn&apos;t receive it? Check your spam folder or{' '}
+          <p className="text-[14px] text-ink-2">
+            Nothing there? Check your spam folder or{' '}
             <button
               type="button"
-              className="text-primary hover:underline"
+              className="font-semibold text-navy-ink underline-offset-4 hover:underline"
               onClick={() => setSubmitted(false)}
             >
               try again
@@ -71,8 +70,8 @@ export default function ForgotPasswordPage() {
           </p>
         </CardContent>
         <CardFooter>
-          <p className="text-sm text-slate-500">
-            <Link href="/login" className="text-primary hover:underline">
+          <p className="text-[14px] text-ink-2">
+            <Link href="/login" className="font-semibold text-navy-ink underline-offset-4 hover:underline">
               Back to sign in
             </Link>
           </p>
@@ -84,10 +83,8 @@ export default function ForgotPasswordPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Reset your password</CardTitle>
-        <CardDescription>
-          Enter your email and we&apos;ll send you a link to set a new password.
-        </CardDescription>
+        <CardTitle className="text-[22px] tracking-[-0.01em]">Reset your password</CardTitle>
+        <CardDescription>We&apos;ll email you a link to set a new one.</CardDescription>
       </CardHeader>
       <form onSubmit={handleReset} className="flex flex-col gap-6">
         <CardContent className="space-y-4">
@@ -103,7 +100,7 @@ export default function ForgotPasswordPage() {
             />
           </div>
           {error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 border border-red-200">
+            <p role="alert" className="text-[14px] leading-normal text-[#8a3324]">
               {error}
             </p>
           )}
@@ -112,9 +109,9 @@ export default function ForgotPasswordPage() {
           <Button type="submit" className="w-full" disabled={loading}>
             {loading ? 'Sending link…' : 'Send reset link'}
           </Button>
-          <p className="text-sm text-slate-500">
+          <p className="text-[14px] text-ink-2">
             Remembered it?{' '}
-            <Link href="/login" className="text-primary hover:underline">
+            <Link href="/login" className="font-semibold text-navy-ink underline-offset-4 hover:underline">
               Back to sign in
             </Link>
           </p>

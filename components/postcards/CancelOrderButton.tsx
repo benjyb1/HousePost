@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { X, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 // Lets a user cancel a still-held order straight from the Tracking table — the
@@ -38,13 +38,15 @@ export default function CancelOrderButton({ orderId }: { orderId: string }) {
 
   return (
     <button
+      type="button"
       onClick={handleCancel}
       disabled={cancelling}
-      className="flex items-center gap-1 rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-      title="Cancel this order before it is sent"
+      aria-busy={cancelling}
+      className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-[3px] bg-transparent px-1 text-[13.5px] font-semibold text-navy-ink underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-navy disabled:cursor-not-allowed disabled:text-ink-2 disabled:no-underline disabled:opacity-60"
+      title="Cancel this order before it goes to print"
     >
-      {cancelling ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
-      Cancel order
+      {cancelling && <Loader2 size={13} className="animate-spin" />}
+      {cancelling ? 'Cancelling…' : 'Cancel order'}
     </button>
   )
 }

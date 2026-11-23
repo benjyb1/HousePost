@@ -2,7 +2,6 @@
 
 import { createContext, useContext } from 'react'
 import { useRouter } from 'next/navigation'
-import { RotateCw } from 'lucide-react'
 import { useSendFlow } from './SendFlow'
 
 type TrackingSend = { beginSend: (leadIds: string[], reactivate?: boolean) => void; busy: boolean }
@@ -55,9 +54,8 @@ export function SendAgainButton({ leadId, inFlight }: { leadId: string | null; i
       onClick={() => leadId && ctx?.beginSend([leadId], true)}
       disabled={!!unavailable || !ctx || ctx.busy}
       title={unavailable ?? 'Send another postcard to this address'}
-      className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+      className="inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-[3px] bg-transparent px-1 text-[13.5px] font-semibold text-navy-ink underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-navy disabled:cursor-not-allowed disabled:text-ink-2 disabled:no-underline disabled:opacity-60"
     >
-      <RotateCw size={12} />
       Send again
     </button>
   )

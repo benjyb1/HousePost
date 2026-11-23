@@ -2,7 +2,6 @@
 
 import { useSyncExternalStore } from 'react'
 import Link from 'next/link'
-import { AlertTriangle } from 'lucide-react'
 
 // Remembers, in this browser, the newest failure the user has already clicked
 // through. The account-level record (profiles.failed_notice_dismissed_at) is
@@ -59,15 +58,15 @@ export function FailedPostcardsNotice({
     <Link
       href="/postcards"
       onClick={markSeen}
-      className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 transition-colors hover:bg-amber-100"
+      className="group flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-lg border border-line bg-paper-hi px-4 py-3 text-[14.5px] leading-normal text-ink transition-colors hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-solid focus-visible:outline-navy"
     >
-      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
       <span>
-        <strong>
+        <strong className="font-semibold text-[#8a3324]">
           {count} postcard{count === 1 ? '' : 's'} could not be sent
         </strong>{' '}
-        recently. See why in Tracking.
+        recently.
       </span>
+      <span className="font-semibold text-navy-ink underline underline-offset-4 group-hover:no-underline">See why in Tracking</span>
     </Link>
   )
 }
