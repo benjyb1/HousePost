@@ -484,13 +484,13 @@ export function SvgTemplateEditor({
   if (confirmFrontUrl) {
     return (
       <div className="space-y-5">
-        <Card className="border-green-200 bg-green-50/60">
+        <Card>
           <CardContent className="space-y-1 p-5">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-green-800">
-              <Check className="h-4 w-4" />
+            <h3 className="flex items-center gap-2 text-[15px] font-semibold text-ink">
+              <Check className="h-4 w-4 text-navy" aria-hidden="true" />
               This is now your active postcard
             </h3>
-            <p className="text-sm text-green-700/90">
+            <p className="text-sm text-ink-2">
               Here&apos;s how it will print, front and back, with your logo where you placed it. The matching
               back sits on the left half; the right half is reserved for the address the printer adds. You
               can send straight away.
@@ -505,12 +505,12 @@ export function SvgTemplateEditor({
         </Card>
 
         {addBack && (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-ink-2">
             Prefer your own back?{' '}
             <button
               type="button"
               onClick={addBack}
-              className="font-medium text-slate-900 underline underline-offset-2"
+              className="font-semibold text-navy-ink underline underline-offset-4"
             >
               Upload a back design
             </button>{' '}
@@ -534,17 +534,6 @@ export function SvgTemplateEditor({
   if (!template || !values) {
     return (
       <div className="space-y-6">
-        <Card className="border-slate-200 bg-slate-50">
-          <CardContent className="space-y-1 p-5">
-            <h3 className="text-sm font-semibold text-slate-900">Design your postcard in the browser</h3>
-            <p className="text-sm text-slate-600">
-              Pick a template, edit both sides (the front and its matching back), add your logo
-              and see it all update live. When you&apos;re happy, &ldquo;Use this design&rdquo; saves both sides, print-ready
-              at A6 300 DPI.
-            </p>
-          </CardContent>
-        </Card>
-
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {SVG_TEMPLATES.map((t) => (
             <Card
@@ -558,39 +547,39 @@ export function SvgTemplateEditor({
                   chooseTemplate(t.id)
                 }
               }}
-              className="group cursor-pointer overflow-hidden transition hover:border-slate-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400"
+              className="group cursor-pointer overflow-hidden transition-colors hover:border-line-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
             >
-              <SvgFrame svgString={t.render(t.defaults)} className="border-b border-slate-100" />
+              <SvgFrame svgString={t.render(t.defaults)} className="border-b border-line" />
               <CardContent className="space-y-1 p-4">
-                <h4 className="text-sm font-semibold text-slate-900">{t.name}</h4>
-                <p className="text-xs text-slate-500">{t.description}</p>
+                <h4 className="text-[15px] font-semibold text-ink">{t.name}</h4>
+                <p className="text-[13px] leading-snug text-ink-2">{t.description}</p>
               </CardContent>
             </Card>
           ))}
         </div>
 
         {savedUrl && (
-          <p className="text-xs text-slate-500">
+          <p className="text-sm text-ink-2">
             You already have a design saved. Choosing a template and using it replaces both the front and
             the back.
           </p>
         )}
 
-        <div className="rounded-lg border border-slate-100 bg-slate-50 p-4 text-sm text-slate-600">
+        <p className="text-sm text-ink-2">
           Prefer to design elsewhere? You can also{' '}
           {onUseUpload ? (
             <button
               type="button"
               onClick={onUseUpload}
-              className="font-medium text-slate-900 underline underline-offset-2"
+              className="font-semibold text-navy-ink underline underline-offset-4"
             >
               upload a print-ready PDF
             </button>
           ) : (
-            <span className="font-medium text-slate-900">upload a print-ready PDF</span>
+            <span className="font-semibold text-ink">upload a print-ready PDF</span>
           )}{' '}
           from Canva, a shared Drive folder, or your own design tool.
-        </div>
+        </p>
       </div>
     )
   }
@@ -603,7 +592,7 @@ export function SvgTemplateEditor({
           variant="ghost"
           size="sm"
           onClick={() => guard(backToTemplates)}
-          className="-ml-2 text-slate-500 hover:text-slate-900"
+          className="-ml-2 text-ink-2 hover:text-ink"
         >
           <ArrowLeft className="mr-1.5 h-4 w-4" />
           All templates
@@ -616,7 +605,7 @@ export function SvgTemplateEditor({
             disabled={!history.canUndo}
             aria-label="Undo"
             title="Undo (⌘Z)"
-            className="text-slate-500 hover:text-slate-900"
+            className="text-ink-2 hover:text-ink"
           >
             <Undo2 className="h-4 w-4" />
           </Button>
@@ -627,11 +616,11 @@ export function SvgTemplateEditor({
             disabled={!history.canRedo}
             aria-label="Redo"
             title="Redo (⇧⌘Z)"
-            className="text-slate-500 hover:text-slate-900"
+            className="text-ink-2 hover:text-ink"
           >
             <Redo2 className="h-4 w-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={resetToDefaults} className="text-slate-500 hover:text-slate-900">
+          <Button variant="ghost" size="sm" onClick={resetToDefaults} className="text-ink-2 hover:text-ink">
             <RotateCcw className="mr-1.5 h-4 w-4" />
             Reset
           </Button>
@@ -645,7 +634,7 @@ export function SvgTemplateEditor({
             <div
               role="tablist"
               aria-label="Postcard side"
-              className="inline-flex rounded-md border border-slate-200 bg-white p-0.5 text-sm"
+              className="inline-flex rounded-md bg-linen p-1 text-sm"
             >
               {(['front', 'back'] as const).map((s) => (
                 <button
@@ -654,8 +643,8 @@ export function SvgTemplateEditor({
                   type="button"
                   aria-selected={side === s}
                   onClick={() => setSide(s)}
-                  className={`rounded px-4 py-1.5 font-medium transition ${
-                    side === s ? 'bg-brand text-white' : 'text-slate-600 hover:text-slate-900'
+                  className={`rounded-[3px] px-4 py-1.5 font-semibold transition-colors ${
+                    side === s ? 'bg-paper-hi text-ink shadow-[0_0_0_1px_var(--color-line)]' : 'text-ink-2 hover:text-ink'
                   }`}
                 >
                   {s === 'front' ? 'Front' : 'Back'}
@@ -663,7 +652,7 @@ export function SvgTemplateEditor({
               ))}
             </div>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-ink-2">
             <input
               ref={logoInputRef}
               type="file"
@@ -676,14 +665,14 @@ export function SvgTemplateEditor({
                 <span>Drag your logo to move it, use the corner to resize.</span>
                 <button
                   type="button"
-                  className="underline underline-offset-2 hover:text-slate-900"
+                  className="underline underline-offset-2 hover:text-ink"
                   onClick={() => logoInputRef.current?.click()}
                 >
                   Replace
                 </button>
                 <button
                   type="button"
-                  className="underline underline-offset-2 hover:text-slate-900"
+                  className="underline underline-offset-2 hover:text-ink"
                   onClick={() => removeLogo(side)}
                 >
                   Remove
@@ -708,11 +697,11 @@ export function SvgTemplateEditor({
                 )}
               </SvgFrame>
             </Card>
-            <figcaption className="text-center text-xs font-medium text-slate-500">
+            <figcaption className="text-center text-xs font-medium text-ink-2">
               {side === 'front' ? 'Front' : 'Back · right half kept clear for the address'}
             </figcaption>
           </figure>
-          <p className="text-center text-xs text-slate-500">
+          <p className="text-center text-xs text-ink-2">
             Live preview · {template.name} · A6 landscape ({CARD_W}×{CARD_H}px @ 300 DPI)
           </p>
           <div className="flex flex-wrap gap-3">
@@ -728,14 +717,13 @@ export function SvgTemplateEditor({
             </Button>
           </div>
           {savedUrl && !saving && (
-            <p className="flex items-center gap-1.5 text-xs text-green-600">
-              <Check className="h-3.5 w-3.5" />
-              Saved as your postcard front and back.{' '}
+            <p className="flex items-center gap-1.5 text-xs text-ink-2">
+              You have a postcard saved.{' '}
               <a
                 href={savedUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-slate-500 underline"
+                className="inline-flex items-center gap-1 font-semibold text-navy-ink underline underline-offset-4"
               >
                 View file <ExternalLink className="h-3 w-3" />
               </a>
@@ -748,8 +736,8 @@ export function SvgTemplateEditor({
           <CardContent className="space-y-6 p-5">
             {/* Front + shared brand */}
             <div className="space-y-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Front &amp; brand
+              <h4 className="text-[15px] font-semibold text-ink">
+                Front and brand
               </h4>
               <div className="grid gap-4">
                 {TEMPLATE_FIELDS.map((field) => (
@@ -774,7 +762,7 @@ export function SvgTemplateEditor({
                       value={values.accent}
                       onFocus={() => setSide('front')}
                       onChange={(e) => edit('accent', e.target.value)}
-                      className="h-9 w-14 cursor-pointer rounded-md border border-slate-200 bg-transparent p-1"
+                      className="h-10 w-14 cursor-pointer rounded-md border border-line-2 bg-paper-hi p-1"
                       aria-label="Accent colour"
                     />
                     <Input
@@ -789,12 +777,12 @@ export function SvgTemplateEditor({
             </div>
 
             {/* Back of card — its own content */}
-            <div className="space-y-4 border-t border-slate-100 pt-5">
+            <div className="space-y-4 border-t border-line pt-5">
               <div>
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <h4 className="text-[15px] font-semibold text-ink">
                   Back of card
                 </h4>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-[13px] text-ink-2">
                   Its own headline, message and call to action. The back also uses the business name, phone,
                   website and colour from above.
                 </p>
@@ -811,7 +799,7 @@ export function SvgTemplateEditor({
                         rows={3}
                         onFocus={() => setSide('back')}
                         onChange={(e) => edit(field.key, e.target.value)}
-                        className="border-input placeholder:text-muted-foreground dark:bg-input/30 w-full resize-y rounded-md border bg-transparent px-3 py-2 text-base shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] md:text-sm"
+                        className="w-full resize-y rounded-md border border-line-2 bg-paper-hi px-3 py-2 text-base font-medium text-ink outline-none placeholder:text-ink-2/70 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-navy md:text-[15px]"
                       />
                     ) : (
                       <Input
@@ -827,7 +815,7 @@ export function SvgTemplateEditor({
               </div>
             </div>
 
-            <p className="rounded-md bg-slate-50 p-3 text-xs text-slate-500">
+            <p className="text-[13px] leading-relaxed text-ink-2">
               Text and your logo are kept inside the safe margin, so nothing is cut when the card is
               trimmed. Text auto-shrinks to fit and the back message wraps to a few lines. On the back, the
               right half stays clear for the address the printer adds, and the logo can&apos;t be placed

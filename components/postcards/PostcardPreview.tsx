@@ -45,7 +45,7 @@ function SafeGuide() {
 function CardFrame({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="relative w-full overflow-hidden rounded-md border border-slate-300 bg-white shadow-sm"
+      className="relative w-full overflow-hidden rounded-[3px] border border-line-2 bg-white"
       style={{ aspectRatio: `${TRIM_W}/${TRIM_H}` }}
     >
       {children}
@@ -64,19 +64,19 @@ function ImageFill({ url, alt }: { url: string; alt: string }) {
 /** The reserved right-half address block that the provider prints. */
 function AddressArea() {
   return (
-    <div className="pointer-events-none absolute inset-y-0 right-0 left-1/2 flex flex-col justify-between border-l border-dashed border-amber-400 bg-amber-50/55 p-[6%]">
+    <div className="pointer-events-none absolute inset-y-0 right-0 left-1/2 flex flex-col justify-between border-l border-dashed border-navy/40 bg-navy-tint/60 p-[6%]">
       <div className="flex justify-end">
-        <div className="flex h-[22%] w-[18%] min-h-6 min-w-8 items-center justify-center rounded-sm border-2 border-dashed border-slate-300 text-[7px] font-medium uppercase text-slate-400">
+        <div className="flex h-[22%] w-[18%] min-h-6 min-w-8 items-center justify-center rounded-sm border-2 border-dashed border-line-2 text-[7px] font-medium text-ink-2/70">
           Stamp
         </div>
       </div>
       <div className="space-y-[3px]">
-        <div className="h-1.5 w-[70%] rounded-full bg-slate-300/80" />
-        <div className="h-1.5 w-[85%] rounded-full bg-slate-300/70" />
-        <div className="h-1.5 w-[60%] rounded-full bg-slate-300/70" />
-        <div className="h-1.5 w-[45%] rounded-full bg-slate-300/60" />
+        <div className="h-1.5 w-[70%] rounded-[1px] bg-ink-2/25" />
+        <div className="h-1.5 w-[85%] rounded-[1px] bg-ink-2/20" />
+        <div className="h-1.5 w-[60%] rounded-[1px] bg-ink-2/20" />
+        <div className="h-1.5 w-[45%] rounded-[1px] bg-ink-2/15" />
       </div>
-      <p className="text-[8px] font-semibold uppercase leading-tight tracking-wide text-amber-600">
+      <p className="text-[8.5px] font-semibold leading-tight text-navy-ink">
         Address printed here
       </p>
     </div>
@@ -100,12 +100,12 @@ export function PostcardPreview({ frontUrl, backUrl, onAddBack, className }: Pos
           {frontUrl ? (
             <ImageFill url={frontUrl} alt="Postcard front" />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-50 text-xs text-slate-400">
+            <div className="absolute inset-0 flex items-center justify-center bg-paper text-xs text-ink-2">
               No front design yet
             </div>
           )}
         </CardFrame>
-        <figcaption className="text-center text-xs font-medium text-slate-500">Front</figcaption>
+        <figcaption className="text-center text-xs font-medium text-ink-2">Front</figcaption>
       </figure>
 
       {/* BACK */}
@@ -115,13 +115,13 @@ export function PostcardPreview({ frontUrl, backUrl, onAddBack, className }: Pos
             <ImageFill url={backUrl} alt="Postcard back design" />
           ) : (
             /* No back design — show the reserved-address template on a plain left half. */
-            <div className="absolute inset-y-0 left-0 right-1/2 flex flex-col items-center justify-center gap-2 bg-slate-50 px-3 text-center">
-              <p className="text-[11px] font-medium text-slate-500">No back design yet</p>
+            <div className="absolute inset-y-0 left-0 right-1/2 flex flex-col items-center justify-center gap-2 bg-paper px-3 text-center">
+              <p className="text-[11px] font-medium text-ink-2">No back design yet</p>
               {onAddBack && (
                 <button
                   type="button"
                   onClick={onAddBack}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-[10px] font-medium text-slate-700 transition hover:border-slate-400"
+                  className="inline-flex items-center gap-1 rounded-[3px] bg-navy px-2 py-1 text-[10px] font-semibold text-paper transition-colors hover:bg-navy-hi"
                 >
                   <Plus className="h-3 w-3" />
                   Add a back
@@ -131,7 +131,7 @@ export function PostcardPreview({ frontUrl, backUrl, onAddBack, className }: Pos
           )}
           <AddressArea />
         </CardFrame>
-        <figcaption className="text-center text-xs font-medium text-slate-500">Back</figcaption>
+        <figcaption className="text-center text-xs font-medium text-ink-2">Back</figcaption>
       </figure>
     </div>
   )

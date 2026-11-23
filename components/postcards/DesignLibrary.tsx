@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Check, Trash2, LayoutTemplate, Upload as UploadIcon, Loader2, Pencil } from 'lucide-react'
 import { PostcardPreview } from './PostcardPreview'
@@ -36,15 +35,15 @@ function isPdfUrl(url: string) {
 function Thumb({ url, source }: { url: string; source: SavedDesign['source'] }) {
   return (
     <div
-      className="relative h-12 w-[68px] shrink-0 overflow-hidden rounded border border-slate-200 bg-slate-50"
+      className="relative h-12 w-[68px] shrink-0 overflow-hidden rounded-[3px] border border-line bg-paper"
       style={{ aspectRatio: '148/105' }}
     >
       {isPdfUrl(url) ? (
         <div className="flex h-full w-full items-center justify-center">
           {source === 'template' ? (
-            <LayoutTemplate className="h-4 w-4 text-slate-400" />
+            <LayoutTemplate className="h-4 w-4 text-ink-2/70" />
           ) : (
-            <UploadIcon className="h-4 w-4 text-slate-400" />
+            <UploadIcon className="h-4 w-4 text-ink-2/70" />
           )}
         </div>
       ) : (
@@ -152,7 +151,7 @@ export function DesignLibrary({
   if (loading) {
     return (
       <Card>
-        <CardContent className="flex items-center gap-2 p-5 text-sm text-slate-500">
+        <CardContent className="flex items-center gap-2 p-5 text-sm text-ink-2">
           <Loader2 className="h-4 w-4 animate-spin" /> Loading your saved designs…
         </CardContent>
       </Card>
@@ -170,8 +169,8 @@ export function DesignLibrary({
     <Card>
       <CardContent className="space-y-5 p-5">
         <div>
-          <h2 className="text-base font-semibold text-slate-900">Your saved designs</h2>
-          <p className="text-sm text-slate-500">
+          <h2 className="text-[17px] font-semibold text-ink">Your saved designs</h2>
+          <p className="mt-0.5 text-sm text-ink-2">
             Pick a saved design to preview it and set it as your active postcard.
           </p>
         </div>
@@ -184,8 +183,8 @@ export function DesignLibrary({
             return (
               <div
                 key={d.id}
-                className={`flex items-center gap-3 rounded-lg border p-2.5 transition ${
-                  isSel ? 'border-slate-400 bg-slate-50' : 'border-slate-200 hover:border-slate-300'
+                className={`flex items-center gap-3 rounded-md border p-2.5 transition-colors ${
+                  isSel ? 'border-navy bg-paper' : 'border-line hover:border-line-2'
                 }`}
               >
                 <button
@@ -193,19 +192,15 @@ export function DesignLibrary({
                   role="option"
                   aria-selected={isSel}
                   onClick={() => setSelectedId(d.id)}
-                  className="flex flex-1 items-center gap-3 text-left focus-visible:outline-none"
+                  className="flex flex-1 items-center gap-3 text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-navy"
                 >
                   <Thumb url={d.front_url} source={d.source} />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-1.5">
-                      <span className="truncate text-sm font-medium text-slate-900">{d.label}</span>
-                      {active && (
-                        <Badge variant="default" className="gap-1">
-                          <Check className="h-3 w-3" /> Active
-                        </Badge>
-                      )}
+                      <span className="truncate text-sm font-semibold text-ink">{d.label}</span>
+                      {active && <span className="text-xs font-semibold text-navy-ink">Active</span>}
                     </span>
-                    <span className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
+                    <span className="mt-0.5 flex items-center gap-1 text-xs text-ink-2">
                       {d.source === 'template' ? 'Template' : 'Uploaded'}
                       {d.back_url ? ' · front + back' : ' · front only'}
                     </span>
@@ -215,9 +210,8 @@ export function DesignLibrary({
                   <button
                     type="button"
                     onClick={() => onEditTemplate(d)}
-                    title="Edit this template"
                     aria-label={`Edit ${d.label}`}
-                    className="shrink-0 rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                    className="shrink-0 rounded-[3px] p-2 text-ink-2 transition-colors hover:bg-linen hover:text-ink"
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
@@ -225,9 +219,8 @@ export function DesignLibrary({
                 <button
                   type="button"
                   onClick={() => remove(d.id)}
-                  title="Remove from library"
                   aria-label={`Remove ${d.label} from your library`}
-                  className="shrink-0 rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                  className="shrink-0 rounded-[3px] p-2 text-ink-2 transition-colors hover:bg-linen hover:text-[#8a3324]"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -238,7 +231,7 @@ export function DesignLibrary({
 
         {/* Preview of the selected design */}
         {selected && (
-          <div className="space-y-4 border-t border-slate-100 pt-5">
+          <div className="space-y-4 border-t border-line pt-5">
             <PostcardPreview
               frontUrl={selected.front_url}
               backUrl={previewBack}
@@ -246,10 +239,10 @@ export function DesignLibrary({
             />
 
             {!selected.back_url && !activeBack && (
-              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <p className="rounded-md bg-linen px-3 py-2 text-sm text-ink">
                 This design has no back yet, so the back will print as the reserved address area only.{' '}
                 {onGoToUpload && (
-                  <button type="button" onClick={onGoToUpload} className="font-medium underline underline-offset-2">
+                  <button type="button" onClick={onGoToUpload} className="font-semibold text-navy-ink underline underline-offset-4">
                     Add a back design
                   </button>
                 )}

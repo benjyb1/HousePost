@@ -68,7 +68,7 @@ export function LogoLayer({
       <div
         role="img"
         aria-label="Your logo. Drag to move, use the corner to resize"
-        className="group pointer-events-auto absolute cursor-move touch-none select-none outline-1 outline-dashed outline-transparent hover:outline-blue-400 focus-visible:outline-blue-500"
+        className="group pointer-events-auto absolute cursor-move touch-none select-none outline-1 outline-dashed outline-transparent hover:outline-navy/60 focus-visible:outline-navy"
         style={{ left: pct(overlay.x, CARD_W), top: pct(overlay.y, CARD_H), width: pct(overlay.w, CARD_W), height: pct(h, CARD_H) }}
         tabIndex={0}
         onPointerDown={begin('move')}
@@ -83,7 +83,7 @@ export function LogoLayer({
           aria-label="Remove logo"
           onClick={onRemove}
           onPointerDown={(e) => e.stopPropagation()}
-          className="absolute -right-2.5 -top-2.5 hidden h-5 w-5 items-center justify-center rounded-full bg-slate-900 text-white shadow group-hover:flex group-focus-visible:flex"
+          className="absolute -right-2.5 -top-2.5 hidden h-5 w-5 items-center justify-center rounded-full bg-navy text-paper shadow group-hover:flex group-focus-visible:flex"
         >
           <X className="h-3 w-3" />
         </button>
@@ -93,7 +93,7 @@ export function LogoLayer({
           onPointerMove={move}
           onPointerUp={end}
           onPointerCancel={end}
-          className="absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 cursor-nwse-resize rounded-sm border border-white bg-blue-500 shadow"
+          className="absolute -bottom-1.5 -right-1.5 h-3.5 w-3.5 cursor-nwse-resize rounded-sm border border-white bg-navy shadow"
         />
       </div>
     </div>
