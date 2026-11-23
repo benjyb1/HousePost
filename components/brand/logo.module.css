@@ -1,0 +1,25 @@
+.logo {
+  --lh: 24px;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: calc(var(--lh) * 0.3);
+  flex: none;
+}
+.mark {
+  height: calc(var(--lh) * 1.21);
+  width: auto;
+  display: block;
+}
+.word {
+  height: var(--lh);
+  width: auto;
+  display: block;
+}
+.sm {
+  --lh: 19px;
+}
+@media (max-width: 699px) {
+  .logo {
+    --lh: 19px;
+  }
+}

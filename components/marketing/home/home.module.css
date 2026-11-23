@@ -1,0 +1,543 @@
+/* The Housepost homepage, in Paper's design language.
+   Hanken Grotesk, paper/oat/linen neutrals, 3px corners, brand navy for Paper's green.
+   Orange (#ff7614) means one thing: a home that is targeted. */
+
+.page {
+  --edge: max(48px, calc((100% - 1344px) / 2 + 48px));
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-size: 17px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.page h1,
+.page h2 {
+  text-wrap: balance;
+}
+.page :focus-visible {
+  outline: 2px solid var(--color-navy);
+  outline-offset: 3px;
+}
+.nw {
+  white-space: nowrap;
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* buttons: square outline, the style Benjy picked */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 26px;
+  border: 1.5px solid currentColor;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-navy);
+  font: 600 16px/1 var(--font-sans);
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.btn:hover {
+  background: var(--color-navy);
+  color: var(--color-paper);
+}
+.btnSm {
+  min-height: 42px;
+  padding: 0 18px;
+  font-size: 15px;
+}
+.onDark .btn {
+  color: #fff;
+}
+.onDark .btn:hover {
+  background: #fff;
+  color: var(--color-navy);
+}
+
+/* nav */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: 76px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-inline: var(--edge);
+  background: var(--color-paper);
+  border-bottom: 1px solid var(--color-line);
+}
+.navLinks {
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  font-size: 15px;
+  font-weight: 500;
+}
+.navLinks a:not(.btn) {
+  color: var(--color-ink);
+  text-decoration: none;
+}
+.navLinks a:not(.btn):hover {
+  color: var(--color-navy);
+}
+
+/* 1. hero */
+.hero {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: clamp(560px, 46vw, 700px);
+  color: #fff;
+  overflow: hidden;
+  background: var(--color-navy);
+}
+.heroPhoto {
+  object-fit: cover;
+  object-position: 50% 68%;
+}
+.heroScrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(8, 16, 32, 0.8) 0%, rgba(8, 16, 32, 0.62) 38%, rgba(8, 16, 32, 0.18) 72%, rgba(8, 16, 32, 0.05) 100%),
+    linear-gradient(0deg, rgba(8, 16, 32, 0.38) 0%, rgba(8, 16, 32, 0) 42%);
+}
+.heroBody {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 64px var(--edge) 76px;
+}
+.strap {
+  margin: 0;
+  font-weight: 600;
+  font-size: clamp(44px, 7.6vw, 118px);
+  line-height: 1.04;
+  letter-spacing: -0.03em;
+}
+.line {
+  display: block;
+}
+.roll {
+  display: block;
+  position: relative;
+  height: 1.04em;
+  color: var(--color-orange);
+}
+.rollWin {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: -0.2em;
+  overflow: hidden;
+}
+.rollWord {
+  position: absolute;
+  left: 0;
+  top: 0;
+  line-height: 1.04;
+  white-space: nowrap;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.rollWord.isCur {
+  opacity: 1;
+}
+.clear {
+  margin: clamp(22px, 2.6vw, 36px) 0 0;
+  font-size: clamp(18px, 1.72vw, 25px);
+  font-weight: 500;
+  line-height: 1.3;
+  max-width: 30em;
+}
+.ctaRow {
+  margin-top: clamp(30px, 3.4vw, 46px);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+/* shared section type */
+.secH {
+  font: 600 clamp(32px, 3.4vw, 48px)/1.06 var(--font-sans);
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+.secP {
+  margin: 20px 0 0;
+  font-size: 18px;
+  line-height: 1.55;
+  color: var(--color-ink-2);
+  max-width: 26em;
+}
+
+/* 2. the month-by-month map */
+.reel {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 64px;
+  align-items: center;
+  padding: 128px var(--edge) 120px;
+}
+.anim {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fcfbf7;
+  box-shadow: 0 0 0 1px var(--color-line), 0 22px 44px -28px rgba(58, 42, 20, 0.45);
+}
+.anim svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.anim svg text {
+  font-family: var(--font-sans);
+}
+.months {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: grid;
+}
+.months span {
+  grid-area: 1 / 1;
+  justify-self: start;
+  font: 600 13px/1 var(--font-sans);
+  color: var(--color-ink);
+  background: var(--color-paper-hi);
+  border-radius: 3px;
+  padding: 8px 12px;
+  box-shadow: 0 0 0 1px var(--color-line);
+  opacity: 0;
+}
+
+/* 3. pricing */
+.pricing {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  background: var(--color-navy);
+  color: var(--color-paper);
+}
+.pricingPhoto {
+  position: relative;
+  min-height: 540px;
+}
+.pricingPhoto img {
+  object-fit: cover;
+  object-position: 50% 55%;
+}
+.pricingBody {
+  padding: 96px var(--edge) 96px 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.price {
+  font: 600 clamp(56px, 6.6vw, 100px)/1 var(--font-sans);
+  letter-spacing: -0.035em;
+  margin: 0;
+}
+.pricingBody > p {
+  margin: 24px 0 0;
+  font-size: 19px;
+  line-height: 1.5;
+  color: #d8deea;
+  max-width: 25em;
+}
+.ticks {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 28px;
+  font-size: 16px;
+}
+.ticks li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ticks svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+/* 4. how it works */
+.how {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 72px;
+  align-items: center;
+  padding: 128px var(--edge);
+}
+.howSteps {
+  list-style: none;
+  margin: 30px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 22px;
+}
+.howSteps li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  column-gap: 10px;
+}
+.howSteps .n {
+  font: 600 16px/1.45 var(--font-sans);
+  color: var(--color-ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.howSteps b {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.howSteps .d {
+  display: block;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+  margin-top: 2px;
+}
+
+/* 5. try it yourself */
+.try {
+  background: var(--color-linen);
+  padding: 112px var(--edge);
+}
+.tryIn {
+  max-width: 780px;
+}
+.tryForm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 28px;
+}
+.tryForm label {
+  display: block;
+  font-size: 13px;
+  color: var(--color-ink-2);
+  margin-bottom: 6px;
+}
+.tryInput {
+  min-height: 54px;
+  width: min(280px, 100%);
+  padding: 0 16px;
+  border: 1px solid var(--color-line-2);
+  border-radius: 3px;
+  background: var(--color-paper-hi);
+  font: 500 18px/1 var(--font-sans);
+  color: var(--color-ink);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.tryInput::placeholder {
+  text-transform: none;
+  letter-spacing: 0;
+  color: #8b918c;
+}
+.tryErr {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: #8a3324;
+}
+.tryOut {
+  margin: 32px 0 0;
+  font-size: clamp(22px, 2.2vw, 30px);
+  line-height: 1.35;
+  font-weight: 500;
+  max-width: 27em;
+  text-wrap: pretty;
+}
+.tryOut b {
+  font-weight: 700;
+}
+.trySrc {
+  margin: 16px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+  max-width: 62ch;
+}
+
+/* 6. sign up */
+.cta {
+  padding: 120px var(--edge);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px 48px;
+}
+.cta h2 {
+  font: 600 clamp(36px, 4.6vw, 64px)/1.04 var(--font-sans);
+  letter-spacing: -0.03em;
+  margin: 0;
+  max-width: 11em;
+}
+.ctaSide {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.ctaSide span {
+  font-size: 14px;
+  color: var(--color-ink-2);
+}
+
+.foot {
+  border-top: 1px solid var(--color-line);
+  padding: 32px var(--edge) 44px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px 32px;
+  font-size: 13px;
+  color: var(--color-ink-2);
+}
+.foot nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  justify-content: flex-end;
+}
+.foot a {
+  color: inherit;
+  text-decoration: none;
+}
+.foot a:hover {
+  color: var(--color-ink);
+}
+.lic {
+  grid-column: 1 / -1;
+  max-width: 70ch;
+  line-height: 1.5;
+}
+.lic p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-ink-2);
+}
+.lic a {
+  text-decoration: underline;
+}
+
+@media (max-width: 899px) {
+  .page {
+    --edge: max(20px, 4.5vw);
+  }
+  .reel {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+    padding-block: 80px 72px;
+  }
+  .pricing {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pricingPhoto {
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+    order: 2;
+  }
+  .pricingBody {
+    padding: 72px var(--edge);
+  }
+  .how {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 40px;
+    padding-block: 88px;
+  }
+  .try {
+    padding-block: 80px;
+  }
+  .cta {
+    padding-block: 88px;
+  }
+}
+@media (max-width: 699px) {
+  .nav {
+    height: 64px;
+  }
+  .navLinks {
+    gap: 16px;
+  }
+  .wide {
+    display: none;
+  }
+  .hero {
+    min-height: 0;
+  }
+  .heroScrim {
+    background: linear-gradient(180deg, rgba(8, 16, 32, 0.74) 0%, rgba(8, 16, 32, 0.58) 55%, rgba(8, 16, 32, 0.78) 100%);
+  }
+  .heroBody {
+    justify-content: flex-start;
+    padding: 40px var(--edge) 52px;
+  }
+  /* the widest line, "Tactical marketing", measures 7.76em; "interior designers" 7.39em */
+  .strap {
+    font-size: min(64px, calc((100vw - 2 * max(20px, 4.5vw)) / 7.95));
+  }
+  .ctaRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .anim {
+    aspect-ratio: 1 / 1;
+  }
+  .secP {
+    font-size: 17px;
+  }
+  .tryForm {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .tryInput {
+    width: 100%;
+  }
+  .ctaSide {
+    width: 100%;
+  }
+  .ctaSide .btn {
+    width: 100%;
+  }
+  .foot {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .foot nav {
+    justify-content: flex-start;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn {
+    transition: none;
+  }
+}

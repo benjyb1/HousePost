@@ -1,0 +1,289 @@
+.demo {
+  position: relative;
+  aspect-ratio: 6 / 5;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--color-paper-hi);
+  box-shadow: 0 0 0 1px var(--color-line), 0 22px 44px -28px rgba(58, 42, 20, 0.45);
+}
+/* a fixed 480 x 400 stage, scaled to the box */
+.ds {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 480px;
+  height: 400px;
+  transform-origin: 0 0;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  line-height: 1.4;
+}
+.ds * {
+  box-sizing: border-box;
+}
+.bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  background: var(--color-paper-hi);
+  border-bottom: 1px solid var(--color-line);
+  font-size: 14px;
+  font-weight: 600;
+}
+.bar svg {
+  width: 18px;
+  height: 18px;
+}
+.tabs {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+.tabs > span {
+  position: relative;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--color-ink-2);
+  border-radius: 5px;
+}
+.tabs i {
+  position: absolute;
+  inset: 0;
+  background: #efe7d9;
+  border-radius: 5px;
+  opacity: 0;
+}
+.tabs em {
+  position: relative;
+  font-style: normal;
+}
+.scene {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 44px;
+  bottom: 0;
+  background: var(--color-paper);
+}
+.h {
+  position: absolute;
+  left: 18px;
+  top: 14px;
+  font-size: 17px;
+  font-weight: 600;
+}
+.row {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--color-line);
+}
+.tint {
+  position: absolute;
+  inset: 2px 0;
+  background: var(--color-orange-tint);
+  border-radius: 5px;
+  opacity: 0;
+}
+.cb {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid #8b928c;
+  border-radius: 4px;
+  background: var(--color-paper-hi);
+  flex: none;
+}
+.cb i {
+  position: absolute;
+  inset: -1.5px;
+  border-radius: 4px;
+  background: var(--color-orange) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='3.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") center/12px no-repeat;
+  opacity: 0;
+}
+.addr {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.addr b {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.addr span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--color-ink-2);
+}
+.price {
+  position: relative;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.send {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px 0 16px;
+  background: var(--color-paper-hi);
+  border-top: 1px solid var(--color-line);
+}
+.txt {
+  position: relative;
+  height: 20px;
+  flex: 1;
+}
+.txt span {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+}
+.btn {
+  position: relative;
+  width: 112px;
+  height: 36px;
+  border-radius: 3px;
+  display: grid;
+  place-items: center;
+  font-size: 13.5px;
+  font-weight: 600;
+  background: #e4ded2;
+  color: #5f655f;
+  overflow: hidden;
+}
+.btn i {
+  position: absolute;
+  inset: 0;
+  background: var(--color-navy);
+  opacity: 0;
+}
+.btn em {
+  position: relative;
+  font-style: normal;
+}
+.btn em.on {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--color-paper);
+  opacity: 0;
+}
+.note {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  top: 48px;
+  height: 40px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  background: var(--color-navy-tint);
+  border-radius: 5px;
+  font-size: 12.5px;
+  color: var(--color-navy-ink);
+  font-weight: 600;
+}
+.trow {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  height: 82px;
+  border-bottom: 1px solid var(--color-line);
+  padding-top: 12px;
+}
+.trow b {
+  display: block;
+  font-size: 13.5px;
+}
+.trow > span {
+  display: block;
+  font-size: 11.5px;
+  color: var(--color-ink-2);
+}
+.track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 52px;
+  height: 12px;
+}
+.dot {
+  position: absolute;
+  top: 0;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: var(--color-paper-hi);
+  box-shadow: inset 0 0 0 1.5px var(--color-line-2);
+}
+.dot i {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--color-navy);
+  opacity: 0;
+}
+.line {
+  position: absolute;
+  top: 5px;
+  height: 2px;
+  background: var(--color-line);
+}
+.line i {
+  position: absolute;
+  inset: 0;
+  background: var(--color-navy);
+  transform-origin: 0 50%;
+  transform: scaleX(0);
+}
+.stat {
+  position: absolute;
+  right: 0;
+  top: 12px;
+  width: 90px;
+  height: 16px;
+}
+.stat span {
+  position: absolute;
+  right: 0;
+  top: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-navy-ink);
+  opacity: 0;
+}
+.cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 22px;
+  height: 22px;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.25));
+  transform-origin: 4px 2px;
+}
