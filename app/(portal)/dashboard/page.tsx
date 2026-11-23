@@ -1,286 +1,139 @@
 export const dynamic = 'force-dynamic'
 
 import { createClient } from '@/lib/supabase/server'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import Image from 'next/image'
-import Link from 'next/link'
-import { MapPin, Mail, CreditCard, Building, CalendarDays, AlertTriangle } from 'lucide-react'
-import { currentMonthKey, formatMonthKey } from '@/lib/utils/date'
-import { INCLUDED_POSTCARDS_PER_MONTH, POSTCARD_OVERAGE_PENCE } from '@/types/profile'
-import { listNotifications } from '@/lib/notifications'
-import { RecentActivity } from '@/components/dashboard/RecentActivity'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { geocodeWithCache } from '@/lib/geocoding/postcodes-io'
 import { FailedPostcardsNotice } from '@/components/dashboard/FailedPostcardsNotice'
+import { HomeClient, type HomeLead } from '@/components/portal/home/HomeClient'
 
-export default async function DashboardPage() {
+/*
+  Home (the signed-in landing page, at /dashboard so login, emails and
+  notifications keep working). The list, the map and the checkout sit side by
+  side. Data is read exactly as the old Leads page read it; the only addition is
+  each home's position for the map, which lives in property_transactions (RLS
+  denies users, so it is read server-side with the admin client and only for
+  this user's own leads).
+*/
+export default async function HomePage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const monthKey = currentMonthKey()
+  const PAGE = 1000
+  const MAX = 5000 // safety bound: newest leads first, so older ones drop off
+  const leadsQuery = (from: number) =>
+    supabase
+      .from('leads')
+      .select('*')
+      .eq('user_id', user.id)
+      .is('archived_at', null)
+      .order('lead_month', { ascending: false })
+      .order('distance_miles', { ascending: true })
+      .range(from, from + PAGE - 1)
 
-  // Calculate previous month key
-  const [yearStr, monthStr] = monthKey.split('-')
-  const year = Number(yearStr)
-  const month = Number(monthStr)
-  const prevDate = new Date(year, month - 2, 1) // month-2 because Date months are 0-indexed
-  const prevMonthKey = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
-
-  // Find the most recent lead_month with data
-  const { data: latestLead } = await supabase
-    .from('leads')
-    .select('lead_month')
-    .eq('user_id', user.id)
-    .is('archived_at', null)
-    .order('lead_month', { ascending: false })
-    .limit(1)
-    .single()
-
-  const latestLeadMonth = latestLead?.lead_month ?? prevMonthKey
-
-  // Our "month" runs on the leads cycle, not the calendar: a fresh batch drops
-  // on the 6th and postcards get sent against that batch until the next one
-  // arrives. So "postcards sent" and "untapped" are both measured against the
-  // latest batch (postcard_jobs.lead_month = the batch the lead came from), and
-  // the "vs last month" delta compares it to the batch before that.
-  const [latestLeadYear, latestLeadMonthNum] = latestLeadMonth.split('-').map(Number)
-  const prevBatchDate = new Date(latestLeadYear, latestLeadMonthNum - 2, 1)
-  const prevLeadMonth = `${prevBatchDate.getFullYear()}-${String(prevBatchDate.getMonth() + 1).padStart(2, '0')}`
-
-  // Cards that need the customer's attention: delayed (held, retried at least
-  // once) or failed in the last 30 days. Drives the banner below.
   const thirtyDaysAgoIso = new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
-
-  const [{ data: profile }, { count: leadCount }, { count: postcardCount }, { count: prevPostcardCount }, { count: delayedCount }, { data: recentFailures }] = await Promise.all([
-    supabase.from('profiles').select('full_name, subscription_status, postcards_used_this_period, search_radius_miles, office_postcode, failed_notice_dismissed_at').eq('id', user.id).single(),
-    supabase.from('leads').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', latestLeadMonth).is('archived_at', null),
-    // "Postcards sent" must count only cards actually sent to the provider, so we
-    // exclude everything still in-flight or dead: pending/held/dispatching (not
-    // yet sent) and cancelled/failed (never sent).
-    supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', latestLeadMonth).not('status', 'in', '(pending,held,dispatching,cancelled,failed)'),
-    supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('lead_month', prevLeadMonth).not('status', 'in', '(pending,held,dispatching,cancelled,failed)'),
-    supabase.from('postcard_jobs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'held').gt('retry_count', 0),
+  const [firstPage, { data: profile }, { data: recentFailures }] = await Promise.all([
+    leadsQuery(0),
+    supabase
+      .from('profiles')
+      .select('subscription_status, postcard_design_url, postcard_design_back_url, postcards_used_this_period, search_radius_miles, min_price, max_price, property_types, office_lat, office_lng, failed_notice_dismissed_at')
+      .eq('id', user.id)
+      .single(),
     supabase.from('postcard_jobs').select('failed_at').eq('user_id', user.id).eq('status', 'failed').gte('failed_at', thirtyDaysAgoIso),
   ])
 
-  // Failed cards only count if they failed after the user last clicked through
-  // the message (fix list 6.1), so it stays gone until something new fails.
-  const dismissedAtMs = profile?.failed_notice_dismissed_at
-    ? Date.parse(profile.failed_notice_dismissed_at as string)
-    : 0
+  // Page past PostgREST's 1000-row cap so earlier homes aren't truncated.
+  const rows = firstPage.data ?? []
+  if (rows.length === PAGE) {
+    for (let from = PAGE; from < MAX; from += PAGE) {
+      const { data } = await leadsQuery(from)
+      if (!data || data.length === 0) break
+      rows.push(...data)
+      if (data.length < PAGE) break
+    }
+  }
+
+  // Map positions. Unsent leads only: sent ones live in Tracking.
+  const unsent = rows.filter((r) => !r.postcard_job_id)
+  const coords = new Map<string, { lat: number; lng: number }>()
+  const txIds = [...new Set(unsent.map((r) => r.transaction_id as string | null).filter((v): v is string => !!v))]
+  if (txIds.length) {
+    const admin = createAdminClient()
+    const CHUNK = 200
+    const chunks: string[][] = []
+    for (let i = 0; i < txIds.length; i += CHUNK) chunks.push(txIds.slice(i, i + CHUNK))
+    const results = await Promise.all(
+      chunks.map((ids) => admin.from('property_transactions').select('id, lat, lng').in('id', ids))
+    )
+    for (const { data } of results) {
+      for (const t of data ?? []) {
+        if (t.lat != null && t.lng != null) coords.set(`tx:${t.id}`, { lat: t.lat as number, lng: t.lng as number })
+      }
+    }
+  }
+  // Homes added by hand have no transaction: place them by postcode.
+  const customPostcodes = [...new Set(unsent.filter((r) => !r.transaction_id).map((r) => String(r.postcode ?? '').toUpperCase().trim()).filter(Boolean))]
+  if (customPostcodes.length) {
+    try {
+      const geo = await geocodeWithCache(customPostcodes)
+      for (const pc of customPostcodes) {
+        const g = geo.get(pc)
+        if (g) coords.set(`pc:${pc}`, { lat: g.lat, lng: g.lng })
+      }
+    } catch {
+      // No position just means no marker; the home still shows in the list.
+    }
+  }
+
+  const leads: HomeLead[] = rows.map((r) => {
+    const pos = r.transaction_id ? coords.get(`tx:${r.transaction_id}`) : coords.get(`pc:${String(r.postcode ?? '').toUpperCase().trim()}`)
+    return {
+      id: r.id as string,
+      addressLine: r.address_line as string,
+      postcode: r.postcode as string,
+      price: (r.price as number | null) ?? null,
+      propertyType: (r.property_type as string | null) ?? null,
+      distance: (r.distance_miles as number | null) ?? null,
+      soldOn: (r.date_of_transfer as string | null) ?? null,
+      month: r.lead_month as string,
+      selected: !!r.selected_for_dispatch,
+      jobId: (r.postcard_job_id as string | null) ?? null,
+      custom: !!r.is_custom,
+      lat: pos?.lat ?? null,
+      lng: pos?.lng ?? null,
+    }
+  })
+
+  const dismissedAtMs = profile?.failed_notice_dismissed_at ? Date.parse(profile.failed_notice_dismissed_at as string) : 0
   const unseenFailures = (recentFailures ?? [])
     .map((f) => f.failed_at as string | null)
     .filter((at): at is string => !!at && Date.parse(at) > dismissedAtMs)
-  const failedCount = unseenFailures.length
   const latestFailedAt = unseenFailures.reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a), unseenFailures[0] ?? '')
 
-  const statusLabels: Record<string, string> = {
-    incomplete: 'Inactive',
-  }
-
-  const statusColors: Record<string, string> = {
-    active: 'bg-green-100 text-green-800',
-    trialing: 'bg-blue-100 text-blue-800',
-    past_due: 'bg-amber-100 text-amber-800',
-    canceled: 'bg-red-100 text-red-800',
-    inactive: 'bg-slate-100 text-slate-700',
-  }
-
-  const rawStatus = profile?.subscription_status ?? 'incomplete'
-  const displayStatus = statusLabels[rawStatus] ?? rawStatus
-  const statusColorKey = rawStatus === 'incomplete' ? 'inactive' : rawStatus
-  const statusColor = statusColors[statusColorKey] ?? 'bg-slate-100 text-slate-700'
-
-  // Percentage change calculation for postcards sent
-  const currentCount = postcardCount ?? 0
-  const prevCount = prevPostcardCount ?? 0
-  let percentageChange: number | null = null
-  if (prevCount > 0) {
-    percentageChange = Math.round(((currentCount - prevCount) / prevCount) * 100)
-  }
-
-  // Allowance progress
-  const used = profile?.postcards_used_this_period ?? 0
-  const progressPercent = Math.min((used / INCLUDED_POSTCARDS_PER_MONTH) * 100, 100)
-  const overLimit = used > INCLUDED_POSTCARDS_PER_MONTH
-
-  // Spend this month. Derived from usage: the payable overage so far this period
-  // is every postcard beyond the included allowance, charged at the overage rate.
-  // (A later change could sum actual Stripe charges instead of deriving from usage.)
-  const overageCount = Math.max(0, used - INCLUDED_POSTCARDS_PER_MONTH)
-  const spendPence = overageCount * POSTCARD_OVERAGE_PENCE
-  const spendLabel = `£${(spendPence / 100).toFixed(2)}`
-
-  // Recent activity feed (leads drops + postcard sends). Fetch a few extra so the
-  // responsive feed can show up to ~5 on large screens.
-  const notifications = await listNotifications(user.id, 5)
-
-  // Untapped leads. Clamped at 0: sent-postcard and lead counts are queried
-  // separately and a race (or a resend counted as sent) must never show a
-  // negative figure.
-  const untappedLeads = Math.max(0, (leadCount ?? 0) - (postcardCount ?? 0))
-
-  // Next leads drop is the 6th. Before the 6th it's this month's 6th;
-  // from the 6th onward it's next month's 6th.
-  const now = new Date()
-  const nextDropMonth = now.getDate() >= 6 ? now.getMonth() + 1 : now.getMonth()
-  const nextDropDate = new Date(now.getFullYear(), nextDropMonth, 6)
-  // Handle year rollover automatically via Date constructor
-  const daysUntilDrop = Math.ceil((nextDropDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-  const nextDropLabel = nextDropDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })
+  const status = (profile?.subscription_status as string) ?? 'incomplete'
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">
-          Welcome back{profile?.full_name ? `, ${profile.full_name}` : ''}
-        </h1>
-        <p className="mt-1 text-sm text-slate-500">{formatMonthKey(monthKey)} overview</p>
-      </div>
-
-      {/* Delayed cards clear themselves once they go out, so this one stays. */}
-      {(delayedCount ?? 0) > 0 && (
-        <Link
-          href="/postcards"
-          className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 transition-colors hover:bg-amber-100"
-        >
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>
-            <strong>{delayedCount} postcard{delayedCount === 1 ? '' : 's'} delayed</strong> by a temporary problem on our side. They will be sent automatically.
-          </span>
-        </Link>
+    <>
+      {unseenFailures.length > 0 && (
+        <div className="mx-auto max-w-[1480px] px-4 pt-6 sm:px-8">
+          <FailedPostcardsNotice count={unseenFailures.length} latestFailedAt={latestFailedAt} />
+        </div>
       )}
-
-      {failedCount > 0 && (
-        <FailedPostcardsNotice count={failedCount} latestFailedAt={latestFailedAt} />
-      )}
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-        <Card className="flex flex-col">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Latest leads</CardTitle>
-            <MapPin className="h-4 w-4 text-slate-400" />
-          </CardHeader>
-          <CardContent className="flex-1">
-            <p className="text-3xl font-bold">{leadCount ?? 0}</p>
-            <p className="text-xs text-slate-500 mt-1">properties found</p>
-          </CardContent>
-        </Card>
-
-        <Card className="flex flex-col">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Postcards sent</CardTitle>
-            <Mail className="h-4 w-4 text-slate-400" />
-          </CardHeader>
-          <CardContent className="flex-1">
-            <p className="text-3xl font-bold">{postcardCount ?? 0}</p>
-            {percentageChange !== null ? (
-              <p className="text-xs mt-1">
-                <span className={percentageChange >= 0 ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-                  {percentageChange >= 0 ? `\u2191 ${percentageChange}%` : `\u2193 ${Math.abs(percentageChange)}%`}
-                </span>
-                <span className="text-slate-400 ml-1">vs last month</span>
-              </p>
-            ) : prevCount === 0 && currentCount > 0 ? (
-              <p className="text-xs text-slate-500 mt-1">dispatched this month</p>
-            ) : (
-              <p className="text-xs text-slate-500 mt-1">dispatched this month</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="flex flex-col">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Free postcards used</CardTitle>
-            <CreditCard className="h-4 w-4 text-slate-400" />
-          </CardHeader>
-          <CardContent className="flex-1">
-            <p className="text-3xl font-bold">{used}<span className="text-lg text-slate-400">/{INCLUDED_POSTCARDS_PER_MONTH}</span></p>
-            <div className="mt-2 h-2 w-full rounded-full bg-slate-200">
-              <div
-                className={`h-2 rounded-full transition-all ${overLimit ? 'bg-amber-500' : 'bg-brand'}`}
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
-            <p className="text-xs text-slate-500 mt-1">included postcards</p>
-          </CardContent>
-        </Card>
-
-        <Card className="flex flex-col">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Spend this month</CardTitle>
-            <CreditCard className="h-4 w-4 text-slate-400" />
-          </CardHeader>
-          <CardContent className="flex-1">
-            <p className="text-3xl font-bold">{spendLabel}</p>
-            <p className="text-xs text-slate-500 mt-1">
-              {overageCount > 0
-                ? `${overageCount} postcard${overageCount === 1 ? '' : 's'} over your free allowance`
-                : 'within your free allowance'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="flex flex-col">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Subscription</CardTitle>
-            <Building className="h-4 w-4 text-slate-400" />
-          </CardHeader>
-          <CardContent className="flex-1">
-            <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${statusColor}`}>
-              {displayStatus}
-            </span>
-            <p className="text-xs text-slate-500 mt-2">
-              {profile?.search_radius_miles ?? 10} mile radius &middot; {profile?.office_postcode ?? '\u2013'}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Untapped leads CTA */}
-      {untappedLeads > 0 ? (
-        <Card className="border-brand/30 bg-brand-light/10">
-          <CardContent className="py-6 flex items-center justify-between">
-            <div>
-              <p className="text-lg font-bold text-brand">{untappedLeads} untapped lead{untappedLeads !== 1 ? 's' : ''} this month</p>
-              <p className="text-sm text-slate-500 mt-0.5">These leads haven&apos;t received a postcard yet</p>
-            </div>
-            <Link
-              href="/leads"
-              className="rounded-md bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand/90 transition-colors"
-            >
-              View leads
-            </Link>
-          </CardContent>
-        </Card>
-      ) : (leadCount ?? 0) > 0 ? (
-        <Card className="border-dashed">
-          <CardContent className="py-6 text-center">
-            <p className="font-medium text-slate-600">{daysUntilDrop} day{daysUntilDrop !== 1 ? 's' : ''} until new leads</p>
-            <p className="text-sm text-slate-400 mt-1">Your next batch arrives on the 6th</p>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {(leadCount ?? 0) === 0 && (
-        <Card className="border-dashed">
-          <CardContent className="py-12 text-center">
-            <Image src="/logo-icon.png" alt="" width={40} height={40} className="mx-auto h-10 w-10 opacity-20 mb-3" />
-            <p className="font-medium text-slate-600">No leads yet for {formatMonthKey(monthKey)}</p>
-            <p className="text-sm text-slate-400 mt-1">
-              Leads are generated on the 6th of each month from Land Registry data.
-            </p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Next leads drop info */}
-      <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-        <CalendarDays className="h-4 w-4 text-slate-400 shrink-0" />
-        <p className="text-sm text-slate-500">Your next leads drop on {nextDropLabel}</p>
-      </div>
-
-      {/* Recent activity feed */}
-      <RecentActivity notifications={notifications} />
-    </div>
+      <HomeClient
+        userId={user.id}
+        leads={leads}
+        prefs={{
+          radius: (profile?.search_radius_miles as number | null) ?? 10,
+          min: (profile?.min_price as number | null) ?? null,
+          max: (profile?.max_price as number | null) ?? null,
+          types: ((profile?.property_types as string[] | null) ?? ['D', 'S', 'T', 'F', 'O']),
+        }}
+        office={profile?.office_lat != null && profile?.office_lng != null ? { lat: profile.office_lat as number, lng: profile.office_lng as number } : null}
+        subscribed={status === 'active' || status === 'trialing'}
+        frontUrl={(profile?.postcard_design_url as string | null)?.trim() || null}
+        backUrl={(profile?.postcard_design_back_url as string | null)?.trim() || null}
+        used={(profile?.postcards_used_this_period as number | null) ?? 0}
+      />
+    </>
   )
 }

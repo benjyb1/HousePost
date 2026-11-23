@@ -1,13 +1,19 @@
 export const dynamic = 'force-dynamic'
 
-import Image from 'next/image'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { Sidebar } from '@/components/layout/Sidebar'
 import { SubscriptionBanner } from '@/components/layout/SubscriptionBanner'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import { IdleLogout } from '@/components/portal/IdleLogout'
 import { LeaveGuardProvider } from '@/components/layout/LeaveGuardProvider'
+import { AppBar } from '@/components/portal/AppBar'
+
+function initialsFrom(name: string | null | undefined, email: string | null | undefined) {
+  const source = (name ?? '').trim() || (email ?? '').split('@')[0]
+  const parts = source.split(/[\s._-]+/).filter(Boolean)
+  const letters = parts.length > 1 ? parts[0][0] + parts[1][0] : source.slice(0, 2)
+  return letters.toUpperCase() || 'HP'
+}
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -15,52 +21,26 @@ export default async function PortalLayout({ children }: { children: React.React
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('subscription_status')
-    .eq('id', user.id)
-    .single()
+  const [{ data: profile }, { count: unreadCount }] = await Promise.all([
+    supabase.from('profiles').select('subscription_status, company_name, full_name').eq('id', user.id).single(),
+    supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('read', false),
+  ])
 
   const status = (profile?.subscription_status as string) ?? 'incomplete'
+  const initials = initialsFrom((profile?.company_name as string) || (profile?.full_name as string), user.email)
 
   return (
-    <div className="flex h-screen">
+    <div className="flex min-h-screen flex-col bg-paper text-ink">
       {/* Auto sign-out after 30 minutes of inactivity (feature 6.2). */}
       <IdleLogout />
-      {/* Portal-wide unsaved-changes guard: covers the sidebar (Sign-out, nav
+      {/* Portal-wide unsaved-changes guard: covers the top bar (Sign out, nav
           links), the browser Back button and tab close/reload. It only acts
           while a page reports unsaved edits. */}
       <LeaveGuardProvider>
-        <Sidebar />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Mobile top bar — leaves room for the fixed hamburger so it no longer
-              overlaps the page title underneath it. The logo matches the size of
-              the one in the sidebar (h-8), so the bar is a touch taller (h-16). */}
-          <div className="flex h-16 shrink-0 items-center justify-center border-b bg-white md:hidden">
-            <Image
-              src="/logo-wordmark.png"
-              alt="Housepost"
-              width={400}
-              height={100}
-              className="h-8 w-auto"
-            />
-          </div>
-          <SubscriptionBanner status={status} />
-          <main className="flex-1 overflow-y-auto">
-            {/* min-h-full + flex column keeps the footer pinned to the bottom even
-                on short pages, instead of floating up into the middle. */}
-            <div className="flex min-h-full flex-col">
-              <div className="flex-1 p-4 pb-8 sm:p-6">{children}</div>
-              {/* SiteFooter is centred to a max-w-6xl column for the homepage. In
-                  the portal we want it to span the full width of the main panel,
-                  so we override the inner container's max-width here (portal only,
-                  leaving the homepage footer untouched). */}
-              <div className="[&_footer>div]:max-w-none">
-                <SiteFooter variant="portal" />
-              </div>
-            </div>
-          </main>
-        </div>
+        <AppBar initials={initials} unread={(unreadCount ?? 0) > 0} />
+        <SubscriptionBanner status={status} />
+        <main className="flex-1">{children}</main>
+        <SiteFooter variant="portal" />
       </LeaveGuardProvider>
     </div>
   )
