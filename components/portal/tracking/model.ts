@@ -90,6 +90,29 @@ export const STAGE_OF: Record<string, Stage> = {
   dispatched: 2,
   local_delivery: 2,
   delivered: 3,
+  // Cards sent before the move to Stannp carry PostGrid's own words.
+  ready: 1,
+  printing: 1,
+  processed_for_delivery: 2,
+  in_transit: 2,
+  completed: 3,
+}
+
+const LEGACY_WORDS: Record<string, string> = {
+  ready: 'Printing',
+  printing: 'Printing',
+  processed_for_delivery: 'Dispatched',
+  in_transit: 'Dispatched',
+  completed: 'Delivered',
+}
+
+/** A readable word for any status, even one we don't have a label for. */
+function wordFor(key: string) {
+  if (LEGACY_WORDS[key]) return LEGACY_WORDS[key]
+  const label = statusLabel(key)
+  if (label !== key) return label
+  const plain = key.replace(/_/g, ' ')
+  return plain.charAt(0).toUpperCase() + plain.slice(1)
 }
 
 /** Statuses that are off the normal journey, with the word the row shows. */
@@ -198,7 +221,7 @@ export type Row = TrackingCard & {
 function describe(card: TrackingCard, clock: Clock): CardView {
   const problem = PROBLEM_LABELS[card.key] ? card.key : null
   const stage = problem ? null : (STAGE_OF[card.key] ?? null)
-  const word = problem ? PROBLEM_LABELS[card.key] : statusLabel(card.key)
+  const word = problem ? PROBLEM_LABELS[card.key] : wordFor(card.key)
 
   let note: string
   switch (card.key) {
