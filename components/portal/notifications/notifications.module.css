@@ -1,0 +1,113 @@
+/* Notifications page, Paper look. Page column, title and panel come from
+   components/portal/page-chrome.module.css. */
+
+.wrap {
+  max-width: 760px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--color-paper-hi);
+  border: 1px solid var(--color-line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.list li + li {
+  border-top: 1px solid var(--color-line);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 18px;
+  color: var(--color-ink);
+  text-decoration: none;
+}
+a.row:hover {
+  background: #f6f1e8;
+}
+a.row:focus-visible {
+  outline: 2px solid var(--color-navy);
+  outline-offset: -2px;
+}
+
+.icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: var(--color-linen);
+  color: var(--color-ink-2);
+}
+.icon svg {
+  width: 16px;
+  height: 16px;
+}
+.unread .icon {
+  background: var(--color-navy-tint);
+  color: var(--color-navy);
+}
+
+.text {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+.title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.35;
+  font-weight: 500;
+}
+.unread .title {
+  font-weight: 600;
+}
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-navy);
+}
+.body {
+  display: block;
+  margin: 3px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-ink-2);
+}
+.time {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--color-ink-2);
+}
+
+.empty {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+.empty strong {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+
+@media (max-width: 979px) {
+  .row {
+    padding: 14px;
+    gap: 12px;
+  }
+}

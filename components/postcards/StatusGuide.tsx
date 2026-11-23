@@ -11,13 +11,13 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
-import { EXCEPTIONS, JOURNEY, statusColour, statusLabel, type StatusGuideEntry } from './status'
+import { EXCEPTIONS, JOURNEY, statusLabel, type StatusGuideEntry } from './status'
 
 function Entry({ entry }: { entry: StatusGuideEntry }) {
   return (
     <li className="flex flex-col gap-1.5 py-3">
       <span
-        className={`inline-flex w-fit rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColour(entry.key)}`}
+        className="text-sm font-semibold text-ink"
       >
         {statusLabel(entry.key)}
       </span>

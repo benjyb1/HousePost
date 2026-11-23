@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { DesignOptionChooser, type DesignOption } from '@/components/postcards/DesignOptionChooser'
 import { SvgTemplateEditor } from '@/components/postcards/SvgTemplateEditor'
@@ -12,6 +11,7 @@ import { useLeaveGuard } from '@/components/layout/LeaveGuardProvider'
 import { parseSidecar, type TemplateSidecar } from '@/components/postcards/template-sidecar'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
+import chrome from '@/components/portal/page-chrome.module.css'
 
 const HEADINGS: Record<DesignOption, { title: string; subtitle: string }> = {
   template: {
@@ -76,60 +76,64 @@ export default function PostcardDesignPage() {
   }
 
   return (
-    <div className="max-w-6xl space-y-6">
-      {option === null ? (
-        <>
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Postcard design</h1>
-            <p className="text-sm text-slate-500">
-              Choose how you&apos;d like to create your postcard. You can always come back and switch approach.
-            </p>
-          </div>
-          <DesignOptionChooser
-            onSelect={(opt) => {
-              setResumeSidecar(null)
-              setOption(opt)
-            }}
-          />
-          <DesignLibrary
-            onGoToUpload={() => goToUpload('front')}
-            onEditTemplate={handleEditTemplate}
-          />
-        </>
-      ) : (
-        <>
-          <div className="space-y-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => guard(backToOptions)}
-              className="-ml-2 text-slate-500 hover:text-slate-900"
-            >
-              <ArrowLeft className="mr-1.5 h-4 w-4" />
-              All design options
-            </Button>
+    <div className={chrome.page}>
+      {/* The designer components below were laid out for this width; keep it. */}
+      <div className="flex max-w-6xl flex-col gap-6">
+        {option === null ? (
+          <>
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">{HEADINGS[option].title}</h1>
-              <p className="text-sm text-slate-500">{HEADINGS[option].subtitle}</p>
+              <div className={`${chrome.title} ${chrome.titleFlush}`}>
+                <h1>Designs</h1>
+              </div>
+              <p className={chrome.intro}>
+                Choose how to make your postcard. You can come back and switch approach any time.
+              </p>
             </div>
-          </div>
-
-          {option === 'template' && (
-            <SvgTemplateEditor
-              onUseUpload={() => goToUpload('front')}
-              onAddBack={() => goToUpload('back')}
-              onBackToOptions={backToOptions}
-              onDirtyChange={setDirty}
-              guard={guard}
-              resume={resumeSidecar}
+            <DesignOptionChooser
+              onSelect={(opt) => {
+                setResumeSidecar(null)
+                setOption(opt)
+              }}
             />
-          )}
-          {option === 'upload' && (
-            <UploadCustomDesign initialSide={uploadSide} onBackToOptions={() => setOption(null)} />
-          )}
-          {option === 'request' && <CustomDesignBrief />}
-        </>
-      )}
+            <DesignLibrary
+              onGoToUpload={() => goToUpload('front')}
+              onEditTemplate={handleEditTemplate}
+            />
+          </>
+        ) : (
+          <>
+            <div>
+              <button
+                type="button"
+                onClick={() => guard(backToOptions)}
+                className={`${chrome.textbtn} -ml-1 mb-2`}
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                All designs
+              </button>
+              <div className={`${chrome.title} ${chrome.titleFlush}`}>
+                <h1>{HEADINGS[option].title}</h1>
+              </div>
+              <p className={chrome.intro}>{HEADINGS[option].subtitle}</p>
+            </div>
+
+            {option === 'template' && (
+              <SvgTemplateEditor
+                onUseUpload={() => goToUpload('front')}
+                onAddBack={() => goToUpload('back')}
+                onBackToOptions={backToOptions}
+                onDirtyChange={setDirty}
+                guard={guard}
+                resume={resumeSidecar}
+              />
+            )}
+            {option === 'upload' && (
+              <UploadCustomDesign initialSide={uploadSide} onBackToOptions={() => setOption(null)} />
+            )}
+            {option === 'request' && <CustomDesignBrief />}
+          </>
+        )}
+      </div>
     </div>
   )
 }

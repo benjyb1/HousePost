@@ -1,0 +1,250 @@
+/* Account page, Paper look (mockup: redo-round3 "tab-account"). Page column,
+   title, panels and buttons live in components/portal/page-chrome.module.css. */
+
+.sample {
+  font-size: 13px;
+  color: var(--color-ink-2);
+}
+
+.wrap {
+  max-width: 760px;
+}
+
+.acc {
+  display: grid;
+  gap: 20px;
+}
+
+.heading {
+  font: 600 17px/1.2 var(--font-sans);
+  margin: 0 0 14px;
+  color: var(--color-ink);
+}
+
+/* Label / value pairs. Two columns on wide screens, stacked on phones. */
+.kv {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 10px 24px;
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.kv dt {
+  color: var(--color-ink-2);
+}
+.kv dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.unset {
+  color: var(--color-ink-2);
+}
+
+.acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  margin-top: 16px;
+}
+
+.note {
+  margin: 12px 0 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+.lead {
+  margin: 0 0 4px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--color-ink-2);
+}
+
+/* Inline feedback under a form or action row. */
+.error {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--destructive);
+}
+.ok {
+  margin: 12px 0 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-navy-ink);
+}
+/* Empty feedback lines stay in the accessibility tree (so live regions are
+   announced) but take no space. */
+.ok:empty,
+.error:empty {
+  margin: 0;
+}
+
+/* Forms */
+.form {
+  display: grid;
+  gap: 16px;
+}
+.field {
+  display: grid;
+  gap: 6px;
+  max-width: 360px;
+}
+.field label {
+  font-size: 13.5px;
+  color: var(--color-ink-2);
+}
+.hint {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-ink-2);
+}
+.fieldError {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--destructive);
+}
+.input {
+  min-height: 42px;
+  width: 100%;
+  padding: 0 12px;
+  border: 1px solid var(--color-line-2);
+  border-radius: 6px;
+  background: var(--color-paper-hi);
+  font: 500 15px/1 var(--font-sans);
+  color: var(--color-ink);
+}
+.input:focus {
+  outline: 2px solid var(--color-navy);
+  outline-offset: 1px;
+}
+.input[aria-invalid='true'] {
+  border-color: var(--destructive);
+}
+.input[readonly] {
+  color: var(--color-ink-2);
+}
+.formActs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 4px;
+}
+
+/* On/off switch (mockup .sw). The input keeps its checkbox semantics with
+   role="switch"; the label text sits on the left. */
+.sw {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  font-size: 15px;
+  cursor: pointer;
+}
+.sw + .sw {
+  border-top: 1px solid var(--color-line);
+}
+.swText {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.swText small {
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--color-ink-2);
+}
+.sw input {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  width: 42px;
+  height: 24px;
+  margin: 0;
+  border-radius: 999px;
+  background: #d6cdbd;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.sw input::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-paper-hi);
+  transition: transform 0.15s ease;
+}
+.sw input:checked {
+  background: var(--color-navy);
+}
+.sw input:checked::after {
+  transform: translateX(18px);
+}
+.sw input:focus-visible {
+  outline: 2px solid var(--color-navy);
+  outline-offset: 2px;
+}
+.sw input:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* Delete account. `button.` lifts these above the shared .textbtn / .btn
+   rules, whose load order between the two CSS modules isn't fixed. */
+button.danger {
+  color: var(--destructive);
+}
+button.btnDanger {
+  background: var(--destructive);
+  color: #fff;
+}
+button.btnDanger:hover {
+  background: var(--destructive);
+  filter: brightness(0.92);
+}
+button.btnDanger:disabled:hover {
+  background: var(--destructive);
+  filter: none;
+}
+.lead + .form {
+  margin-top: 12px;
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+}
+
+@media (max-width: 700px) {
+  .kv {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+  .kv dd {
+    margin-bottom: 10px;
+  }
+  .kv dd:last-of-type {
+    margin-bottom: 0;
+  }
+  .field {
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw input,
+  .sw input::after {
+    transition: none;
+  }
+}
