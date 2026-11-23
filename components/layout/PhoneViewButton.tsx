@@ -50,7 +50,8 @@ export function PhoneViewButton() {
         style={{
           position: 'fixed',
           left: 'max(16px, env(safe-area-inset-left, 0px))',
-          bottom: 'max(16px, env(safe-area-inset-bottom, 0px))',
+          // sits above the Home page's send bar on phones
+          bottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
           zIndex: 2147483000,
           background: '#0f1f3d',
           color: '#ffffff',
