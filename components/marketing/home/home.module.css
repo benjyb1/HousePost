@@ -136,7 +136,12 @@
 .line {
   display: block;
 }
+/* The trade word sits on an eight-sided drum (one face per word in
+   TradeRoller), seen through a slot one line high. --r is the distance from
+   the drum's axle to a face: half a line / tan(180deg / 8). A far viewpoint
+   (8em) keeps the curve without making the words lean as they turn. */
 .roll {
+  --r: 1.2554em;
   display: block;
   position: relative;
   height: 1.04em;
@@ -149,18 +154,27 @@
   top: 0;
   bottom: -0.2em;
   overflow: hidden;
+  perspective: 8em;
+  perspective-origin: 28% 0.52em;
 }
-.rollWord {
+.drum {
   position: absolute;
   left: 0;
+  right: 0;
   top: 0;
+  height: 1.04em;
+  transform-style: preserve-3d;
+  transform: translateZ(calc(var(--r) * -1));
+  will-change: transform;
+}
+.face {
+  position: absolute;
+  inset: 0;
   line-height: 1.04;
   white-space: nowrap;
-  opacity: 0;
-  will-change: transform, opacity;
-}
-.rollWord.isCur {
-  opacity: 1;
+  transform: translateZ(var(--r));
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 .clear {
   margin: clamp(22px, 2.6vw, 36px) 0 0;
