@@ -3,8 +3,9 @@ import styles from './logo.module.css'
 
 /*
   Freddie's Housepost logo. The house is redrawn from logo-icon.png at its own
-  proportions (a 3000-unit square) so the small inner house can carry the
-  orange. The lettering is his original artwork, cropped tight.
+  proportions (a 3000-unit square). It is all navy: the orange inner house came
+  out on 24 Nov (Freddie wasn't sure about it). The lettering is his original
+  artwork, cropped tight.
 */
 export const HOUSE_OUTLINE =
   'M1500 0L3000 1500V1703H2522V3000H1704V2300H1295V3000H475V1703H0V1500Z' +
@@ -15,7 +16,7 @@ export function HouseMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 3000 3000" className={className} aria-hidden="true" focusable="false">
       <path d={HOUSE_OUTLINE} fill="#132251" fillRule="evenodd" />
-      <path d={HOUSE_WINDOW} fill="#ff7614" fillRule="evenodd" />
+      <path d={HOUSE_WINDOW} fill="#132251" fillRule="evenodd" />
     </svg>
   )
 }
