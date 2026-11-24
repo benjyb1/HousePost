@@ -8,18 +8,19 @@ import styles from './home.module.css'
   newly sold homes pop up in grey with a black outline and a price. A card flies
   from your office to two or three of them and they turn orange (targeted); the
   rest lose the outline and settle to flat grey (in the system, not targeted).
-  Then the next month repeats in new spots. No legend, no SOLD boards.
+  Then the next month repeats in new spots, three months in all (December
+  added 24 Nov). No legend, no SOLD boards.
 
-  One shared 15s loop: every element animates on the same timeline, so nothing
+  One shared 21s loop: every element animates on the same timeline, so nothing
   drifts out of step, and every keyframe at the loop's end matches its start.
 */
 
 const NS = 'http://www.w3.org/2000/svg'
-const L = 15000
+const L = 21300
 const EO = 'cubic-bezier(0.23, 1, 0.32, 1)'
 const ES = 'cubic-bezier(0.37, 0, 0.63, 1)'
-const END0 = 13300
-const END1 = 13900
+const END0 = 19600
+const END1 = 20200
 const FLIGHT = 950
 const GAP = 350
 const HOUSE = 'M-17 1 L0 -16 L17 1 V17 H-17 Z'
@@ -36,6 +37,10 @@ const MONTHS: { start: number; send: number; resolve: number; tagsOff: number; h
   {
     start: 6800, send: 8600, resolve: 10750, tagsOff: 12300,
     homes: [{ x: 430, y: 204, p: '£980k', t: 0 }, { x: 566, y: 222, p: '£725k', t: 1 }, { x: 262, y: 262, p: '£598k', t: 0 }, { x: 438, y: 398, p: '£1.58m', t: 1 }],
+  },
+  {
+    start: 13100, send: 14900, resolve: 17050, tagsOff: 18600,
+    homes: [{ x: 128, y: 236, p: '£650k', t: 1 }, { x: 650, y: 200, p: '£890k', t: 0 }, { x: 330, y: 412, p: '£715k', t: 1 }, { x: 618, y: 378, p: '£1.1m', t: 1 }],
   },
 ]
 
@@ -131,11 +136,12 @@ export function MonthMap() {
   const svgRef = useRef<SVGSVGElement>(null)
   const m0Ref = useRef<HTMLSpanElement>(null)
   const m1Ref = useRef<HTMLSpanElement>(null)
+  const m2Ref = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
     const svg = svgRef.current
     const box = boxRef.current
-    if (!svg || !box || !m0Ref.current || !m1Ref.current) return
+    if (!svg || !box || !m0Ref.current || !m1Ref.current || !m2Ref.current) return
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     const anims: Animation[] = []
 
@@ -232,10 +238,11 @@ export function MonthMap() {
 
     // month labels
     loop(m0Ref.current, [[0, { opacity: 0 }], [200, { opacity: 0 }], [500, { opacity: 1 }], [6300, { opacity: 1 }], [6550, { opacity: 0 }]])
-    loop(m1Ref.current, [[0, { opacity: 0 }], [6550, { opacity: 0 }], [6800, { opacity: 1 }], [END0, { opacity: 1 }], [END1, { opacity: 0 }]])
+    loop(m1Ref.current, [[0, { opacity: 0 }], [6550, { opacity: 0 }], [6800, { opacity: 1 }], [12750, { opacity: 1 }], [13000, { opacity: 0 }]])
+    loop(m2Ref.current, [[0, { opacity: 0 }], [13000, { opacity: 0 }], [13250, { opacity: 1 }], [END0, { opacity: 1 }], [END1, { opacity: 0 }]])
 
-    // reduced motion: a still frame with both months resolved
-    if (reduce) anims.forEach((a) => { a.pause(); a.currentTime = 11600 })
+    // reduced motion: a still frame with all three months resolved
+    if (reduce) anims.forEach((a) => { a.pause(); a.currentTime = 17900 })
 
     let inView = false
     const sync = () => {
@@ -266,6 +273,7 @@ export function MonthMap() {
       <div className={styles.months} aria-hidden="true">
         <span ref={m0Ref}>October</span>
         <span ref={m1Ref}>November</span>
+        <span ref={m2Ref}>December</span>
       </div>
     </div>
   )

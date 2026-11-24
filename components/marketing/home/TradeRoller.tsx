@@ -5,37 +5,39 @@ import styles from './home.module.css'
 
 // Freddie's order: tradespeople, three trades, back to tradespeople, three more.
 const WORDS = ['tradespeople', 'builders', 'plumbers', 'electricians', 'tradespeople', 'kitchen fitters', 'architects', 'interior designers']
+const STEP = 360 / WORDS.length
 // Tradespeople holds a little longer than the trades, not twice as long (Benjy, 23 Nov).
 const HOLD_HOME = 2300
 const HOLD = 1700
-const DUR = 620
-const EASE = 'cubic-bezier(.66,0,.34,1)'
+// One click of the drum: it gathers speed, is fastest halfway, then slows to a
+// stop (Freddie, 23 Nov). A strong ease-in-out over 1.1s, so the build-up and the
+// settle are easy to see; a gentler curve read as a linear spin (Benjy, 24 Nov).
+const DUR = 1100
+const EASE = 'cubic-bezier(.7, 0, .3, 1)'
+
+const drumAt = (k: number) => `translateZ(calc(var(--r) * -1)) rotateX(${-k * STEP}deg)`
 
 /**
- * "Tactical marketing for time-pressed [tradespeople]", with the last word
- * rolling down to the next trade. Whole words move inside a clipped line of
- * their own, so nothing overlaps the line above and nothing is cut into strips.
+ * "Tactical marketing for time-pressed [tradespeople]". Each trade word is
+ * printed on one face of an eight-sided drum, like the cylinder of a revolver,
+ * seen through a slot one line high. The drum turns one face at a time, so new
+ * words come over the top and the old one curves away underneath.
  */
 export function TradeRoller() {
-  const winRef = useRef<HTMLSpanElement>(null)
+  const drumRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
-    const win = winRef.current
-    if (!win) return
-    const faces = [win.children[0] as HTMLElement, win.children[1] as HTMLElement]
+    const drum = drumRef.current
+    const slot = drum?.parentElement
+    if (!drum || !slot) return
+    const faces = Array.from(drum.children) as HTMLElement[]
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    let cur = 0
     let wi = 0
     let timer: ReturnType<typeof setTimeout> | undefined
     let anims: Animation[] = []
     let rolling = false
 
-    const frames = (dir: 'out' | 'in'): Keyframe[] => {
-      if (reduce) return dir === 'out' ? [{ opacity: 1 }, { opacity: 0 }] : [{ opacity: 0 }, { opacity: 1 }]
-      return dir === 'out'
-        ? [{ transform: 'translateY(0)', opacity: 1, offset: 0 }, { transform: 'translateY(62%)', opacity: 1, offset: 0.55 }, { transform: 'translateY(118%)', opacity: 0, offset: 1 }]
-        : [{ transform: 'translateY(-118%)', opacity: 0, offset: 0 }, { transform: 'translateY(-62%)', opacity: 1, offset: 0.45 }, { transform: 'translateY(0)', opacity: 1, offset: 1 }]
-    }
+    const show = (i: number) => faces.forEach((f, j) => { f.style.opacity = j === i ? '1' : '0' })
     const clear = () => {
       anims.forEach((a) => { try { a.cancel() } catch {} })
       anims = []
@@ -45,10 +47,8 @@ export function TradeRoller() {
       timer = undefined
       clear()
       rolling = false
-      faces[cur].textContent = WORDS[wi]
-      faces[cur].classList.add(styles.isCur)
-      faces[1 - cur].classList.remove(styles.isCur)
-      faces[1 - cur].textContent = ''
+      drum.style.transform = drumAt(wi)
+      show(wi)
     }
     const schedule = () => {
       clearTimeout(timer)
@@ -58,25 +58,37 @@ export function TradeRoller() {
     const turn = () => {
       if (rolling) return
       rolling = true
-      const a = faces[cur]
-      const b = faces[1 - cur]
       const next = (wi + 1) % WORDS.length
-      b.textContent = WORDS[next]
-      const opts: KeyframeAnimationOptions = { duration: reduce ? 320 : DUR, easing: reduce ? 'linear' : EASE, fill: 'both' }
-      const out = a.animate(frames('out'), opts)
-      const inn = b.animate(frames('in'), opts)
-      anims = [out, inn]
-      inn.finished
+      const a = faces[wi]
+      const b = faces[next]
+      let done: Promise<Animation>
+      if (reduce) {
+        // no turning: the next word fades in where the last one was
+        drum.style.transform = drumAt(next)
+        a.style.opacity = '0'
+        b.style.opacity = '1'
+        const fade = b.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320 })
+        anims = [fade]
+        done = fade.finished
+      } else {
+        // look at the drum from the middle of the two words, so neither leans like italics as it turns
+        const wa = (a.firstElementChild as HTMLElement).offsetWidth
+        const wb = (b.firstElementChild as HTMLElement).offsetWidth
+        slot.style.perspectiveOrigin = `${((wa + wb) / 4).toFixed(1)}px 0.52em`
+        const opts: KeyframeAnimationOptions = { duration: DUR, easing: EASE, fill: 'both' }
+        // wi + 1 (not next), so the last word turns on to the first instead of spinning back round
+        const spin = drum.animate([{ transform: drumAt(wi) }, { transform: drumAt(wi + 1) }], opts)
+        // the word leaving dims as it turns away; the word arriving brightens as it faces you
+        const out = a.animate([{ opacity: 1 }, { opacity: 0.8, offset: 0.5 }, { opacity: 0 }], opts)
+        const inn = b.animate([{ opacity: 0 }, { opacity: 0.8, offset: 0.5 }, { opacity: 1 }], opts)
+        anims = [spin, out, inn]
+        done = spin.finished
+      }
+      done
         .then(() => {
           if (!rolling) return
-          rolling = false
-          // swap roles before the cancelled animations could let the old state paint
-          b.classList.add(styles.isCur)
-          a.classList.remove(styles.isCur)
-          clear()
-          a.textContent = ''
-          cur = 1 - cur
           wi = next
+          rest()
           schedule()
         })
         .catch(() => {})
@@ -93,10 +105,9 @@ export function TradeRoller() {
       document.removeEventListener('visibilitychange', onVisibility)
       clearTimeout(timer)
       clear()
-      faces[0].textContent = WORDS[0]
-      faces[0].classList.add(styles.isCur)
-      faces[1].textContent = ''
-      faces[1].classList.remove(styles.isCur)
+      wi = 0
+      drum.style.transform = drumAt(0)
+      show(0)
     }
   }, [])
 
@@ -106,9 +117,18 @@ export function TradeRoller() {
       <span className={styles.line}>for time-pressed</span>
       <span className={styles.srOnly}>tradespeople</span>
       <span className={styles.roll} aria-hidden="true">
-        <span className={styles.rollWin} ref={winRef}>
-          <span className={`${styles.rollWord} ${styles.isCur}`}>tradespeople</span>
-          <span className={styles.rollWord} />
+        <span className={styles.rollWin}>
+          <span className={styles.drum} ref={drumRef}>
+            {WORDS.map((w, i) => (
+              <span
+                key={i}
+                className={styles.face}
+                style={{ transform: `rotateX(${i * STEP}deg) translateZ(var(--r))`, opacity: i === 0 ? 1 : 0 }}
+              >
+                <span>{w}</span>
+              </span>
+            ))}
+          </span>
         </span>
       </span>
     </h1>
