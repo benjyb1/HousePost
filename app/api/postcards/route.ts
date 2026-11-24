@@ -452,7 +452,7 @@ export async function POST(request: Request) {
       await adminSupabase.rpc('decrement_postcards_used', { p_user_id: user.id, p_amount: q })
       await releaseReservation()
       return NextResponse.json(
-        { error: 'No payment method on file. Add a card in Billing before sending paid postcards.' },
+        { error: 'No payment method on file. Add a card in Account before sending paid postcards.' },
         { status: 402 }
       )
     }

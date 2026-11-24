@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
-import { Sparkles, Upload, X, CheckCircle2 } from 'lucide-react'
+import { Upload, X, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 
 // Assets go straight from the browser into this PRIVATE bucket (per-user-folder
@@ -116,11 +116,13 @@ export function CustomDesignBrief() {
 
   if (done) {
     return (
-      <Card className="border-green-200 bg-green-50/60">
-        <CardContent className="flex flex-col items-center gap-3 p-8 text-center">
-          <CheckCircle2 className="h-10 w-10 text-green-600" />
-          <h3 className="text-lg font-semibold text-slate-900">Your request is in</h3>
-          <p className="max-w-md text-sm text-slate-600">
+      <Card>
+        <CardContent className="space-y-2 p-6">
+          <h3 className="flex items-center gap-2 text-lg font-semibold text-ink">
+            <Check className="h-5 w-5 text-navy" aria-hidden="true" />
+            Your request is in
+          </h3>
+          <p className="max-w-[60ch] text-sm leading-relaxed text-ink-2">
             Thanks, we&apos;ve received your brief and taken the {CUSTOM_DESIGN_FEE} design fee. Our team will get
             started and be in touch about your postcard. Once your design is ready it&apos;ll be added to your
             account, and you can send it just like any other postcard.
@@ -132,28 +134,18 @@ export function CustomDesignBrief() {
 
   return (
     <div className="space-y-6">
-      {/* Service description — the benefit, not the how. */}
-      <Card className="border-slate-200 bg-gradient-to-br from-slate-50 to-white">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-slate-700" />
-            We&apos;ll design your postcard for you
-          </CardTitle>
-          <CardDescription className="text-slate-600">
-            Prefer to leave it to us? For a one-off {CUSTOM_DESIGN_FEE} fee we&apos;ll create a polished,
-            print-ready postcard built around your brand. Share your logo, colours and a few pointers below, and
-            we&apos;ll handle the design so it looks professional and prints beautifully at A6. The finished card is
-            added to your account ready to send.
-          </CardDescription>
-        </CardHeader>
-      </Card>
+      {/* What the service is, in one plain paragraph. */}
+      <p className="max-w-[68ch] text-[15px] leading-relaxed text-ink-2">
+        For a one-off {CUSTOM_DESIGN_FEE} fee, our designer makes your postcard for you from your logo, colours
+        and a few notes. The finished card is added to your account, ready to send.
+      </p>
 
       <form onSubmit={handleSubmit}>
         <Card>
           <CardHeader>
             <CardTitle>Your brief</CardTitle>
             <CardDescription>
-              The more you share, the closer the first draft will be. Nothing here is set in stone.
+              The more you share, the closer the first draft will be.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -186,7 +178,7 @@ export function CustomDesignBrief() {
                 onChange={(e) => setText(e.target.value)}
                 rows={3}
                 placeholder="Headline, contact details, offer, call to action…"
-                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                className="w-full resize-y rounded-md border border-line-2 bg-paper-hi px-3 py-2 text-base font-medium text-ink outline-none placeholder:text-ink-2/70 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-navy md:text-[15px]"
               />
             </div>
 
@@ -198,7 +190,7 @@ export function CustomDesignBrief() {
                 onChange={(e) => setNotes(e.target.value)}
                 rows={4}
                 placeholder="Anything you love or want to avoid, examples you like, the feel you're after…"
-                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                className="w-full resize-y rounded-md border border-line-2 bg-paper-hi px-3 py-2 text-base font-medium text-ink outline-none placeholder:text-ink-2/70 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-navy md:text-[15px]"
               />
             </div>
 
@@ -219,7 +211,7 @@ export function CustomDesignBrief() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 p-6 text-slate-500 transition hover:border-slate-400 hover:text-slate-700"
+                className="flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-line-2 bg-paper p-6 text-ink-2 transition-colors hover:border-navy/50 hover:text-ink"
               >
                 <Upload className="h-6 w-6" />
                 <span className="text-sm font-medium">Click to add files</span>
@@ -231,13 +223,13 @@ export function CustomDesignBrief() {
                   {files.map((f, i) => (
                     <li
                       key={`${f.name}-${i}`}
-                      className="flex items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                      className="flex items-center justify-between gap-2 rounded-md border border-line bg-paper px-3 py-2 text-sm"
                     >
-                      <span className="truncate text-slate-700">{f.name}</span>
+                      <span className="truncate text-ink">{f.name}</span>
                       <button
                         type="button"
                         onClick={() => removeFile(i)}
-                        className="shrink-0 rounded p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+                        className="shrink-0 rounded-[3px] p-1 text-ink-2 hover:bg-linen hover:text-ink"
                         aria-label={`Remove ${f.name}`}
                       >
                         <X className="h-4 w-4" />
@@ -248,10 +240,10 @@ export function CustomDesignBrief() {
               )}
             </div>
 
-            <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-              Submitting charges a one-off <strong>{CUSTOM_DESIGN_FEE}</strong> design fee to the card saved in
-              Billing. You&apos;ll only be charged once your brief is submitted.
-            </div>
+            <p className="text-sm text-ink-2">
+              Submitting charges a one-off <strong className="font-semibold text-ink">{CUSTOM_DESIGN_FEE}</strong> design
+              fee to the card saved in Account.
+            </p>
 
             <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
               {submitting ? 'Submitting…' : `Submit brief & pay ${CUSTOM_DESIGN_FEE}`}

@@ -6,7 +6,7 @@ import type { Area } from 'react-easy-crop'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
-import { Upload, Trash2, ImageIcon, Eye, Sparkles, Check } from 'lucide-react'
+import { Upload, Trash2, ImageIcon, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { applyMapUpsertPolyfill } from '@/lib/polyfills/map-upsert'
 import { PostcardPreview } from './PostcardPreview'
@@ -124,20 +124,20 @@ function Guides({ kind, addBleed }: { kind: 'full' | 'back'; addBleed: boolean }
  */
 function AddressHalf() {
   return (
-    <div className="relative flex w-1/2 flex-col justify-between border-l-2 border-dashed border-amber-400 bg-amber-50/50 p-3">
+    <div className="relative flex w-1/2 flex-col justify-between border-l-2 border-dashed border-navy/40 bg-navy-tint/60 p-3">
       <div className="flex justify-end">
-        <div className="flex h-9 w-7 items-center justify-center rounded-sm border-2 border-dashed border-slate-300 text-[7px] font-medium text-slate-400">
-          STAMP
+        <div className="flex h-9 w-7 items-center justify-center rounded-sm border-2 border-dashed border-line-2 text-[7px] font-medium text-ink-2/70">
+          Stamp
         </div>
       </div>
-      <div className="space-y-0.5 text-[10px] leading-tight text-slate-500">
+      <div className="space-y-0.5 text-[10px] leading-tight text-ink-2">
         <p>Mr A. Homeowner</p>
         <p>1 Example Street</p>
         <p>Sometown</p>
         <p>AB12 3CD</p>
-        <div className="mt-1 h-3 w-20 bg-[repeating-linear-gradient(90deg,#94a3b8_0,#94a3b8_2px,transparent_2px,transparent_4px)]" />
+        <div className="mt-1 h-3 w-20 bg-[repeating-linear-gradient(90deg,#9aa199_0,#9aa199_2px,transparent_2px,transparent_4px)]" />
       </div>
-      <p className="text-[8px] font-medium uppercase tracking-wide text-amber-600">
+      <p className="text-[8.5px] font-semibold text-navy-ink">
         Address &amp; postage added automatically
       </p>
     </div>
@@ -575,13 +575,13 @@ export function UploadCustomDesign({
     <div className="space-y-6">
       {/* Post-save confirmation — the finished card, front and back. */}
       {confirmPair && (
-        <Card className="border-green-200 bg-green-50/50">
+        <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-green-800">
-              <Check className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2">
+              <Check className="h-5 w-5 text-navy" aria-hidden="true" />
               This is now your active postcard
             </CardTitle>
-            <CardDescription className="text-green-700/90">
+            <CardDescription>
               Here&apos;s how it will print, front and back. The back&apos;s right half is reserved for the
               address the printer adds.
             </CardDescription>
@@ -596,7 +596,7 @@ export function UploadCustomDesign({
               }}
             />
             {!confirmPair.back && (
-              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              <p className="rounded-md bg-linen px-3 py-2 text-sm text-ink">
                 No back design yet, so the back will print as the reserved address area only.{' '}
                 <button
                   type="button"
@@ -621,16 +621,15 @@ export function UploadCustomDesign({
         </Card>
       )}
 
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-        <p className="text-sm text-slate-600">
-          Upload your front and back artwork as PDFs. The technical spec: a print-ready PDF at A6 with 3mm bleed,
-          300gsm, {TARGET_PX.w} × {TARGET_PX.h} pixels at 300 DPI. The front fills the whole card; the back design
-          sits on the left half, with the address on the right.
-        </p>
-      </div>
+      <p className="max-w-[72ch] text-sm leading-relaxed text-ink-2">
+        Upload print-ready PDFs at A6 with 3mm bleed and 300 DPI. Cards are printed on 300gsm. The front fills the
+        whole card ({TARGET_PX.w} × {TARGET_PX.h} px). The back design goes on the left half ({HALF_PX_W} ×{' '}
+        {TARGET_PX.h} px) and the address is printed on the right. Keep text {CARD.safe}mm inside the cut. Only the
+        first page of each PDF is used.
+      </p>
 
       {/* Front / Back tab toggle */}
-      <div className="flex gap-1 rounded-lg bg-slate-100 p-1">
+      <div className="flex gap-1 rounded-md bg-linen p-1">
         {(['front', 'back'] as const).map((side) => {
           const saved = side === 'front' ? frontDesignUrl : backDesignUrl
           return (
@@ -638,15 +637,17 @@ export function UploadCustomDesign({
               key={side}
               type="button"
               onClick={() => setActiveSide(side)}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition ${
-                activeSide === side ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              aria-pressed={activeSide === side}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-[3px] px-4 py-2 text-sm font-semibold transition-colors ${
+                activeSide === side ? 'bg-paper-hi text-ink shadow-[0_0_0_1px_var(--color-line)]' : 'text-ink-2 hover:text-ink'
               }`}
             >
               {SIDE_CONFIG[side].label}
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${saved ? 'bg-green-500' : 'bg-slate-300'}`}
-                title={saved ? 'Design saved' : 'No design yet'}
-              />
+              {saved ? (
+                <Check className="h-3.5 w-3.5 text-navy" aria-label="saved" />
+              ) : (
+                <span className="text-xs font-normal text-ink-2">not added</span>
+              )}
             </button>
           )
         })}
@@ -657,7 +658,7 @@ export function UploadCustomDesign({
         {currentDesignUrl && (
           <Card>
             <CardHeader>
-              <CardTitle>{config.label} Design</CardTitle>
+              <CardTitle>{config.label} design</CardTitle>
               <CardDescription>
                 Red dashed line is the cut; anything outside it is trimmed off.
                 {!isFront && ' The right half is where the address is printed.'}
@@ -665,7 +666,7 @@ export function UploadCustomDesign({
             </CardHeader>
             <CardContent className="space-y-4">
               <div
-                className="relative mx-auto overflow-hidden rounded-md border border-slate-200 bg-white"
+                className="relative mx-auto overflow-hidden rounded-md border border-line bg-white"
                 style={{ aspectRatio: `${DOC_W}/${DOC_H}`, maxWidth: 460 }}
               >
                 {isPdfUrl(currentDesignUrl) ? (
@@ -677,8 +678,8 @@ export function UploadCustomDesign({
                   <>
                     <GuideBox insets={guideInsets('full', false).cut} variant="cut" />
                     {!isFront && (
-                      <div className="pointer-events-none absolute inset-y-0 right-0 left-1/2 flex items-center justify-center border-l border-dashed border-amber-400 bg-amber-50/25">
-                        <span className="rounded bg-amber-500/90 px-1.5 py-0.5 text-center text-[8px] font-medium uppercase leading-tight tracking-wide text-white">
+                      <div className="pointer-events-none absolute inset-y-0 right-0 left-1/2 flex items-center justify-center border-l border-dashed border-navy/40 bg-navy-tint/40">
+                        <span className="rounded-[2px] bg-navy/90 px-1.5 py-0.5 text-center text-[8.5px] font-semibold leading-tight text-paper">
                           Address &amp; postage
                         </span>
                       </div>
@@ -697,14 +698,14 @@ export function UploadCustomDesign({
         {/* Upload / edit card */}
         <Card>
           <CardHeader>
-            <CardTitle>{currentDesignUrl ? `Replace ${config.label} Design` : `Upload ${config.label} Design`}</CardTitle>
+            <CardTitle>{currentDesignUrl ? `Replace ${config.label.toLowerCase()} design` : `Upload ${config.label.toLowerCase()} design`}</CardTitle>
             <CardDescription>
               {isFront
                 ? 'The front is your full design, edge to edge.'
                 : 'Your back design sits on the left half. The right half is reserved for the address and postage.'}
             </CardDescription>
-            <p className="mt-1 inline-flex w-fit rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-              Design at: {sizeHint}
+            <p className="mt-1 text-xs text-ink-2">
+              Design at {sizeHint}
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -716,12 +717,12 @@ export function UploadCustomDesign({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={rendering}
-                className="flex w-full flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-slate-200 p-10 text-slate-500 transition hover:border-slate-400 hover:text-slate-700 disabled:opacity-50"
+                className="flex w-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-line-2 bg-paper p-10 text-ink-2 transition-colors hover:border-navy/50 hover:text-ink disabled:opacity-50"
               >
                 {rendering ? (
                   <>
                     <ImageIcon className="h-8 w-8 animate-pulse" />
-                    <span className="text-sm">Rendering PDF...</span>
+                    <span className="text-sm">Rendering PDF…</span>
                   </>
                 ) : (
                   <>
@@ -738,20 +739,20 @@ export function UploadCustomDesign({
                 {passthrough ? (
                   /* Lossless: show the rendered page with guides, no crop. */
                   <div
-                    className="relative mx-auto w-full overflow-hidden rounded-md border border-slate-200 bg-white"
+                    className="relative mx-auto w-full overflow-hidden rounded-md border border-line bg-white"
                     style={{ aspectRatio: `${ASPECT.fullBleed}`, maxWidth: 560 }}
                   >
                     <img src={imageSrc} alt="Print-ready artwork" className="h-full w-full object-contain" />
                     <GuideBox insets={guideInsets('full', false).cut} variant="cut" />
                     <GuideBox insets={guideInsets('full', false).safe} variant="safe" />
                     {!isFront && (
-                      <div className="pointer-events-none absolute inset-y-0 left-1/2 right-0 border-l border-dashed border-amber-400 bg-amber-50/20" />
+                      <div className="pointer-events-none absolute inset-y-0 left-1/2 right-0 border-l border-dashed border-navy/40 bg-navy-tint/30" />
                     )}
                   </div>
                 ) : isFront ? (
                   /* Front — crop the whole card. */
                   <div
-                    className="relative mx-auto w-full overflow-hidden rounded-md border border-slate-200"
+                    className="relative mx-auto w-full overflow-hidden rounded-md border border-line"
                     style={{ aspectRatio: `${cropAspect}`, maxWidth: 560 }}
                   >
                     <Cropper image={imageSrc} crop={crop} zoom={zoom} aspect={cropAspect} objectFit="cover"
@@ -762,7 +763,7 @@ export function UploadCustomDesign({
                   /* Back — crop into the LEFT half; the address half sits beside it. */
                   <div className="w-full">
                     <div
-                      className="mx-auto flex overflow-hidden rounded-md border border-slate-200 bg-white"
+                      className="mx-auto flex overflow-hidden rounded-md border border-line bg-white"
                       style={{ aspectRatio: `${backContainerAspect}`, maxWidth: 560 }}
                     >
                       <div className="relative w-1/2">
@@ -772,7 +773,7 @@ export function UploadCustomDesign({
                       </div>
                       <AddressHalf />
                     </div>
-                    <p className="mt-2 text-center text-xs text-slate-500">
+                    <p className="mt-2 text-center text-xs text-ink-2">
                       Drag and zoom to frame your design in the left half.
                     </p>
                   </div>
@@ -780,7 +781,7 @@ export function UploadCustomDesign({
 
                 {/* Wrong-orientation hint */}
                 {wrongShape && (
-                  <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+                  <div className="rounded-md bg-linen px-3 py-2 text-xs text-ink">
                     Your file looks {uploadPortrait ? 'portrait' : 'landscape'}, but the {activeSide}{' '}
                     {isFront ? 'is landscape (wider than tall)' : 'design half is portrait (taller than wide)'}. It&apos;ll
                     be cropped to fit. For a clean result, upload artwork sized {sizeHint.split(' · ')[1]}.
@@ -788,13 +789,11 @@ export function UploadCustomDesign({
                 )}
 
                 {/* Lossless passthrough toggle */}
-                <label className="flex items-start gap-2 rounded-md border border-indigo-100 bg-indigo-50/60 p-3 text-sm">
+                <label className="flex items-start gap-2 rounded-md border border-line bg-paper p-3 text-sm">
                   <input type="checkbox" checked={passthrough} onChange={(e) => setPassthrough(e.target.checked)} className="mt-0.5 h-4 w-4" />
                   <span>
-                    <span className="flex items-center gap-1.5 font-medium text-indigo-900">
-                      <Sparkles className="h-3.5 w-3.5" /> Send my PDF as-is, at maximum quality
-                    </span>
-                    <span className="mt-0.5 block text-xs text-indigo-700/80">
+                    <span className="font-semibold text-ink">Send my PDF as it is</span>
+                    <span className="mt-0.5 block text-xs text-ink-2">
                       Skips cropping and rasterising, so your vector PDF prints straight through with no quality loss.{' '}
                       {isFront
                         ? 'Use when your file is already a full A6 card, 154×111mm with 3mm bleed.'
@@ -806,39 +805,39 @@ export function UploadCustomDesign({
                 {!passthrough && (
                   <>
                     {/* Add-bleed helper */}
-                    <label className="flex items-start gap-2 rounded-md bg-slate-50 p-3 text-sm">
+                    <label className="flex items-start gap-2 rounded-md border border-line bg-paper p-3 text-sm">
                       <input type="checkbox" checked={addBleed} onChange={(e) => setAddBleed(e.target.checked)} className="mt-0.5 h-4 w-4" />
                       <span>
-                        <span className="font-medium text-slate-700">My design doesn&apos;t include bleed. Add it for me</span>
-                        <span className="mt-0.5 block text-xs text-slate-500">
+                        <span className="font-semibold text-ink">My design doesn&apos;t include bleed. Add it for me</span>
+                        <span className="mt-0.5 block text-xs text-ink-2">
                           Tick this if your artwork is exactly the finished size with no bleed. We&apos;ll extend the
                           edges by 3mm so no white shows after trimming.
                         </span>
                       </span>
                     </label>
 
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-ink-2">
                       {addBleed
                         ? 'The blue line is the safe zone. Keep text and logos inside it.'
                         : 'Red line is the cut. Let the background run to the outer edge; keep text inside the blue safe line.'}
                     </p>
 
                     {lowRes && (
-                      <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      <div className="rounded-md bg-linen px-3 py-2 text-xs text-[#8a3324]">
                         This crop is about {effectiveDpi} DPI, below the {MIN_PRINT_DPI} DPI we print at, so it may
                         look soft. Zoom out, or upload a higher-resolution PDF.
                       </div>
                     )}
 
                     <div className="flex items-center gap-3">
-                      <span className="w-10 text-xs text-slate-500">Zoom</span>
+                      <span className="w-10 text-xs text-ink-2">Zoom</span>
                       <input type="range" min={1} max={3} step={0.01} value={zoom} onChange={(e) => setZoom(Number(e.target.value))} className="flex-1" />
                     </div>
                   </>
                 )}
 
                 <div className="flex flex-wrap gap-3">
-                  <Button onClick={handleSave} disabled={loading}>{loading ? 'Saving...' : 'Save Design'}</Button>
+                  <Button onClick={handleSave} disabled={loading}>{loading ? 'Saving…' : 'Save design'}</Button>
                   <Button variant="outline" onClick={cancelEdit} disabled={loading}>Cancel</Button>
                   <Button variant="ghost" onClick={() => fileInputRef.current?.click()} disabled={loading}>Choose different file</Button>
                 </div>
@@ -849,11 +848,9 @@ export function UploadCustomDesign({
       </div>
 
       {/* Exact print proof */}
-      <Card className="border-slate-200">
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Eye className="h-4 w-4" /> Exact printed postcard
-          </CardTitle>
+          <CardTitle>Exact printed postcard</CardTitle>
           <CardDescription>
             The real print-ready PDF, rendered from both sides of your card with a sample address. Nothing is
             printed, posted or charged. This is exactly what lands on the doormat.
@@ -864,27 +861,16 @@ export function UploadCustomDesign({
             <Button onClick={handlePreview} disabled={previewLoading || !bothSaved}>
               {previewLoading ? 'Rendering…' : 'Preview exact printed postcard'}
             </Button>
-            {!bothSaved && <span className="text-xs text-slate-500">Save a front and a back design to render the proof.</span>}
+            {!bothSaved && <span className="text-xs text-ink-2">Save a front and a back design to render the proof.</span>}
           </div>
           {previewUrl && (
             <div className="space-y-2">
-              <iframe src={previewUrl} className="h-[34rem] w-full rounded-md border border-slate-200" title="Postcard print proof" />
-              <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline">
+              <iframe src={previewUrl} className="h-[34rem] w-full rounded-md border border-line" title="Postcard print proof" />
+              <a href={previewUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-navy-ink underline underline-offset-4">
                 Open the proof PDF in a new tab
               </a>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Info card */}
-      <Card className="border-slate-100 bg-slate-50">
-        <CardContent className="pt-4">
-          <p className="text-sm text-slate-600">
-            <strong>Tip:</strong> Design at 300 DPI with 3mm bleed. The front is a full landscape card
-            ({TARGET_PX.w}×{TARGET_PX.h}px); the back design is portrait and goes on the left half
-            ({HALF_PX_W}×{TARGET_PX.h}px). Keep text {CARD.safe}mm inside the cut. Only the first page of the PDF is used.
-          </p>
         </CardContent>
       </Card>
     </div>

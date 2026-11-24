@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import Image from 'next/image'
+import { PublicNav } from '@/components/layout/PublicNav'
 import { SiteFooter } from '@/components/layout/SiteFooter'
+import styles from '@/components/layout/public.module.css'
 import {
   INCLUDED_POSTCARDS_PER_MONTH,
   POSTCARD_OVERAGE_PENCE,
@@ -17,52 +18,61 @@ export const metadata: Metadata = {
 
 const SUPPORT_EMAIL = 'info@housepost.co.uk'
 
-function H2({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-lg font-semibold text-slate-900">{children}</h2>
-}
+const CONTENTS = [
+  { id: 'how', label: 'How Housepost works' },
+  { id: 'statuses', label: 'What the statuses mean' },
+  { id: 'problems', label: 'When something goes wrong' },
+  { id: 'cancel', label: 'Cancelling and refunds' },
+  { id: 'pricing', label: 'Pricing' },
+  { id: 'design', label: 'Your postcard design' },
+  { id: 'optout', label: 'Do-not-mail requests' },
+  { id: 'contact', label: 'Contact' },
+]
+
+const JOURNEY: { name: string; meaning: string }[] = [
+  { name: 'Scheduled', meaning: `Queued behind the ${POSTCARD_COOL_OFF_MINUTES}-minute cool-off. You can still cancel for a full refund.` },
+  { name: 'Sending', meaning: 'Being handed to print. This takes a moment.' },
+  { name: 'Received', meaning: 'Accepted for printing.' },
+  { name: 'Printing', meaning: 'On the press.' },
+  { name: 'Printed', meaning: 'Printed and waiting to be posted.' },
+  { name: 'Dispatched', meaning: 'In the post. Most cards arrive within two to three working days.' },
+  { name: 'At delivery office', meaning: 'At the local delivery office, ready to go out.' },
+  {
+    name: 'Delivered',
+    meaning:
+      'Delivered, going by standard postal delivery times. The post does not scan every card at the door, so treat this as a good estimate rather than a signature.',
+  },
+]
 
 export default function HelpPage() {
   const overage = `£${(POSTCARD_OVERAGE_PENCE / 100).toFixed(2)}`
 
   return (
-    <div className="flex min-h-screen flex-col bg-white">
-      <nav className="border-b bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-5 py-4 sm:px-6">
-          <Link href="/" className="shrink-0">
-            <Image src="/logo-wordmark.png" alt="Housepost" width={600} height={150} className="h-8 w-auto sm:h-9" priority />
-          </Link>
-          <Link href="/dashboard" className="text-sm font-medium text-slate-600 hover:text-slate-900">
-            Go to my dashboard
-          </Link>
-        </div>
-      </nav>
+    <div className={styles.shell}>
+      <PublicNav variant="help" />
 
-      <main className="flex-1">
-        <div className="mx-auto max-w-3xl px-5 py-12 sm:px-6 sm:py-16">
-          <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">Help</h1>
-          <p className="mt-3 text-slate-500">
-            Short answers to the questions people actually ask. If yours is not here, email{' '}
-            <a className="font-medium text-brand underline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>{' '}
-            and a person will reply.
-          </p>
+      <main className={styles.main}>
+        <div className={styles.doc}>
+          <header className={styles.rail}>
+            <h1 className={styles.title}>Help</h1>
+            <p className={styles.meta}>
+              Short answers to the questions people actually ask. If yours is not here, email{' '}
+              <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> and a person will reply.
+            </p>
 
-          <nav aria-label="On this page" className="mt-8 rounded-xl border bg-slate-50 p-4 text-sm">
-            <ul className="grid gap-1 sm:grid-cols-2">
-              <li><a className="text-brand hover:underline" href="#how">How Housepost works</a></li>
-              <li><a className="text-brand hover:underline" href="#statuses">What the statuses mean</a></li>
-              <li><a className="text-brand hover:underline" href="#problems">When something goes wrong</a></li>
-              <li><a className="text-brand hover:underline" href="#cancel">Cancelling and refunds</a></li>
-              <li><a className="text-brand hover:underline" href="#pricing">Pricing</a></li>
-              <li><a className="text-brand hover:underline" href="#design">Your postcard design</a></li>
-              <li><a className="text-brand hover:underline" href="#optout">Do-not-mail requests</a></li>
-              <li><a className="text-brand hover:underline" href="#contact">Contact</a></li>
-            </ul>
-          </nav>
+            <nav aria-label="On this page">
+              <ul className={styles.toc}>
+                {CONTENTS.map((c) => (
+                  <li key={c.id}><a href={`#${c.id}`}>{c.label}</a></li>
+                ))}
+              </ul>
+            </nav>
+          </header>
 
-          <div className="mt-10 space-y-10 text-[15px] leading-relaxed text-slate-700">
+          <div className={styles.prose}>
             <section id="how">
-              <H2>How Housepost works</H2>
-              <p className="mt-2">
+              <h2>How Housepost works</h2>
+              <p>
                 On the 6th of each month we pull the latest completed sales from HM Land Registry near your office and
                 list them as leads. You pick the ones you want, we print your postcard and post it to the new owner.
                 That is the whole product: recently sold homes, a card through the door, your name on it.
@@ -70,19 +80,17 @@ export default function HelpPage() {
             </section>
 
             <section id="statuses">
-              <H2>What the statuses mean</H2>
-              <p className="mt-2">Every card on the Tracking page moves through these in order:</p>
-              <ol className="mt-3 space-y-2">
-                <li><strong>Scheduled.</strong> Queued behind the {POSTCARD_COOL_OFF_MINUTES}-minute cool-off. You can still cancel for a full refund.</li>
-                <li><strong>Sending.</strong> Being handed to print. This takes a moment.</li>
-                <li><strong>Received.</strong> Accepted for printing.</li>
-                <li><strong>Printing.</strong> On the press.</li>
-                <li><strong>Printed.</strong> Printed and waiting to be posted.</li>
-                <li><strong>Dispatched.</strong> In the post. Most cards arrive within two to three working days.</li>
-                <li><strong>At delivery office.</strong> At the local delivery office, ready to go out.</li>
-                <li><strong>Delivered.</strong> Delivered, going by standard postal delivery times. The post does not scan every card at the door, so treat this as a good estimate rather than a signature.</li>
+              <h2>What the statuses mean</h2>
+              <p>Every card on the Tracking page moves through these in order:</p>
+              <ol className={styles.steps}>
+                {JOURNEY.map((s) => (
+                  <li key={s.name}>
+                    <b>{s.name}</b>
+                    <span>{s.meaning}</span>
+                  </li>
+                ))}
               </ol>
-              <p className="mt-3">
+              <p>
                 You get a notification when cards are dispatched and when they are delivered, grouped so a batch of
                 twelve is one message, not twelve. If the post cannot deliver a card it shows as <strong>Returned</strong>,
                 usually because the address is incomplete or no longer in use, and we email you about it.
@@ -90,21 +98,21 @@ export default function HelpPage() {
             </section>
 
             <section id="problems">
-              <H2>When something goes wrong</H2>
-              <p className="mt-2">Two other statuses can appear. They mean different things, and the Tracking page tells you which.</p>
-              <div className="mt-4 space-y-4">
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <p className="font-semibold text-amber-900">Delayed</p>
-                  <p className="mt-1 text-amber-900">
+              <h2>When something goes wrong</h2>
+              <p>Two other statuses can appear. They mean different things, and the Tracking page tells you which.</p>
+              <div className={styles.cases}>
+                <div className={styles.panel}>
+                  <p className={styles.caseName}>Delayed</p>
+                  <p>
                     A temporary problem on our side, usually the print service being unavailable. Your card stays queued
                     and is sent automatically once it clears, normally within the hour. You are not charged anything
                     extra, and you can still cancel it for a full refund while it is queued. You get one email when a
                     batch is first delayed. Nothing for you to do.
                   </p>
                 </div>
-                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-                  <p className="font-semibold text-red-900">Failed</p>
-                  <p className="mt-1 text-red-900">
+                <div className={styles.panel}>
+                  <p className={`${styles.caseName} ${styles.problem}`}>Failed</p>
+                  <p>
                     The card could not be printed for a reason specific to it, most often the address or the design.
                     It has <em>not</em> been sent. Any charge for it is refunded to your card within a few days and the
                     lead goes back into your list. You get one email per batch with the reasons, and &ldquo;What do
@@ -112,7 +120,7 @@ export default function HelpPage() {
                   </p>
                 </div>
               </div>
-              <p className="mt-4">
+              <p>
                 Whatever the cause, our team is alerted at the same moment you are. If a card has been delayed for more
                 than a day, or something looks wrong that this page does not explain, email us with the address and we
                 will sort it.
@@ -120,8 +128,8 @@ export default function HelpPage() {
             </section>
 
             <section id="cancel">
-              <H2>Cancelling and refunds</H2>
-              <p className="mt-2">
+              <h2>Cancelling and refunds</h2>
+              <p>
                 Every order is held for {POSTCARD_COOL_OFF_MINUTES} minutes before it goes to print. During that window
                 the Tracking page shows a <strong>Cancel order</strong> button. Cancelling refunds any charge for that
                 order in full and returns the leads to your list. Once a card shows Sending or later it is on its way and
@@ -130,19 +138,19 @@ export default function HelpPage() {
             </section>
 
             <section id="pricing">
-              <H2>Pricing</H2>
-              <p className="mt-2">
+              <h2>Pricing</h2>
+              <p>
                 Your subscription includes <strong>{INCLUDED_POSTCARDS_PER_MONTH} postcards a month</strong>. Cards beyond
                 that are <strong>{overage} each</strong>, charged to your saved card when you confirm the order and shown
                 to you before you confirm. There is a hard limit of {MONTHLY_POSTCARD_CAP} cards per billing period as a
-                spend safeguard. Unused included cards do not roll over. Manage your plan and card under Billing.
+                spend safeguard. Unused included cards do not roll over. Manage your plan and card under Account.
               </p>
             </section>
 
             <section id="design">
-              <H2>Your postcard design</H2>
-              <p className="mt-2">
-                Upload your own artwork or start from a template under Postcard Design. The front is yours edge to edge.
+              <h2>Your postcard design</h2>
+              <p>
+                Upload your own artwork or start from a template under Designs. The front is yours edge to edge.
                 On the back, the right half is reserved for the address and postage, so keep your message and logo in
                 the left half. Use the <strong>Preview exact printed postcard</strong> button to see precisely what will
                 land on the doormat before you send anything.
@@ -150,20 +158,20 @@ export default function HelpPage() {
             </section>
 
             <section id="optout">
-              <H2>Do-not-mail requests</H2>
-              <p className="mt-2">
+              <h2>Do-not-mail requests</h2>
+              <p>
                 Anyone can ask not to receive post from Housepost customers at{' '}
-                <Link href="/opt-out" className="font-medium text-brand underline">housepost.co.uk/opt-out</Link>. Those
+                <Link href="/opt-out">housepost.co.uk/opt-out</Link>. Those
                 addresses are removed from everyone&rsquo;s leads and blocked at send time, so you never pay for a card
-                to someone who has opted out. Our <Link href="/privacy" className="font-medium text-brand underline">privacy notice</Link>{' '}
+                to someone who has opted out. Our <Link href="/privacy">privacy notice</Link>{' '}
                 explains the data we use and why.
               </p>
             </section>
 
             <section id="contact">
-              <H2>Contact</H2>
-              <p className="mt-2">
-                Email <a className="font-medium text-brand underline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
+              <h2>Contact</h2>
+              <p>
+                Email <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
                 Include the address on the card if it is about a specific postcard. We aim to reply the same working day.
               </p>
             </section>

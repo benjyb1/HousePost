@@ -155,7 +155,7 @@ export async function POST(request: Request) {
   }
   if (!profile.stripe_customer_id) {
     return NextResponse.json(
-      { error: 'No payment method on file. Add a card in Billing before requesting a custom design.' },
+      { error: 'No payment method on file. Add a card in Account before requesting a custom design.' },
       { status: 402 }
     )
   }
