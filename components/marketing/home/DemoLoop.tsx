@@ -140,7 +140,7 @@ export function DemoLoop() {
         <div className={s.bar}>
           <svg viewBox="0 0 3000 3000">
             <path fill="#132251" fillRule="evenodd" d={HOUSE_OUTLINE} />
-            <path fill="#ff7614" fillRule="evenodd" d={HOUSE_WINDOW} />
+            <path fill="#132251" fillRule="evenodd" d={HOUSE_WINDOW} />
           </svg>
           Housepost
           <div className={s.tabs}>

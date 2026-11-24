@@ -5,23 +5,25 @@ import styles from './home.module.css'
 
 // Freddie's order: tradespeople, three trades, back to tradespeople, three more.
 const WORDS = ['tradespeople', 'builders', 'plumbers', 'electricians', 'tradespeople', 'kitchen fitters', 'architects', 'interior designers']
-const STEP = 360 / WORDS.length
-// Tradespeople holds a little longer than the trades, not twice as long (Benjy, 23 Nov).
-const HOLD_HOME = 2300
-const HOLD = 1700
-// One click of the drum: it gathers speed, is fastest halfway, then slows to a
-// stop (Freddie, 23 Nov). A strong ease-in-out over 1.1s, so the build-up and the
-// settle are easy to see; a gentler curve read as a linear spin (Benjy, 24 Nov).
-const DUR = 1100
+const N = WORDS.length
+const STEP = 360 / N
+// One spin is half a turn: past three trades and on to the next "tradespeople".
+const SPAN = 4
+// Freddie (23 Nov): hold "tradespeople" for 2s, then spin through the three
+// trades over 2s, slow, then fast, then slow again. Benjy (24 Nov): the whole
+// thing 1.2x faster than that, so 2000 / 1.2 for both.
+const HOLD = 1667
+const SPIN = 1667
+// A strong ease-in-out; a gentler curve read as a linear spin (Benjy, 24 Nov).
 const EASE = 'cubic-bezier(.7, 0, .3, 1)'
 
 const drumAt = (k: number) => `translateZ(calc(var(--r) * -1)) rotateX(${-k * STEP}deg)`
 
 /**
- * "Tactical marketing for time-pressed [tradespeople]". Each trade word is
- * printed on one face of an eight-sided drum, like the cylinder of a revolver,
- * seen through a slot one line high. The drum turns one face at a time, so new
- * words come over the top and the old one curves away underneath.
+ * "Tactical marketing for time-pressed [tradespeople]". Each word is printed on
+ * one face of an eight-sided drum, like the cylinder of a revolver, seen
+ * through a slot one line high. Every few seconds the drum spins half a turn,
+ * flicking past three trades and settling on "tradespeople" again.
  */
 export function TradeRoller() {
   const drumRef = useRef<HTMLSpanElement>(null)
@@ -53,35 +55,35 @@ export function TradeRoller() {
     const schedule = () => {
       clearTimeout(timer)
       if (document.hidden) return
-      timer = setTimeout(turn, WORDS[wi] === 'tradespeople' ? HOLD_HOME : HOLD)
+      timer = setTimeout(turn, HOLD)
     }
     const turn = () => {
       if (rolling) return
       rolling = true
-      const next = (wi + 1) % WORDS.length
-      const a = faces[wi]
-      const b = faces[next]
+      let next: number
       let done: Promise<Animation>
       if (reduce) {
-        // no turning: the next word fades in where the last one was
+        // no spinning: each word fades in where the last one was, one at a time
+        next = (wi + 1) % N
         drum.style.transform = drumAt(next)
-        a.style.opacity = '0'
-        b.style.opacity = '1'
-        const fade = b.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320 })
+        faces[wi].style.opacity = '0'
+        faces[next].style.opacity = '1'
+        const fade = faces[next].animate([{ opacity: 0 }, { opacity: 1 }], { duration: 320 })
         anims = [fade]
         done = fade.finished
       } else {
-        // look at the drum from the middle of the two words, so neither leans like italics as it turns
-        const wa = (a.firstElementChild as HTMLElement).offsetWidth
-        const wb = (b.firstElementChild as HTMLElement).offsetWidth
-        slot.style.perspectiveOrigin = `${((wa + wb) / 4).toFixed(1)}px 0.52em`
-        const opts: KeyframeAnimationOptions = { duration: DUR, easing: EASE, fill: 'both' }
-        // wi + 1 (not next), so the last word turns on to the first instead of spinning back round
-        const spin = drum.animate([{ transform: drumAt(wi) }, { transform: drumAt(wi + 1) }], opts)
-        // the word leaving dims as it turns away; the word arriving brightens as it faces you
-        const out = a.animate([{ opacity: 1 }, { opacity: 0.8, offset: 0.5 }, { opacity: 0 }], opts)
-        const inn = b.animate([{ opacity: 0 }, { opacity: 0.8, offset: 0.5 }, { opacity: 1 }], opts)
-        anims = [spin, out, inn]
+        next = (wi + SPAN) % N
+        const passing = Array.from({ length: SPAN + 1 }, (_, k) => faces[(wi + k) % N])
+        passing.forEach((f) => { f.style.opacity = '1' })
+        // look at the drum from the middle of the words going past, so none of them leans like italics
+        const mid = passing.reduce((sum, f) => sum + (f.firstElementChild as HTMLElement).offsetWidth, 0) / passing.length / 2
+        slot.style.perspectiveOrigin = `${mid.toFixed(1)}px 0.52em`
+        const opts: KeyframeAnimationOptions = { duration: SPIN, easing: EASE, fill: 'both' }
+        // wi + SPAN (not next), so the second half of the turn carries on round instead of spinning back
+        const spin = drum.animate([{ transform: drumAt(wi) }, { transform: drumAt(wi + SPAN) }], opts)
+        // the last trade dims as it turns away under the slot, so no sliver of it is left when the drum stops
+        const last = passing[SPAN - 1].animate([{ opacity: 1 }, { opacity: 1, offset: 0.75 }, { opacity: 0 }], opts)
+        anims = [spin, last]
         done = spin.finished
       }
       done
