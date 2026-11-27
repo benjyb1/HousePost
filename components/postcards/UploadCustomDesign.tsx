@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { Upload, Trash2, ImageIcon, Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { applyMapUpsertPolyfill } from '@/lib/polyfills/map-upsert'
+import { newDesignPath } from '@/lib/utils/design-files'
 import { PostcardPreview } from './PostcardPreview'
 import {
   drawOptOutOnCanvas,
@@ -58,9 +59,11 @@ const HALF_PX_W = Math.round(TARGET_PX.w / 2) // 910 — left (design) half
 
 type Side = 'front' | 'back'
 
+// Each save is stored at its own path (see newDesignPath); these are the
+// profile pointers each side writes.
 const SIDE_CONFIG = {
-  front: { fileBase: 'design', settingsKey: 'postcard_design_url', label: 'Front' },
-  back: { fileBase: 'design-back', settingsKey: 'postcard_design_back_url', label: 'Back' },
+  front: { settingsKey: 'postcard_design_url', label: 'Front' },
+  back: { settingsKey: 'postcard_design_back_url', label: 'Back' },
 } as const
 
 const pct = (mm: number, frameMm: number) => (mm / frameMm) * 100
@@ -460,23 +463,22 @@ export function UploadCustomDesign({
           : originalFileRef.current!
         : await getCroppedImg(imageSrc, croppedAreaPixels!, addBleed, activeSide)
 
-      const path = `${userId}/${config.fileBase}.${ext}`
+      // Every save gets its own file, so an earlier saved design keeps its own
+      // artwork, a held order still finds the file it was paid against, and the
+      // CDN never serves old bytes for a new save (10.6). Nothing is
+      // overwritten, so no upsert and no cache-buster.
+      const path = newDesignPath(userId, activeSide, ext)
       const { error: uploadError } = await supabase.storage
         .from('postcard-designs')
-        .upload(path, blob, { upsert: true, contentType })
+        .upload(path, blob, { upsert: false, contentType })
       if (uploadError) throw uploadError
 
-      const { data: { publicUrl } } = supabase.storage.from('postcard-designs').getPublicUrl(path)
-      // 10.6: the storage key is fixed per side, so overwriting reuses the same
-      // object and the CDN/browser would otherwise keep serving the OLD bytes.
-      // A fresh version query on every save busts that cache everywhere the URL
-      // is used (this page, the print proof, and the send route).
-      const versionedUrl = `${publicUrl}?v=${Date.now()}`
+      const { data: { publicUrl: savedUrl } } = supabase.storage.from('postcard-designs').getPublicUrl(path)
 
       const res = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [config.settingsKey]: versionedUrl }),
+        body: JSON.stringify({ [config.settingsKey]: savedUrl }),
       })
       if (!res.ok) {
         const { error } = await res.json()
@@ -485,14 +487,14 @@ export function UploadCustomDesign({
 
       // State is the source of truth for what shows as "the design" — update it
       // synchronously so the replacement is visible immediately, no refresh.
-      setCurrentDesignUrl(versionedUrl)
+      setCurrentDesignUrl(savedUrl)
       setImageSrc(null)
       setPreviewUrl(null) // design changed — the old proof is stale
 
       // The resulting active pair after this save (the other side is unchanged).
       const pair = isFront
-        ? { front: versionedUrl, back: backDesignUrl }
-        : { front: frontDesignUrl, back: versionedUrl }
+        ? { front: savedUrl, back: backDesignUrl }
+        : { front: frontDesignUrl, back: savedUrl }
 
       // Record it in the saved-designs LIBRARY. A front is required, so if only a
       // back exists so far we skip (the library entry appears once a front is in).
@@ -537,9 +539,8 @@ export function UploadCustomDesign({
     if (!userId) return
     setLoading(true)
     try {
-      await supabase.storage
-        .from('postcard-designs')
-        .remove([`${userId}/${config.fileBase}.png`, `${userId}/${config.fileBase}.pdf`])
+      // Only the active pointer is cleared. The file stays: saved designs in the
+      // library and held orders waiting out their cool-off may still use it.
       await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },

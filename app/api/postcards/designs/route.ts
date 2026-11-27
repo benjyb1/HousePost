@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { designGroupKey, isDesignInUse } from '@/lib/utils/design-files'
 
 /**
  * The saved postcard-design LIBRARY (see migration 20260920000002).
@@ -10,6 +11,12 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * still lives on `profiles.postcard_design_url` / `postcard_design_back_url` and
  * is what the send pipeline reads. "Set as active" is handled by the existing
  * PATCH /api/settings route copying a library row's urls onto those pointers.
+ *
+ * Older saves all overwrote one fixed file per side and differed only by a
+ * `?v=` cache-buster, so a user can have many rows that are really one design.
+ * GET shows one entry per front+back file pair (the newest), and DELETE removes
+ * the whole group so an older copy can't take its place. Storage files are
+ * never deleted here: a held order may still fetch one during its cool-off.
  */
 
 export async function GET() {
@@ -26,7 +33,16 @@ export async function GET() {
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ designs: data ?? [] })
+
+  // Newest first, so the first row seen for each file pair is the one to keep.
+  const seen = new Set<string>()
+  const designs = (data ?? []).filter((row) => {
+    const key = designGroupKey(row)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  return NextResponse.json({ designs })
 }
 
 export async function POST(request: Request) {
@@ -111,11 +127,60 @@ export async function DELETE(request: Request) {
   const id = searchParams.get('id')
   if (!id) return NextResponse.json({ error: 'Missing design id' }, { status: 400 })
 
-  // Removing a library entry never touches the active-design profile pointers.
-  const { error } = await supabase.from('postcard_designs').delete().eq('id', id)
+  // RLS scopes every read and delete below to the owner's rows.
+  const { data: target, error: findError } = await supabase
+    .from('postcard_designs')
+    .select('id, front_url, back_url')
+    .eq('id', id)
+    .maybeSingle()
+  if (findError) return NextResponse.json({ error: findError.message }, { status: 500 })
+  if (!target) return NextResponse.json({ error: 'That design is no longer in your library' }, { status: 404 })
+
+  // The design being sent can't be deleted. The library hides the button for
+  // it; this is the same rule on the server.
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('postcard_design_url, postcard_design_back_url')
+    .eq('id', user.id)
+    .single()
+  if (profileError || !profile) {
+    return NextResponse.json({ error: 'Could not check which design is in use' }, { status: 500 })
+  }
+  if (
+    isDesignInUse(
+      target,
+      profile.postcard_design_url as string | null,
+      profile.postcard_design_back_url as string | null
+    )
+  ) {
+    return NextResponse.json(
+      { error: 'This is the card being sent. Set another design as active first, then delete this one.' },
+      { status: 409 }
+    )
+  }
+
+  // Every other row of this user that points at the same front and back files
+  // is the same design, so it goes too.
+  const { data: rows, error: listError } = await supabase
+    .from('postcard_designs')
+    .select('id, front_url, back_url')
+    .eq('user_id', user.id)
+  if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
+
+  const key = designGroupKey(target)
+  const ids = (rows ?? []).filter((row) => designGroupKey(row) === key).map((row) => row.id as string)
+  if (!ids.includes(target.id as string)) ids.push(target.id as string)
+
+  // Removing library rows never touches the active-design profile pointers or
+  // the files in storage.
+  const { error } = await supabase
+    .from('postcard_designs')
+    .delete()
+    .eq('user_id', user.id)
+    .in('id', ids)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, removed: ids.length })
 }
 
 /** e.g. "Bold template · 15 Sep" / "Uploaded design · 15 Sep". */

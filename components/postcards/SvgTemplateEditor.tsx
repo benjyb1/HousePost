@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { toast } from 'sonner'
 import { ArrowLeft, Check, RotateCcw, Upload, ExternalLink, Undo2, Redo2, ImagePlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { newDesignPath, newDesignStamp } from '@/lib/utils/design-files'
 import { PostcardPreview } from './PostcardPreview'
 import { useHistory } from './useHistory'
 import { injectOverlay } from './logo/inject'
@@ -410,23 +411,24 @@ export function SvgTemplateEditor({
         svgToPngBlob(injectOverlay(template.renderBack(state.values), state.logos.back)),
       ])
 
-      // Same storage keys + upload options the uploader uses for each side.
+      // Every save gets its own pair of files, so a saved design keeps showing
+      // (and printing) what it looked like when it was saved, and a held order
+      // still finds its artwork. Nothing is ever overwritten, so no upsert and
+      // no cache-buster. The uploader does the same, one side at a time.
       const storage = supabase.storage.from('postcard-designs')
-      const frontPath = `${userId}/design.png`
-      const backPath = `${userId}/design-back.png`
+      const stamp = newDesignStamp()
+      const frontPath = newDesignPath(userId, 'front', 'png', stamp)
+      const backPath = newDesignPath(userId, 'back', 'png', stamp)
 
       const [frontUpload, backUpload] = await Promise.all([
-        storage.upload(frontPath, frontBlob, { upsert: true, contentType: 'image/png' }),
-        storage.upload(backPath, backBlob, { upsert: true, contentType: 'image/png' }),
+        storage.upload(frontPath, frontBlob, { upsert: false, contentType: 'image/png' }),
+        storage.upload(backPath, backBlob, { upsert: false, contentType: 'image/png' }),
       ])
       if (frontUpload.error) throw frontUpload.error
       if (backUpload.error) throw backUpload.error
 
-      // Cache-bust exactly like the uploader — the storage keys are fixed, so a
-      // fresh version query forces the new bytes everywhere the URLs are used.
-      const stamp = Date.now()
-      const frontUrl = `${storage.getPublicUrl(frontPath).data.publicUrl}?v=${stamp}`
-      const backUrl = `${storage.getPublicUrl(backPath).data.publicUrl}?v=${stamp}`
+      const frontUrl = storage.getPublicUrl(frontPath).data.publicUrl
+      const backUrl = storage.getPublicUrl(backPath).data.publicUrl
 
       const res = await fetch('/api/settings', {
         method: 'PATCH',
