@@ -275,6 +275,12 @@
   font: 500 14.5px/1 var(--font-sans);
   color: var(--color-ink);
 }
+/* 16px on phones and tablets so iOS doesn't zoom into the field. */
+@media (max-width: 767.98px) {
+  .popType input {
+    font-size: 16px;
+  }
+}
 .popType input:focus {
   outline: 2px solid var(--color-navy);
   outline-offset: 0;

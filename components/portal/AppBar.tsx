@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { usePathname } from 'next/navigation'
+import { toast } from 'sonner'
+import { signOutOfHousepost } from '@/lib/auth/sign-out'
 import { useLeaveGuard } from '@/components/layout/LeaveGuardProvider'
 import { Logo } from '@/components/brand/Logo'
 import styles from './appbar.module.css'
@@ -18,7 +19,6 @@ const NAV = [
 /** Paper's top bar: logo, four sections, notifications and an account menu. */
 export function AppBar({ initials, unread }: { initials: string; unread: boolean }) {
   const pathname = usePathname() ?? ''
-  const router = useRouter()
   const { guard } = useLeaveGuard()
   const [menu, setMenu] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -33,9 +33,12 @@ export function AppBar({ initials, unread }: { initials: string; unread: boolean
   }, [menu])
 
   async function signOut() {
-    await createClient().auth.signOut()
-    router.push('/login')
-    router.refresh()
+    if ((await signOutOfHousepost()) === 'failed') {
+      toast.error('We couldn’t sign you out. Check your connection and try again.')
+      return
+    }
+    // A full page load, so nothing from the signed-in session stays in memory.
+    window.location.assign('/login')
   }
 
   return (

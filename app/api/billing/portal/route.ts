@@ -14,10 +14,14 @@ export async function POST() {
     .single()
 
   if (!profile?.stripe_customer_id) {
-    return NextResponse.json({ error: 'No Stripe customer found' }, { status: 404 })
+    return NextResponse.json({ error: 'There’s no billing account to open yet. Subscribe first.' }, { status: 404 })
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL!
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL
+  if (!appUrl) {
+    console.error('NEXT_PUBLIC_APP_URL is not set')
+    return NextResponse.json({ error: 'We couldn’t open billing. Try again in a minute.' }, { status: 500 })
+  }
   try {
     const portalUrl = await createPortalSession(
       profile.stripe_customer_id as string,
@@ -25,8 +29,7 @@ export async function POST() {
     )
     return NextResponse.json({ url: portalUrl })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to open billing portal'
-    console.error('Billing portal error:', message)
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error('Billing portal error:', err)
+    return NextResponse.json({ error: 'We couldn’t open billing. Try again in a minute.' }, { status: 500 })
   }
 }

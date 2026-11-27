@@ -98,6 +98,20 @@ export function classifyDispatchError(raw: string | null | undefined): Classifie
 }
 
 /**
+ * True when a dispatch error leaves it unclear whether the order was created
+ * (timeout, dropped connection, 5xx, unreadable reply after the request went
+ * out). Such a card must not be retried automatically: Stannp has no
+ * idempotency key for postcards, so a retry could print it twice. It stays in
+ * 'dispatching' for a person to check against the print account.
+ *
+ * Reads the `outcome` set by StannpRequestError (lib/postcards/stannp.ts)
+ * without importing it, so this module stays import-free.
+ */
+export function isUnconfirmedDispatch(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { outcome?: unknown }).outcome === 'unknown'
+}
+
+/**
  * Minutes to wait before the n-th retry (1-based). Starts at the cool-off
  * length so a delayed card feels like "a bit longer", then backs off to a few
  * hours. After MAX_RETRIES the card is failed and the customer made whole.

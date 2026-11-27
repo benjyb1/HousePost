@@ -8,7 +8,8 @@
 import { isWithinRunWindow, toMonthKey } from '@/lib/cron/schedule'
 import { generateLeadsForAllUsers } from '@/lib/leads/generator'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendLeadsReadyEmail, sendAdminAlert } from '@/lib/email/resend'
+import { sendAdminAlert } from '@/lib/email/resend'
+import { sendLeadDropEmails } from '@/lib/leads/drop-emails'
 
 async function main() {
   const now = new Date()
@@ -70,36 +71,13 @@ async function main() {
     // Send notification emails (SKIP_EMAILS lets us test generation without
     // sending anything to real users).
     const skipEmails = process.env.SKIP_EMAILS === 'true'
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, email, full_name')
-      .in('subscription_status', ['active', 'trialing'])
-
-    let emailsSent = 0
-    for (const profile of skipEmails ? [] : profiles ?? []) {
-      const { count } = await supabase
-        .from('leads')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', profile.id)
-        .eq('lead_month', leadMonth)
-
-      if ((count ?? 0) === 0) continue
-
-      const userResult = result.perUser[profile.id as string]
-      try {
-        await sendLeadsReadyEmail({
-          to: profile.email as string,
-          name: profile.full_name as string,
-          leadCount: count ?? 0,
-          monthKey: leadMonth,
-          hitMaxRadius: userResult?.hitMaxRadius ?? false,
-          radiusUsed: userResult?.radiusUsed ?? 10,
-        })
-        emailsSent++
-      } catch (e) {
-        console.error(`Failed to send email to ${profile.email}:`, e)
-      }
-    }
+    // Once per user per month (marked in ops_state), shared with the cron
+    // route, so a re-run or both firing never emails anyone twice.
+    const emails = skipEmails
+      ? { sent: 0, alreadySent: 0, failed: 0, deferred: 0 }
+      : await sendLeadDropEmails(supabase, leadMonth, result.perUser, { notify: false })
+    const emailsSent = emails.sent
+    if (emails.alreadySent > 0) console.log(`✉️  ${emails.alreadySent} subscriber(s) were already emailed this month — skipped.`)
 
     await supabase
       .from('pipeline_runs')

@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ConfirmLeaveDialog } from '@/components/postcards/ConfirmLeaveDialog'
-import { decidePopstate, isInAppNavigation, LEAVE_GUARD_SENTINEL } from './leave-guard'
+import { decidePopstate, isInAppNavigation, isSentinelState, leaveNavigation, LEAVE_GUARD_SENTINEL } from './leave-guard'
 
 type LeaveGuardContextValue = {
   /** Register whether the current page has unsaved edits (the design editor calls this). */
@@ -81,7 +81,12 @@ export function LeaveGuardProvider({ children }: { children: React.ReactNode }) 
       e.preventDefault()
       e.stopPropagation()
       const href = target.pathname + target.search
-      setPending(() => () => router.push(href))
+      setPending(() => () => {
+        // Replace our Back-button sentinel with the destination rather than
+        // pushing on top of it, so one Back press returns to this page.
+        if (leaveNavigation(window.history.state) === 'replace') router.replace(href)
+        else router.push(href)
+      })
     }
 
     // Browser Back. A same-URL sentinel entry sits on top of the real one, so
@@ -94,7 +99,7 @@ export function LeaveGuardProvider({ children }: { children: React.ReactNode }) 
         window.location.href
       )
     }
-    if (!window.history.state?.[LEAVE_GUARD_SENTINEL]) pushSentinel()
+    if (!isSentinelState(window.history.state)) pushSentinel()
 
     const onPopState = () => {
       const decision = decidePopstate({ dirty, dialogOpen: pendingRef.current !== null })
@@ -122,7 +127,7 @@ export function LeaveGuardProvider({ children }: { children: React.ReactNode }) 
       // If our sentinel is still on top (edits saved without a Back press), drop
       // it so the user's next Back press isn't wasted. The listener is already
       // gone, so this silent same-URL pop shows no dialog.
-      if (window.history.state?.[LEAVE_GUARD_SENTINEL]) window.history.back()
+      if (isSentinelState(window.history.state)) window.history.back()
     }
   }, [dirty, router])
 

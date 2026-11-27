@@ -122,7 +122,8 @@ export function Picker<T extends string | number>({ label, display, value, optio
                 }}
                 placeholder={custom.placeholder}
                 aria-label={`Type a ${label.toLowerCase()}`}
-                inputMode="decimal"
+                // "text", not "decimal": prices are typed as "450k" or "1.2m".
+                inputMode="text"
                 autoComplete="off"
               />
               <button type="button" disabled={!typed.trim()} onClick={submitTyped}>Use</button>

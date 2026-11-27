@@ -4,6 +4,9 @@ import { preconnect } from 'react-dom'
 import { createClient, getSessionUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { geocodeWithCache } from '@/lib/geocoding/postcodes-io'
+import { addressKey } from '@/lib/address/normalise'
+import { hasFullAccess } from '@/lib/leads/preview'
+import { loadPreviewIds, prefsFromProfile } from '@/lib/leads/preview-server'
 import { FailedPostcardsNotice } from '@/components/dashboard/FailedPostcardsNotice'
 import { HomeClient, type HomeLead } from '@/components/portal/home/HomeClient'
 
@@ -14,6 +17,10 @@ import { HomeClient, type HomeLead } from '@/components/portal/home/HomeClient'
   each home's position for the map, which lives in property_transactions (RLS
   denies users, so it is read server-side with the admin client and only for
   this user's own leads).
+
+  Before subscribing, only the five open homes are sent to the browser in
+  full. Every other home goes as a blank placeholder (its month and nothing
+  else), so the addresses can't be read from the page source.
 */
 export default async function HomePage() {
   // Open the connection to the map tiles while the data loads.
@@ -72,13 +79,39 @@ export default async function HomePage() {
     for (const { data } of pages) rows.push(...((data ?? []) as unknown as Row[]))
   }
 
+  const status = (profile?.subscription_status as string) ?? 'incomplete'
+  const subscribed = hasFullAccess(status)
+  const prefs = prefsFromProfile(profile)
+  let openIds: Set<string> | null = null
+  if (!subscribed) {
+    try {
+      openIds = await loadPreviewIds(admin, user.id, prefs)
+    } catch (err) {
+      // Fail closed: every home stays hidden rather than every home showing.
+      console.error('[dashboard] preview homes:', err)
+      openIds = new Set()
+    }
+    // One row per address, as the list shows them (newest month first).
+    const seen = new Set<string>()
+    const deduped: Row[] = []
+    for (const r of rows) {
+      const k = addressKey(r.address_line, r.postcode ?? '')
+      if (seen.has(k)) continue
+      seen.add(k)
+      deduped.push(r)
+    }
+    rows.splice(0, rows.length, ...deduped)
+  }
+  const isOpen = (r: Row) => openIds == null || openIds.has(r.id)
+
   const coords = new Map<string, { lat: number; lng: number }>()
   for (const r of rows) {
+    if (!isOpen(r)) continue
     const t = Array.isArray(r.property_transactions) ? r.property_transactions[0] : r.property_transactions
     if (t && t.lat != null && t.lng != null) coords.set(`tx:${r.transaction_id}`, { lat: t.lat, lng: t.lng })
   }
   // Homes added by hand have no transaction: place them by postcode.
-  const customPostcodes = [...new Set(rows.filter((r) => !r.transaction_id).map((r) => String(r.postcode ?? '').toUpperCase().trim()).filter(Boolean))]
+  const customPostcodes = [...new Set(rows.filter((r) => !r.transaction_id && isOpen(r)).map((r) => String(r.postcode ?? '').toUpperCase().trim()).filter(Boolean))]
   if (customPostcodes.length) {
     try {
       const geo = await geocodeWithCache(customPostcodes)
@@ -91,7 +124,26 @@ export default async function HomePage() {
     }
   }
 
+  let hidden = 0
   const leads: HomeLead[] = rows.map((r) => {
+    if (!isOpen(r)) {
+      hidden++
+      return {
+        id: `locked-${hidden}`,
+        addressLine: '',
+        postcode: '',
+        price: null,
+        propertyType: null,
+        distance: null,
+        soldOn: null,
+        month: r.lead_month,
+        jobId: null,
+        custom: false,
+        lat: null,
+        lng: null,
+        locked: true,
+      }
+    }
     const pos = r.transaction_id ? coords.get(`tx:${r.transaction_id}`) : coords.get(`pc:${String(r.postcode ?? '').toUpperCase().trim()}`)
     return {
       id: r.id,
@@ -115,8 +167,6 @@ export default async function HomePage() {
     .filter((at): at is string => !!at && Date.parse(at) > dismissedAtMs)
   const latestFailedAt = unseenFailures.reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a), unseenFailures[0] ?? '')
 
-  const status = (profile?.subscription_status as string) ?? 'incomplete'
-
   return (
     <>
       {unseenFailures.length > 0 && (
@@ -127,14 +177,9 @@ export default async function HomePage() {
       <HomeClient
         userId={user.id}
         leads={leads}
-        prefs={{
-          radius: (profile?.search_radius_miles as number | null) ?? 10,
-          min: (profile?.min_price as number | null) ?? null,
-          max: (profile?.max_price as number | null) ?? null,
-          types: ((profile?.property_types as string[] | null) ?? ['D', 'S', 'T', 'F', 'O']),
-        }}
+        prefs={prefs}
         office={profile?.office_lat != null && profile?.office_lng != null ? { lat: profile.office_lat as number, lng: profile.office_lng as number } : null}
-        subscribed={status === 'active' || status === 'trialing'}
+        subscribed={subscribed}
         frontUrl={(profile?.postcard_design_url as string | null)?.trim() || null}
         backUrl={(profile?.postcard_design_back_url as string | null)?.trim() || null}
         used={(profile?.postcards_used_this_period as number | null) ?? 0}

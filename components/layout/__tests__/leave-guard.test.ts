@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { decidePopstate, isInAppNavigation } from '../leave-guard'
+import {
+  decidePopstate,
+  isInAppNavigation,
+  isSentinelState,
+  leaveNavigation,
+  LEAVE_GUARD_SENTINEL,
+} from '../leave-guard'
 
 const here = new URL('https://housepost.co.uk/postcards/design')
 
@@ -24,5 +30,26 @@ describe('decidePopstate', () => {
   })
   it('re-holds without a second dialog when one is already open', () => {
     expect(decidePopstate({ dirty: true, dialogOpen: true })).toBe('rehold')
+  })
+})
+
+describe('isSentinelState', () => {
+  it('spots our sentinel entry, alongside whatever Next keeps in history state', () => {
+    expect(isSentinelState({ __NA: true, [LEAVE_GUARD_SENTINEL]: true })).toBe(true)
+  })
+  it('is false for ordinary entries and empty state', () => {
+    expect(isSentinelState({ __NA: true })).toBe(false)
+    expect(isSentinelState(null)).toBe(false)
+    expect(isSentinelState(undefined)).toBe(false)
+  })
+})
+
+describe('leaveNavigation', () => {
+  it('replaces the sentinel so one Back press returns to the page that was left', () => {
+    expect(leaveNavigation({ __NA: true, [LEAVE_GUARD_SENTINEL]: true })).toBe('replace')
+  })
+  it('pushes as normal when the sentinel is not on top', () => {
+    expect(leaveNavigation({ __NA: true })).toBe('push')
+    expect(leaveNavigation(null)).toBe('push')
   })
 })

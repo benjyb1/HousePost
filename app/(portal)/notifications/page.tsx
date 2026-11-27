@@ -1,11 +1,17 @@
 export const dynamic = 'force-dynamic'
 
+import type { Metadata } from 'next'
 import { revalidatePath } from 'next/cache'
 import { createClient, getSessionUser } from '@/lib/supabase/server'
 import { listNotifications, markAllNotificationsRead } from '@/lib/notifications'
 import { NotificationItem } from '@/components/portal/notifications/NotificationItem'
 import chrome from '@/components/portal/page-chrome.module.css'
 import s from '@/components/portal/notifications/notifications.module.css'
+
+export const metadata: Metadata = {
+  title: 'Notifications',
+  description: 'Updates about your postcards and account.',
+}
 
 export default async function NotificationsPage() {
   const user = await getSessionUser()

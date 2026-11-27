@@ -106,6 +106,7 @@ const {
   findProfileForSubscription,
   handleSubscriptionUpdated,
   handleSubscriptionDeleted,
+  handleInvoicePaymentFailed,
 } = await import('../webhooks')
 
 function sub(overrides: Partial<Stripe.Subscription> & { id?: string } = {}): Stripe.Subscription {
@@ -291,5 +292,44 @@ describe('handleSubscriptionDeleted', () => {
     await handleSubscriptionDeleted(sub({ id: 'sub_old', status: 'canceled' }))
 
     expect(profile.subscription_status).toBe('active')
+  })
+})
+
+describe('handleInvoicePaymentFailed', () => {
+  const invoice = (subscription: string | null) =>
+    ({
+      id: 'in_1',
+      customer: 'cus_1',
+      parent: subscription ? { type: 'subscription_details', subscription_details: { subscription } } : null,
+    }) as unknown as Stripe.Invoice
+
+  it('leaves a customer alone when the subscription is active again (late or retried event)', async () => {
+    const rows = [{ id: 'u1', stripe_customer_id: 'cus_1', stripe_subscription_id: 'sub_1', subscription_status: 'active' }]
+    currentClient = fakeSupabase(rows)
+    await handleInvoicePaymentFailed(invoice('sub_1'), async () => 'active')
+    expect(rows[0].subscription_status).toBe('active')
+  })
+
+  it('records the live status when payment really is overdue', async () => {
+    const rows = [{ id: 'u1', stripe_customer_id: 'cus_1', stripe_subscription_id: 'sub_1', subscription_status: 'active' }]
+    currentClient = fakeSupabase(rows)
+    await handleInvoicePaymentFailed(invoice('sub_1'), async () => 'past_due')
+    expect(rows[0].subscription_status).toBe('past_due')
+  })
+
+  it('ignores a failed invoice for an old subscription the profile has moved off', async () => {
+    const rows = [{ id: 'u1', stripe_customer_id: 'cus_1', stripe_subscription_id: 'sub_new', subscription_status: 'active' }]
+    currentClient = fakeSupabase(rows)
+    await handleInvoicePaymentFailed(invoice('sub_old'), async () => 'unpaid')
+    expect(rows[0].subscription_status).toBe('active')
+  })
+
+  it('leaves the status alone for an invoice that isn’t for a subscription', async () => {
+    const rows = [{ id: 'u1', stripe_customer_id: 'cus_1', stripe_subscription_id: 'sub_1', subscription_status: 'active' }]
+    currentClient = fakeSupabase(rows)
+    const lookup = vi.fn()
+    await handleInvoicePaymentFailed(invoice(null), lookup)
+    expect(lookup).not.toHaveBeenCalled()
+    expect(rows[0].subscription_status).toBe('active')
   })
 })

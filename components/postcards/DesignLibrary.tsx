@@ -305,7 +305,7 @@ export function DesignLibrary({
                               onClick={() => remove(d.id)}
                               disabled={deleting}
                               aria-busy={deleting}
-                              className="rounded-[3px] bg-destructive px-2.5 py-1.5 text-[13px] font-semibold text-white transition-[filter] hover:brightness-[0.92] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:opacity-60"
+                              className="relative rounded-[3px] bg-destructive px-2.5 py-1.5 text-[13px] after:absolute after:inset-x-0 after:-inset-y-[5px] after:content-[''] font-semibold text-white transition-[filter] hover:brightness-[0.92] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:opacity-60"
                             >
                               {deleting ? 'Deleting…' : 'Delete'}
                             </button>
@@ -314,7 +314,7 @@ export function DesignLibrary({
                               type="button"
                               onClick={() => cancelDelete(d.id)}
                               disabled={deleting}
-                              className="rounded-[3px] px-2.5 py-1.5 text-[13px] font-semibold text-navy-ink hover:bg-linen focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:opacity-60"
+                              className="relative rounded-[3px] px-2.5 py-1.5 text-[13px] font-semibold text-navy-ink after:absolute after:inset-x-0 after:-inset-y-[5px] after:content-[''] hover:bg-linen focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy disabled:opacity-60"
                             >
                               Keep it
                             </button>
@@ -327,7 +327,7 @@ export function DesignLibrary({
                               type="button"
                               onClick={() => onEditTemplate?.(d)}
                               aria-label={`Edit ${d.label}`}
-                              className="inline-flex items-center gap-1.5 rounded-[3px] px-2 py-2 text-[13px] font-semibold text-navy-ink transition-colors hover:bg-linen focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                              className="relative inline-flex items-center gap-1.5 rounded-[3px] px-2 py-2 text-[13px] font-semibold after:absolute after:inset-x-0 after:-inset-y-1 after:content-[''] text-navy-ink transition-colors hover:bg-linen focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                             >
                               <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
                               Edit
@@ -344,7 +344,7 @@ export function DesignLibrary({
                               type="button"
                               onClick={() => setConfirmingId(d.id)}
                               aria-label={`Delete ${d.label}`}
-                              className="inline-flex items-center gap-1.5 rounded-[3px] px-2 py-2 text-[13px] font-semibold text-ink-2 transition-colors hover:bg-linen hover:text-destructive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
+                              className="relative inline-flex items-center gap-1.5 rounded-[3px] px-2 py-2 text-[13px] font-semibold after:absolute after:inset-x-0 after:-inset-y-1 after:content-[''] text-ink-2 transition-colors hover:bg-linen hover:text-destructive focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-navy"
                             >
                               <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                               Delete

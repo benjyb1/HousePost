@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
+import { safeRedirectPath } from '@/lib/auth/safe-redirect'
 
 /**
  * Token-hash confirmation endpoint (sign-up confirmation and password reset).
@@ -23,9 +24,8 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const tokenHash = searchParams.get('token_hash')
   const type = searchParams.get('type') as EmailOtpType | null
-  const nextRaw = searchParams.get('next') ?? '/dashboard'
   // Only allow same-site relative paths as the destination.
-  const next = nextRaw.startsWith('/') && !nextRaw.startsWith('//') ? nextRaw : '/dashboard'
+  const next = safeRedirectPath(searchParams.get('next'), '/dashboard', origin)
 
   if (tokenHash && type) {
     const supabase = await createClient()

@@ -3,6 +3,8 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { latestBatchMonth } from '@/lib/leads/batch-month'
 import { isAddressSuppressed } from '@/lib/leads/suppression'
+import { hasFullAccess } from '@/lib/leads/preview'
+import { loadPreviewIds, prefsFromProfile } from '@/lib/leads/preview-server'
 
 export async function GET(request: Request) {
   const supabase = await createClient()
@@ -26,13 +28,35 @@ export async function GET(request: Request) {
       .order('distance_miles', { ascending: true })
   }
 
-  const { data, error } = await query
+  const [{ data, error }, { data: profile, error: profileError }] = await Promise.all([
+    query,
+    supabase
+      .from('profiles')
+      .select('subscription_status, search_radius_miles, min_price, max_price, property_types')
+      .eq('id', user.id)
+      .single(),
+  ])
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error || profileError) {
+    console.error('[GET /api/leads]', error ?? profileError)
+    return NextResponse.json({ error: 'Could not load your homes just now. Please try again.' }, { status: 500 })
   }
 
-  return NextResponse.json({ leads: data })
+  if (hasFullAccess(profile?.subscription_status as string | null)) {
+    return NextResponse.json({ leads: data })
+  }
+
+  // Before subscribing: only the five open homes (see lib/leads/preview), homes
+  // added by hand, and anything already sent, which the user has seen.
+  let open: Set<string>
+  try {
+    open = await loadPreviewIds(createAdminClient(), user.id, prefsFromProfile(profile))
+  } catch (err) {
+    console.error('[GET /api/leads] preview homes:', err)
+    return NextResponse.json({ error: 'Could not load your homes just now. Please try again.' }, { status: 500 })
+  }
+  const allowed = (data ?? []).filter((l) => open.has(l.id as string) || l.is_custom || l.postcard_job_id)
+  return NextResponse.json({ leads: allowed })
 }
 
 // POST: create a custom lead (manual address)
@@ -93,7 +117,8 @@ export async function POST(request: Request) {
   }).select('*').single()
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[POST /api/leads]', error)
+    return NextResponse.json({ error: 'Could not add the address just now. Please try again.' }, { status: 500 })
   }
 
   return NextResponse.json({ lead: data }, { status: 201 })

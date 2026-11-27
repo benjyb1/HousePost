@@ -52,7 +52,7 @@ export default function ForgotPasswordPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-[22px] tracking-[-0.01em]">Check your email</CardTitle>
+          <CardTitle as="h1" className="text-[22px] tracking-[-0.01em]">Check your email</CardTitle>
           <CardDescription>
             If that email has an account, we&apos;ve sent it a link. Open the link to choose a new password.
           </CardDescription>
@@ -83,7 +83,7 @@ export default function ForgotPasswordPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-[22px] tracking-[-0.01em]">Reset your password</CardTitle>
+        <CardTitle as="h1" className="text-[22px] tracking-[-0.01em]">Reset your password</CardTitle>
         <CardDescription>We&apos;ll email you a link to set a new one.</CardDescription>
       </CardHeader>
       <form onSubmit={handleReset} className="flex flex-col gap-6">

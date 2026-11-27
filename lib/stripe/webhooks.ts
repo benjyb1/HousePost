@@ -245,8 +245,28 @@ export async function handleInvoicePaymentSucceeded(
   }
 }
 
+async function fetchSubscriptionStatus(subscriptionId: string): Promise<Stripe.Subscription.Status> {
+  const sub = await getStripe().subscriptions.retrieve(subscriptionId)
+  return sub.status
+}
+
+/** The subscription an invoice belongs to, if any (Stripe v20 moved it under `parent`). */
+export function subscriptionIdOfInvoice(invoice: Stripe.Invoice): string | null {
+  const sub = invoice.parent?.subscription_details?.subscription
+  if (!sub) return null
+  return typeof sub === 'string' ? sub : sub.id
+}
+
+/**
+ * A subscription payment failed. Rather than trusting the event (it can arrive
+ * late, or be retried after the customer has already paid), ask Stripe what
+ * the subscription's status is now and record that. A subscription that is
+ * active again is left alone, so a paying customer is never locked out by an
+ * old event. Invoices that aren't for a subscription don't touch the status.
+ */
 export async function handleInvoicePaymentFailed(
-  invoice: Stripe.Invoice
+  invoice: Stripe.Invoice,
+  getSubscriptionStatus: (subscriptionId: string) => Promise<Stripe.Subscription.Status> = fetchSubscriptionStatus
 ): Promise<void> {
   const supabase = createAdminClient()
   const customerId =
@@ -256,12 +276,26 @@ export async function handleInvoicePaymentFailed(
 
   if (!customerId) return
 
+  const subscriptionId = subscriptionIdOfInvoice(invoice)
+  if (!subscriptionId) {
+    console.info(`Invoice ${invoice.id} failed but isn't for a subscription; status left alone`)
+    return
+  }
+
+  const status = await getSubscriptionStatus(subscriptionId)
+  if (status === 'active' || status === 'trialing') {
+    console.info(`Invoice ${invoice.id} failed, but subscription ${subscriptionId} is ${status} now; status left alone`)
+    return
+  }
+
+  // Only the profile on this subscription (or on none yet) changes.
   const { error } = await supabase
     .from('profiles')
-    .update({ subscription_status: 'past_due' })
+    .update({ subscription_status: mapStatus(status) })
     .eq('stripe_customer_id', customerId)
+    .or(`stripe_subscription_id.is.null,stripe_subscription_id.eq.${subscriptionId}`)
 
   if (error) {
-    throw new Error(`Failed to mark past_due for customer ${customerId}: ${error.message}`)
+    throw new Error(`Failed to record ${status} for customer ${customerId}: ${error.message}`)
   }
 }

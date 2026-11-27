@@ -28,9 +28,15 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+// `as` lets a page make its card title the real page heading (the sign-in
+// pages use as="h1"). Preflight strips heading styles, so it looks the same.
+function CardTitle({
+  as: Tag = "div",
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLElement> & { as?: "div" | "h1" | "h2" | "h3" }) {
   return (
-    <div
+    <Tag
       data-slot="card-title"
       className={cn("text-[17px] leading-tight font-semibold text-ink", className)}
       {...props}

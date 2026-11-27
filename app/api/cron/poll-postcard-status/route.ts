@@ -10,6 +10,7 @@ import {
   isNotifiableStatus,
   type StatusChange,
 } from '@/lib/postcards/customer-notify'
+import { verifyCronRequest } from '@/lib/cron/auth'
 
 export const maxDuration = 60
 
@@ -24,13 +25,16 @@ const BATCH_SIZE = 100
 // letter ids that the current provider can't resolve, which just error every run).
 const POLL_WINDOW_DAYS = 45
 
-function verifyCronSecret(request: Request): boolean {
-  const auth = request.headers.get('authorization')
-  return auth === `Bearer ${process.env.CRON_SECRET}`
-}
+// Where the last run stopped, kept in ops_state. Each run carries on from
+// there (oldest first) and starts again from the top once it reaches the end,
+// so every in-flight card gets its turn. Ordering by updated_at used to poll
+// the same 100 cards forever once more than 100 were waiting, because a card
+// whose status hasn't moved is never written to.
+const CURSOR_KEY = 'poll-postcard-status:cursor'
+type Cursor = { createdAt: string; id: string }
 
 export async function POST(request: Request) {
-  if (!verifyCronSecret(request)) {
+  if (!verifyCronRequest(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -45,18 +49,50 @@ export async function POST(request: Request) {
   const windowStartIso = new Date(
     Date.now() - POLL_WINDOW_DAYS * 24 * 60 * 60 * 1000
   ).toISOString()
-  const { data: jobs, error } = await supabase
-    .from('postcard_jobs')
-    .select('id, user_id, postgrid_letter_id, status, postgrid_status')
-    .not('postgrid_letter_id', 'is', null)
-    .gte('created_at', windowStartIso)
-    .or(`postgrid_status.is.null,postgrid_status.not.in.(${terminalList})`)
-    .order('updated_at', { ascending: true })
-    .limit(BATCH_SIZE)
+  const { data: cursorRow } = await supabase.from('ops_state').select('value').eq('key', CURSOR_KEY).maybeSingle()
+  const saved = cursorRow?.value as Partial<Cursor> | null | undefined
+  const cursor: Cursor | null =
+    saved && typeof saved.createdAt === 'string' && typeof saved.id === 'string' && saved.createdAt >= windowStartIso
+      ? { createdAt: saved.createdAt, id: saved.id }
+      : null
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  const slice = (after: Cursor | null, limit: number) => {
+    let q = supabase
+      .from('postcard_jobs')
+      .select('id, user_id, postgrid_letter_id, status, postgrid_status, created_at')
+      .not('postgrid_letter_id', 'is', null)
+      .gte('created_at', windowStartIso)
+      .or(`postgrid_status.is.null,postgrid_status.not.in.(${terminalList})`)
+    if (after) {
+      // Rows in one order share a created_at, so the id breaks the tie.
+      // Values are quoted: a timestamp carries dots, colons and a "+".
+      q = q.or(`created_at.gt."${after.createdAt}",and(created_at.eq."${after.createdAt}",id.gt."${after.id}")`)
+    }
+    return q.order('created_at', { ascending: true }).order('id', { ascending: true }).limit(limit)
   }
+
+  const firstSlice = await slice(cursor, BATCH_SIZE)
+  if (firstSlice.error) {
+    console.error('poll-postcard-status: could not read jobs:', firstSlice.error)
+    return NextResponse.json({ error: firstSlice.error.message }, { status: 500 })
+  }
+  let jobs = firstSlice.data ?? []
+  let reachedEnd = jobs.length < BATCH_SIZE
+  if (reachedEnd && cursor) {
+    // Past the end: wrap round to the oldest cards for the rest of this run.
+    const wrap = await slice(null, BATCH_SIZE - jobs.length)
+    if (!wrap.error) {
+      const seen = new Set(jobs.map((j) => j.id))
+      jobs = [...jobs, ...(wrap.data ?? []).filter((j) => !seen.has(j.id))]
+      reachedEnd = (wrap.data ?? []).length < BATCH_SIZE - firstSlice.data!.length
+    }
+  }
+  const last = jobs[jobs.length - 1]
+  const nextCursor: Cursor | null = reachedEnd || !last ? null : { createdAt: last.created_at as string, id: last.id as string }
+  const { error: cursorErr } = nextCursor
+    ? await supabase.from('ops_state').upsert({ key: CURSOR_KEY, value: nextCursor, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    : await supabase.from('ops_state').delete().eq('key', CURSOR_KEY)
+  if (cursorErr) console.error('poll-postcard-status: could not save cursor:', cursorErr.message)
 
   // Second guard in code: the displayed status is COALESCE(postgrid_status,
   // status), so skip anything already terminal by either column.

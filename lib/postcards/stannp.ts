@@ -37,39 +37,98 @@ interface StannpResponse {
   error?: string
 }
 
+/** How long one Stannp call may take before we stop waiting. */
+export const STANNP_TIMEOUT_MS = 20_000
+
+/**
+ * A Stannp call that did not create an order, or may have.
+ *
+ *  - 'rejected': Stannp answered and said no (bad address, no balance, bad
+ *    key), or we never reached it. Nothing was created, so a retry is safe.
+ *  - 'unknown': the request went out and we can't tell what happened (timed
+ *    out, connection dropped, a 5xx, a reply we couldn't read). The card may
+ *    already be printing. Stannp has no idempotency key for postcards, so
+ *    sending again could print it twice: a person has to check first.
+ */
+export class StannpRequestError extends Error {
+  constructor(
+    message: string,
+    readonly outcome: 'rejected' | 'unknown',
+    readonly status: number | null = null
+  ) {
+    super(message)
+    this.name = 'StannpRequestError'
+  }
+}
+
+/** Network errors that mean the connection was never made, so nothing reached Stannp. */
+const NEVER_CONNECTED = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'UND_ERR_CONNECT_TIMEOUT', 'ERR_INVALID_URL'])
+
+/** Was the order created? Decide from the HTTP status and whether the body parsed. */
+export function stannpOutcome(status: number, parsed: boolean): 'rejected' | 'unknown' {
+  if (status >= 500) return 'unknown'
+  if (status >= 400) return 'rejected' // Stannp (or its edge) refused the request
+  // A 2xx we couldn't read may well be a created order; one that parsed and
+  // said success:false is a refusal.
+  return parsed ? 'rejected' : 'unknown'
+}
+
 /**
  * POST to the Stannp API with form-encoded fields and HTTP Basic auth (the API
- * key is the username, the password is empty). Throws on a transport error or a
- * `success: false` payload.
+ * key is the username, the password is empty). Throws a StannpRequestError on
+ * any failure, saying whether an order might have been created.
  */
 async function stannpRequest(
   path: string,
   fields: Record<string, string>
 ): Promise<StannpData> {
   const apiKey = process.env.STANNP_API_KEY
-  if (!apiKey) throw new Error('STANNP_API_KEY is not set')
+  if (!apiKey) throw new StannpRequestError('STANNP_API_KEY is not set', 'rejected')
 
   const body = new URLSearchParams(fields)
-  const response = await fetch(`${STANNP_BASE}${path}`, {
-    method: 'POST',
-    headers: {
-      // Basic auth, key as username + empty password.
-      Authorization: `Basic ${Buffer.from(`${apiKey}:`).toString('base64')}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body,
-  })
-
-  let payload: StannpResponse
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), STANNP_TIMEOUT_MS)
+  let response: Response
+  let payload: StannpResponse | null = null
   try {
-    payload = (await response.json()) as StannpResponse
-  } catch {
-    throw new Error(`Stannp API error ${response.status}: non-JSON response`)
+    try {
+      response = await fetch(`${STANNP_BASE}${path}`, {
+        method: 'POST',
+        headers: {
+          // Basic auth, key as username + empty password.
+          Authorization: `Basic ${Buffer.from(`${apiKey}:`).toString('base64')}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body,
+        signal: controller.signal,
+      })
+    } catch (err) {
+      if (controller.signal.aborted) {
+        throw new StannpRequestError(`Stannp API timed out after ${STANNP_TIMEOUT_MS / 1000}s`, 'unknown')
+      }
+      const code = (err as { cause?: { code?: string } })?.cause?.code ?? ''
+      const msg = err instanceof Error ? err.message : String(err)
+      throw new StannpRequestError(
+        `Stannp API network error: ${msg}${code ? ` (${code})` : ''}`,
+        NEVER_CONNECTED.has(code) ? 'rejected' : 'unknown'
+      )
+    }
+
+    try {
+      payload = (await response.json()) as StannpResponse
+    } catch {
+      const outcome = controller.signal.aborted ? 'unknown' : stannpOutcome(response.status, false)
+      throw new StannpRequestError(`Stannp API error ${response.status}: non-JSON response`, outcome, response.status)
+    }
+  } finally {
+    clearTimeout(timer)
   }
 
-  if (!response.ok || !payload.success || !payload.data) {
-    throw new Error(
-      `Stannp API error ${response.status}: ${payload.error ?? JSON.stringify(payload)}`
+  if (!response.ok || !payload?.success || !payload.data) {
+    throw new StannpRequestError(
+      `Stannp API error ${response.status}: ${payload?.error ?? JSON.stringify(payload)}`,
+      stannpOutcome(response.status, true),
+      response.status
     )
   }
   return payload.data
@@ -147,17 +206,19 @@ export function isLiveDispatchEnvironment(): boolean {
 }
 
 /**
- * Print and post a postcard. `tag` is stored against the order in Stannp for
- * traceability (we pass our per-(user, lead, batch) idempotency hash) — note
- * Stannp has no idempotency-key header, so the real double-send guard is the
- * atomic lead claim / unique job-key index in the dispatch routes, not here.
+ * Print and post a postcard. `tags` are stored against the order in Stannp
+ * (comma-separated) and can be searched in its reporting: we pass our
+ * per-(user, lead, batch) hash and the job id, so an order whose outcome was
+ * unclear can be found by job. Stannp has no idempotency key for postcards, so
+ * the real double-send guard is the atomic claim in the release cron and the
+ * rule that an unclear outcome is never retried automatically.
  */
 export async function sendPostcard(params: {
   to: StannpRecipient
   frontUrl: string
   backUrl: string
   size?: StannpSize
-  tag?: string
+  tags?: string[]
 }): Promise<{ id: string; status: string; pdfUrl: string | null }> {
   // In production the `test` field is deliberately OMITTED: Stannp defaults it
   // to off (a live, billable order), and omitting it removes any risk of a
@@ -173,7 +234,7 @@ export async function sendPostcard(params: {
       backUrl: params.backUrl,
       size: params.size ?? 'A6',
     }),
-    ...(params.tag ? { tags: params.tag } : {}),
+    ...(params.tags?.length ? { tags: params.tags.join(',') } : {}),
     ...(live ? {} : { test: 'true' }),
   })
   return { id: String(data.id), status: data.status, pdfUrl: data.pdf ?? null }

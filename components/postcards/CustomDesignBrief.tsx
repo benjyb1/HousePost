@@ -106,7 +106,8 @@ export function CustomDesignBrief() {
         throw new Error(data.error ?? 'Something went wrong. Please try again.')
       }
       setDone(true)
-      toast.success(data.duplicate ? 'We already have this brief. No second charge was taken.' : 'Design request received')
+      if (data.warning) toast.warning(data.warning, { duration: Infinity })
+      else toast.success(data.duplicate ? 'We already have this brief. No second charge was taken.' : 'Design request received')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to submit your request')
     } finally {

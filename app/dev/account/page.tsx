@@ -5,7 +5,7 @@ import type { AccountData } from '@/components/portal/account/types'
 
 // Dev-only fixture: the Account page with example data and no sign-in, for
 // screenshots. 404s in production. ?plan=none shows someone without a
-// subscription. Buttons still call the real API routes, which answer 401 here,
+// subscription, ?plan=overdue someone whose card payment failed. Buttons still call the real API routes, which answer 401 here,
 // so the error states can be checked too.
 
 const SUBSCRIBED: AccountData = {
@@ -16,7 +16,10 @@ const SUBSCRIBED: AccountData = {
   emailNotifications: true,
   subscriptionStatus: 'active',
   subscriptionPeriodEnd: '2026-12-01T09:00:00Z',
+  hasSubscription: true,
 }
+
+const OVERDUE: AccountData = { ...SUBSCRIBED, subscriptionStatus: 'past_due' }
 
 const NOT_SUBSCRIBED: AccountData = {
   ...SUBSCRIBED,
@@ -24,6 +27,7 @@ const NOT_SUBSCRIBED: AccountData = {
   emailNotifications: false,
   subscriptionStatus: 'incomplete',
   subscriptionPeriodEnd: null,
+  hasSubscription: false,
 }
 
 export default async function DevAccountPage({
@@ -37,7 +41,7 @@ export default async function DevAccountPage({
   return (
     <div className="min-h-screen bg-paper text-ink">
       <LeaveGuardProvider>
-        <AccountView data={plan === 'none' ? NOT_SUBSCRIBED : SUBSCRIBED} note="Example data" />
+        <AccountView data={plan === 'none' ? NOT_SUBSCRIBED : plan === 'overdue' ? OVERDUE : SUBSCRIBED} note="Example data" />
       </LeaveGuardProvider>
     </div>
   )

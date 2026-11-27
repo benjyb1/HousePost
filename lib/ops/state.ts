@@ -24,16 +24,20 @@ async function writeState(supabase: Admin, key: string, value: Record<string, un
 
 /**
  * True if no alert under `key` has been recorded in the last `minMinutes`.
- * Records the alert when it returns true, so the caller just sends. If the
- * state table is unreachable it returns true: better a duplicate email than a
- * swallowed alert.
+ * It doesn't record anything: call markAlerted once the email has actually
+ * gone, so a failed send is tried again on the next run instead of being
+ * counted as sent. If the state table is unreachable it returns true: better
+ * a duplicate email than a swallowed alert.
  */
 export async function shouldAlert(supabase: Admin, key: string, minMinutes: number): Promise<boolean> {
   const state = await readState(supabase, `alert:${key}`)
   const last = typeof state?.at === 'string' ? Date.parse(state.at) : NaN
-  if (Number.isFinite(last) && Date.now() - last < minMinutes * 60_000) return false
+  return !(Number.isFinite(last) && Date.now() - last < minMinutes * 60_000)
+}
+
+/** Record that the alert under `key` was just sent (see shouldAlert). */
+export async function markAlerted(supabase: Admin, key: string): Promise<void> {
   await writeState(supabase, `alert:${key}`, { at: new Date().toISOString() })
-  return true
 }
 
 /** Clear an alert's rate-limit so the next occurrence emails immediately. */

@@ -5,9 +5,10 @@ import { SiteFooter } from '@/components/layout/SiteFooter'
 import styles from '@/components/layout/public.module.css'
 
 export const metadata: Metadata = {
-  title: 'Privacy Notice | Housepost',
+  title: 'Privacy Notice',
   description:
     'How Housepost uses personal data from HM Land Registry public records for postal marketing, the legal basis, and how to object.',
+  alternates: { canonical: '/privacy' },
 }
 
 // The wording below is legal copy. Restyle freely, but change none of the words.

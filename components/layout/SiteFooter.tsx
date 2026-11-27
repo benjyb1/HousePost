@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { LandRegistryAttribution } from '@/components/layout/LandRegistryAttribution'
 import styles from './public.module.css'
 
+const footLink = '-my-2.5 inline-flex min-h-10 items-center hover:text-ink'
+
 /**
  * Shared site footer. Both variants carry the attribution the Price Paid Data
  * licence requires wherever we use the data. It never names who prints or
@@ -17,10 +19,11 @@ export function SiteFooter({ variant = 'public' }: { variant?: 'public' | 'porta
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-[1480px] flex-col gap-3 px-4 py-6 text-[13px] text-ink-2 sm:flex-row sm:items-start sm:justify-between sm:px-8">
           <LandRegistryAttribution className="max-w-xl text-[13px] leading-relaxed text-ink-2" />
+          {/* Each link is a 40px-tall tap target; the negative margin keeps the line where it was. */}
           <nav aria-label="Footer" className="flex shrink-0 flex-wrap gap-x-5 gap-y-1">
-            <Link href="/help" className="hover:text-ink">Help</Link>
-            <Link href="/privacy" className="hover:text-ink">Privacy</Link>
-            <Link href="/opt-out" className="hover:text-ink">Opt out of mail</Link>
+            <Link href="/help" className={footLink}>Help</Link>
+            <Link href="/privacy" className={footLink}>Privacy</Link>
+            <Link href="/opt-out" className={footLink}>Opt out of mail</Link>
           </nav>
         </div>
       </footer>

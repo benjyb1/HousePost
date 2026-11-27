@@ -51,7 +51,8 @@ export async function POST(request: Request) {
       .is('postcard_job_id', null)
       .select('id, lead_month')
     if (unsent.error) {
-      return NextResponse.json({ error: unsent.error.message }, { status: 500 })
+      console.error('[leads/unarchive] unsent:', unsent.error)
+      return NextResponse.json({ error: 'Could not unarchive just now. Please try again.' }, { status: 500 })
     }
 
     const sent = await supabase
@@ -63,7 +64,8 @@ export async function POST(request: Request) {
       .not('postcard_job_id', 'is', null)
       .select('id, lead_month')
     if (sent.error) {
-      return NextResponse.json({ error: sent.error.message }, { status: 500 })
+      console.error('[leads/unarchive] sent:', sent.error)
+      return NextResponse.json({ error: 'Could not unarchive just now. Please try again.' }, { status: 500 })
     }
 
     restored.push(...(unsent.data ?? []), ...(sent.data ?? []))

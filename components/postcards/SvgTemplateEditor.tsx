@@ -825,7 +825,7 @@ export function SvgTemplateEditor({
             </p>
 
             {onUseUpload && (
-              <Button variant="outline" size="sm" onClick={onUseUpload} className="w-full">
+              <Button variant="outline" size="sm" onClick={() => guard(onUseUpload)} className="w-full">
                 <Upload className="mr-2 h-4 w-4" />
                 Or upload your own print-ready PDF
               </Button>

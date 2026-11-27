@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addressKey, premisesKey, normalisePostcode } from '@/lib/address/normalise'
+import { clientIp } from '@/lib/admin/attempts'
 
 // Writes via the service-role client — must run on Node and never be cached.
 export const runtime = 'nodejs'
@@ -34,11 +35,24 @@ interface OptOutInput {
  * Kept as an exported function so it can be unit-tested and reused; the POST
  * handler is a thin wrapper.
  */
+// Generous bounds: long enough for any real address, short enough that the
+// table can't be stuffed with junk.
+const MAX_LINE = 200
+const MAX_TOWN = 100
+const MAX_POSTCODE = 12
+
 export async function recordOptOut(input: OptOutInput): Promise<OptOutResult> {
   const addressLine1 = String(input.addressLine1 ?? '').trim()
   const addressLine2 = String(input.addressLine2 ?? '').trim()
   const town = String(input.town ?? '').trim()
   const postcodeRaw = String(input.postcode ?? '').trim()
+
+  if (addressLine1.length > MAX_LINE || addressLine2.length > MAX_LINE || town.length > MAX_TOWN) {
+    return { ok: false, error: 'That address is longer than we can take. Please shorten it, or email info@housepost.co.uk.' }
+  }
+  if (postcodeRaw.length > MAX_POSTCODE) {
+    return { ok: false, error: 'Please check your postcode.' }
+  }
 
   if (!addressLine1) {
     return { ok: false, error: 'Please enter the first line of your address.' }
@@ -79,7 +93,38 @@ export async function recordOptOut(input: OptOutInput): Promise<OptOutResult> {
   return { ok: true }
 }
 
+// Per-IP throttle: plenty for a household opting out a few addresses, not
+// enough to flood the list. Counted in ops_state so it holds across server
+// instances. If the count can't be read the request goes through: an opt-out
+// must never be lost to our own fault.
+const MAX_PER_HOUR = 20
+
+async function overThrottle(ip: string): Promise<boolean> {
+  const supabase = createAdminClient()
+  const key = `opt-out-throttle:${ip}`
+  try {
+    const { data, error } = await supabase.from('ops_state').select('value').eq('key', key).maybeSingle()
+    if (error) return false
+    const v = data?.value as { count?: number; since?: number } | null | undefined
+    const now = Date.now()
+    const fresh = !v || typeof v.since !== 'number' || now - v.since > 60 * 60 * 1000
+    const next = fresh ? { count: 1, since: now } : { count: (v.count ?? 0) + 1, since: v.since as number }
+    if (!fresh && next.count > MAX_PER_HOUR) return true
+    await supabase.from('ops_state').upsert({ key, value: next, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    return false
+  } catch {
+    return false
+  }
+}
+
 export async function POST(request: Request) {
+  if (await overThrottle(clientIp(request))) {
+    return NextResponse.json<OptOutFailure>(
+      { ok: false, error: 'We’ve had a lot of requests from you in the last hour. Please try again later, or email info@housepost.co.uk.' },
+      { status: 429 }
+    )
+  }
+
   let body: OptOutInput
   try {
     body = (await request.json()) as OptOutInput

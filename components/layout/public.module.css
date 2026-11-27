@@ -55,6 +55,10 @@
   font-weight: 500;
 }
 .navLinks a:not(.navBtn) {
+  /* a 40px-tall tap target; the bar centres it, so nothing moves */
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
   color: var(--color-ink);
   text-decoration: none;
 }
@@ -407,12 +411,22 @@
 .foot nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 22px;
+  /* No row gap: each link is 40px tall to tap, and wrapped rows sit edge to
+     edge so their tap areas never overlap. The margin takes the extra height
+     back so the footer keeps its spacing. */
+  gap: 0 22px;
+  margin-block: -10px;
   justify-content: flex-end;
 }
 .foot a {
   color: inherit;
   text-decoration: none;
+}
+/* Footer links: a 40px-tall tap target (see .foot nav for the spacing). */
+.foot nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
 }
 .foot a:hover {
   color: var(--color-ink);

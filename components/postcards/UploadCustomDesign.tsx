@@ -270,10 +270,13 @@ async function stampOptOutOnPdfBack(file: File): Promise<Blob> {
 export function UploadCustomDesign({
   onBackToOptions,
   initialSide = 'front',
+  onDirtyChange,
 }: {
   onBackToOptions?: () => void
   /** Which side to open on (the template editor sends people straight to the back). */
   initialSide?: Side
+  /** Called whenever a rendered PDF is waiting to be saved on either side (or stops being). */
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const supabase = createClient()
   const frontFileInputRef = useRef<HTMLInputElement>(null)
@@ -336,6 +339,16 @@ export function UploadCustomDesign({
   const setPassthrough = isFront ? setFrontPassthrough : setBackPassthrough
 
   const bothSaved = Boolean(frontDesignUrl && backDesignUrl)
+
+  // A PDF that's been rendered into the cropper but not saved yet, on either
+  // side, is unsaved work. Report it so the page can ask before leaving it,
+  // as the template editor does. Saving or cancelling a side clears it.
+  const dirty = frontImageSrc !== null || backImageSrc !== null
+  useEffect(() => {
+    onDirtyChange?.(dirty)
+  }, [dirty, onDirtyChange])
+  // Unmount clears it so the page doesn't keep guarding for an uploader that's gone.
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
 
   // Crop frame for the active side: full card (front) or left half (back), with
   // or without the bleed we add. The back container is always a full card (the
@@ -541,19 +554,24 @@ export function UploadCustomDesign({
     try {
       // Only the active pointer is cleared. The file stays: saved designs in the
       // library and held orders waiting out their cool-off may still use it.
-      await fetch('/api/settings', {
+      const res = await fetch('/api/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ [config.settingsKey]: null }),
       })
+      // Leave the design showing unless the server really cleared it.
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({}))
+        throw new Error(error ?? 'Failed to remove design')
+      }
       // 10.6: clear it from state immediately so the removed design stops showing
       // as "the design" straight away, rather than lingering until a refresh.
       setCurrentDesignUrl(null)
       setImageSrc(null)
       setPreviewUrl(null)
       toast.success(`${config.label} design removed`)
-    } catch {
-      toast.error('Failed to remove design')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove design')
     } finally {
       setLoading(false)
     }

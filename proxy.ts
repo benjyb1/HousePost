@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { adminToken, safeEqualHex } from '@/lib/admin/token'
+import { verifyAdminToken } from '@/lib/admin/token'
 
 const PORTAL_PATHS = ['/dashboard', '/leads', '/postcards', '/billing', '/settings', '/account', '/notifications']
 
@@ -9,8 +9,8 @@ export async function proxy(request: NextRequest) {
 
   // ── Admin routes ──────────────────────────────────────────────────────────
   if (pathname.startsWith('/admin') && pathname !== '/admin/login') {
-    const adminCookie = request.cookies.get('admin-auth')?.value ?? ''
-    const isAuthed = adminCookie !== '' && safeEqualHex(adminCookie, await adminToken())
+    // Signed, unexpired token only; always false when ADMIN_PASSWORD is unset.
+    const isAuthed = await verifyAdminToken(request.cookies.get('admin-auth')?.value)
 
     if (!isAuthed) {
       return NextResponse.redirect(new URL('/admin/login', request.url))

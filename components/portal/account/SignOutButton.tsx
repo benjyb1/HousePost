@@ -1,19 +1,21 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { toast } from 'sonner'
+import { signOutOfHousepost } from '@/lib/auth/sign-out'
 import { useLeaveGuard } from '@/components/layout/LeaveGuardProvider'
 import chrome from '@/components/portal/page-chrome.module.css'
 
 /** Sign out, held by the portal leave-guard like the top bar's Sign out. */
 export function SignOutButton() {
-  const router = useRouter()
   const { guard } = useLeaveGuard()
 
   async function signOut() {
-    await createClient().auth.signOut()
-    router.push('/login')
-    router.refresh()
+    if ((await signOutOfHousepost()) === 'failed') {
+      toast.error('We couldn’t sign you out. Check your connection and try again.')
+      return
+    }
+    // A full page load, so nothing from the signed-in session stays in memory.
+    window.location.assign('/login')
   }
 
   return (

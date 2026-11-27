@@ -1,9 +1,15 @@
 export const dynamic = 'force-dynamic'
 
+import type { Metadata } from 'next'
 import { createClient, getSessionUser } from '@/lib/supabase/server'
 import { TrackingSendProvider } from '@/components/postcards/TrackingSend'
 import { TrackingBatches } from '@/components/portal/tracking/TrackingBatches'
 import { fromJob, type PostcardJobRow } from '@/components/portal/tracking/model'
+
+export const metadata: Metadata = {
+  title: 'Tracking',
+  description: 'Track the postcards you have sent and the ones waiting to go.',
+}
 
 function serverNow(): string {
   return new Date().toISOString()

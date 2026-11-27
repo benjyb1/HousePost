@@ -1,5 +1,7 @@
 import Image from 'next/image'
 import styles from './logo.module.css'
+// A static import, so the wordmark's URL is hashed and caches for good.
+import wordmark from '@/public/brand/wordmark-navy.png'
 
 /*
   Freddie's Housepost logo. The house is redrawn from logo-icon.png at its own
@@ -25,7 +27,7 @@ export function Logo({ size = 'md', className }: { size?: 'sm' | 'md'; className
   return (
     <span className={`${styles.logo} ${size === 'sm' ? styles.sm : ''} ${className ?? ''}`}>
       <HouseMark className={styles.mark} />
-      <Image src="/brand/wordmark-navy.png" alt="Housepost" width={2087} height={386} className={styles.word} priority />
+      <Image src={wordmark} alt="Housepost" width={2087} height={386} className={styles.word} priority />
     </span>
   )
 }

@@ -248,27 +248,33 @@ export async function POST(request: Request) {
   }
 
   // ── Charge settled — store the brief ───────────────────────────────────────
-  const { error: insertError } = await admin.from('design_requests').upsert(
-    {
-      id: requestId,
-      user_id: user.id,
-      status: 'received',
-      business_name: businessName,
-      colour_scheme: colourScheme || null,
-      brief_text: text || null,
-      notes: notes || null,
-      assets,
-      amount_pence: CUSTOM_DESIGN_FEE_PENCE,
-      stripe_payment_intent_id: paymentIntentId,
-    },
-    { onConflict: 'id' }
-  )
+  // Tried twice. If it still fails, the email below carries the whole brief,
+  // and if THAT fails too there's a last-resort copy in ops_state and the logs.
+  const briefRow = {
+    id: requestId,
+    user_id: user.id,
+    status: 'received',
+    business_name: businessName,
+    colour_scheme: colourScheme || null,
+    brief_text: text || null,
+    notes: notes || null,
+    assets,
+    amount_pence: CUSTOM_DESIGN_FEE_PENCE,
+    stripe_payment_intent_id: paymentIntentId,
+  }
+  const saveBrief = () => admin.from('design_requests').upsert(briefRow, { onConflict: 'id' })
+  let insertError = (await saveBrief()).error
+  if (insertError) {
+    console.error('[design-request] insert failed after charge, trying again:', insertError.message)
+    insertError = (await saveBrief()).error
+  }
 
   if (insertError) {
     // The card was charged, so we must not fail silently. Still email the team
     // the full brief so the request is actioned.
     console.error('[design-request] insert failed after charge:', insertError.message)
   }
+  let emailed = false
 
   // ── Notify the team with the brief (signed links to the private assets) ────
   try {
@@ -296,8 +302,29 @@ export async function POST(request: Request) {
        ${assetLines.length ? `<ul>${assetLines.join('')}</ul>` : '<p>No assets attached.</p>'}
        ${insertError ? '<p style="color:#c53030;"><strong>Warning:</strong> the design_requests row failed to save, so action this from the email.</p>' : ''}`
     )
+    emailed = true
   } catch (err) {
     console.error('[design-request] admin alert failed:', err)
+  }
+
+  if (insertError && !emailed) {
+    // Paid, and neither the table nor the email has it. Keep a copy wherever
+    // we still can, and tell the customer to get in touch with the reference.
+    console.error('[design-request] UNRECORDED PAID BRIEF:', JSON.stringify(briefRow))
+    const { error: fallbackErr } = await admin
+      .from('ops_state')
+      .upsert({ key: `design-request:${requestId}`, value: briefRow, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+    if (fallbackErr) console.error('[design-request] fallback copy failed too:', fallbackErr.message)
+    return NextResponse.json(
+      {
+        success: true,
+        requestId,
+        amountPence: CUSTOM_DESIGN_FEE_PENCE,
+        amountFormatted: `£${(CUSTOM_DESIGN_FEE_PENCE / 100).toFixed(2)}`,
+        warning: `We’ve taken the £75 fee, but something went wrong on our side saving your brief. Please email info@housepost.co.uk with reference ${requestId} so we can pick it up.`,
+      },
+      { status: 201 }
+    )
   }
 
   // ── Confirm to the customer (best-effort in-app notification) ──────────────

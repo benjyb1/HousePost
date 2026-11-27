@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { geocodeSingleWithCache } from '@/lib/geocoding/postcodes-io'
+import { parseSettingsPatch } from '@/lib/validation/settings'
 
 export async function GET() {
   const supabase = await createClient()
@@ -13,7 +14,10 @@ export async function GET() {
     .eq('id', user.id)
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[GET /api/settings]', error)
+    return NextResponse.json({ error: 'Could not load your settings just now.' }, { status: 500 })
+  }
   return NextResponse.json({ profile: data })
 }
 
@@ -22,44 +26,35 @@ export async function PATCH(request: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await request.json()
-  const {
-    full_name,
-    office_postcode,
-    search_radius_miles,
-    min_price,
-    max_price,
-    property_types,
-    postcard_design_url,
-    postcard_design_back_url,
-    company_name,
-    email_notifications,
-  } = body
+  const body = await request.json().catch(() => null)
 
-  const updates: Record<string, unknown> = {}
-
-  if (full_name !== undefined) updates.full_name = full_name
-  if (search_radius_miles !== undefined) {
-    // Whole miles, 1 to 10. Home only offers those; this stops anything wider
-    // (e.g. 400 miles typed into an older page) being saved.
-    const r = Number(search_radius_miles)
-    if (!Number.isInteger(r) || r < 1 || r > 10) {
-      return NextResponse.json({ error: 'Distance must be a whole number of miles from 1 to 10.' }, { status: 400 })
+  // Changing one price but not the other: check against the saved one.
+  let currentPrices: { min: number | null; max: number | null } | undefined
+  const b = (body ?? {}) as Record<string, unknown>
+  if ((b.min_price === undefined) !== (b.max_price === undefined)) {
+    const { data: cur, error: curErr } = await supabase
+      .from('profiles')
+      .select('min_price, max_price')
+      .eq('id', user.id)
+      .single()
+    if (curErr) {
+      console.error('[PATCH /api/settings] read prices:', curErr)
+      return NextResponse.json({ error: 'Could not save just now. Please try again.' }, { status: 500 })
     }
-    updates.search_radius_miles = r
+    currentPrices = { min: (cur?.min_price as number | null) ?? null, max: (cur?.max_price as number | null) ?? null }
   }
-  if (min_price !== undefined) updates.min_price = min_price
-  if (max_price !== undefined) updates.max_price = max_price
-  if (property_types !== undefined) updates.property_types = property_types
-  if (postcard_design_url !== undefined) updates.postcard_design_url = postcard_design_url
-  if (postcard_design_back_url !== undefined) updates.postcard_design_back_url = postcard_design_back_url
-  if (company_name !== undefined) updates.company_name = company_name
-  if (email_notifications !== undefined) updates.email_notifications = email_notifications
+
+  const parsed = parseSettingsPatch(body, {
+    userId: user.id,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL ?? '',
+    currentPrices,
+  })
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
+  const updates = parsed.value
 
   // Re-geocode if postcode changed
-  if (office_postcode !== undefined) {
-    updates.office_postcode = office_postcode.toUpperCase().trim()
-    const geo = await geocodeSingleWithCache(office_postcode)
+  if (typeof updates.office_postcode === 'string') {
+    const geo = await geocodeSingleWithCache(updates.office_postcode)
     if (geo) {
       updates.office_lat = geo.lat
       updates.office_lng = geo.lng
@@ -71,11 +66,16 @@ export async function PATCH(request: Request) {
     }
   }
 
+  if (Object.keys(updates).length === 0) return NextResponse.json({ success: true })
+
   const { error } = await supabase
     .from('profiles')
     .update(updates)
     .eq('id', user.id)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[PATCH /api/settings]', error)
+    return NextResponse.json({ error: 'Could not save just now. Please try again.' }, { status: 500 })
+  }
   return NextResponse.json({ success: true })
 }

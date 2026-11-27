@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
+import { unstable_cache } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { geocodeSingleWithCache } from '@/lib/geocoding/postcodes-io'
 import { haversineDistanceMiles, boundingBox } from '@/lib/geocoding/haversine'
 import { normalisePostcode } from '@/lib/address/normalise'
 
 // Reads the service-role client + external geocoding — must run on Node and never
-// be statically cached (results depend on the query string and live data).
+// be statically cached (results depend on the query string). The lookup itself
+// is cached per postcode and radius in the data cache; see lookupHousesSold.
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
@@ -20,6 +22,11 @@ export const MAX_RADIUS_MILES = 50
 // (1–15 miles) are nowhere near it.
 const PAGE_SIZE = 1000
 const MAX_ROWS_SCANNED = 50_000
+
+// The data changes once a month, so a day-old answer is fine. After a monthly
+// import, revalidateTag('houses-sold', 'max') clears it early.
+const CACHE_SECONDS = 86_400
+const CACHE_TAG = 'houses-sold'
 
 export interface HousesSoldSuccess {
   ok: true
@@ -52,6 +59,16 @@ export function clampRadius(raw: unknown): number {
 }
 
 /**
+ * Why a lookup has nothing worth caching. Thrown inside the cached function so
+ * unstable_cache stores nothing, then turned back into a failure result.
+ */
+class NotCached extends Error {
+  constructor(readonly code: 'invalid_postcode' | 'no_data') {
+    super(code)
+  }
+}
+
+/**
  * Core public lookup: for the most recent month of Land Registry data we hold,
  * how many homes sold within `radiusMiles` of `postcodeInput`, and at what
  * average price.
@@ -74,17 +91,37 @@ export async function lookupHousesSold(
     return { ok: false, code: 'bad_request', error: 'Please enter a postcode.' }
   }
 
-  const supabase = createAdminClient()
-
-  // 1. Geocode the postcode (postcodes.io + postcode_cache).
-  const geo = await geocodeSingleWithCache(postcodeInput)
-  if (!geo) {
+  try {
+    // "sw1a1aa" and "SW1A 1AA" share one cache entry.
+    return await cachedHousesSold(normalisePostcode(postcodeInput), radiusMiles)
+  } catch (err) {
+    if (!(err instanceof NotCached)) throw err
+    if (err.code === 'no_data') {
+      return { ok: false, code: 'no_data', error: 'No sales data is available yet.' }
+    }
     return {
       ok: false,
       code: 'invalid_postcode',
       error: `We couldn't find the postcode "${postcodeInput.trim()}". Please check it and try again.`,
     }
   }
+}
+
+// unstable_cache adds the arguments (normalised postcode, radius) to the key.
+// Failed geocodes, missing data and query errors all throw, so only real
+// answers are stored. It uses the service-role client, which reads no cookies.
+const cachedHousesSold = unstable_cache(computeHousesSold, ['houses-sold', 'v1'], {
+  revalidate: CACHE_SECONDS,
+  tags: [CACHE_TAG],
+})
+
+async function computeHousesSold(postcode: string, radiusMiles: number): Promise<HousesSoldSuccess> {
+  const supabase = createAdminClient()
+
+  // 1. Geocode the postcode (postcodes.io + postcode_cache). A miss here can
+  // also mean postcodes.io was down, so it must not be cached.
+  const geo = await geocodeSingleWithCache(postcode)
+  if (!geo) throw new NotCached('invalid_postcode')
 
   // 2. Derive the latest month of data from the data itself.
   const { data: latest, error: latestError } = await supabase
@@ -97,9 +134,7 @@ export async function lookupHousesSold(
   if (latestError) {
     throw new Error(`Failed to read latest month: ${latestError.message}`)
   }
-  if (!latest) {
-    return { ok: false, code: 'no_data', error: 'No sales data is available yet.' }
-  }
+  if (!latest) throw new NotCached('no_data')
   const month = latest.import_month as string
 
   // 3. Bounding-box pre-filter in SQL, exact Haversine in JS, aggregate as we go.

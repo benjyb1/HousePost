@@ -121,7 +121,8 @@ export function PostcardPreview({ frontUrl, backUrl, onAddBack, className }: Pos
                 <button
                   type="button"
                   onClick={onAddBack}
-                  className="inline-flex items-center gap-1 rounded-[3px] bg-navy px-2 py-1 text-[10px] font-semibold text-paper transition-colors hover:bg-navy-hi"
+                  // The button is small to fit the mini card; ::after gives it a 40px tap area.
+                  className="relative inline-flex items-center gap-1 rounded-[3px] bg-navy px-2 py-1 text-[10px] font-semibold text-paper transition-colors after:absolute after:-inset-x-1 after:-inset-y-2.5 after:content-[''] hover:bg-navy-hi"
                 >
                   <Plus className="h-3 w-3" />
                   Add a back

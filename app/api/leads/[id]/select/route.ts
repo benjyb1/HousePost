@@ -20,7 +20,8 @@ export async function PATCH(
     .eq('user_id', user.id) // RLS enforced; this is an extra safety check
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[leads/select]', error)
+    return NextResponse.json({ error: 'Could not update that home just now. Please try again.' }, { status: 500 })
   }
 
   return NextResponse.json({ success: true })

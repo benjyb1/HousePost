@@ -18,7 +18,8 @@ export async function POST(request: Request) {
     .eq('user_id', user.id)
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    console.error('[leads/archive]', error)
+    return NextResponse.json({ error: 'Could not archive those homes just now. Please try again.' }, { status: 500 })
   }
 
   return NextResponse.json({ archived: count })

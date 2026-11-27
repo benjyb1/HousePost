@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { HomeClient, type HomeLead } from '@/components/portal/home/HomeClient'
 import { AppBar } from '@/components/portal/AppBar'
 import { LeaveGuardProvider } from '@/components/layout/LeaveGuardProvider'
+import { pickPreviewIds } from '@/lib/leads/preview'
 
 /** The same "random" homes on every load. */
 function seededRandom(start: number) {
@@ -12,8 +13,10 @@ function seededRandom(start: number) {
 // Development-only: Home with example homes and no sign-in, for screenshots.
 // Never served in production.
 // ?n=2000 makes that many homes (to try Select all on a big list); ?r=15 sets the
-// saved distance (to see an older search wider than 10 miles).
-export default async function DevHome({ searchParams }: { searchParams: Promise<{ n?: string; r?: string }> }) {
+// saved distance (to see an older search wider than 10 miles); ?plan=none shows
+// it before subscribing, built the way the server builds it (five open homes,
+// the rest blank stand-ins).
+export default async function DevHome({ searchParams }: { searchParams: Promise<{ n?: string; r?: string; plan?: string }> }) {
   if (process.env.NODE_ENV === 'production') notFound()
   const q = await searchParams
   const count = Math.min(Math.max(Number(q.n) || 20, 1), 5000)
@@ -44,6 +47,19 @@ export default async function DevHome({ searchParams }: { searchParams: Promise<
     }
   })
 
+  const prefs = { radius: savedRadius, min: count > 20 ? null : 40000000, max: count > 20 ? null : 250000000, types: ['D', 'S', 'T', 'F', 'O'] }
+  const subscribed = q.plan !== 'none'
+  let shown = leads
+  if (!subscribed) {
+    const open = pickPreviewIds(leads.map((l) => ({ ...l })), prefs)
+    let hidden = 0
+    shown = leads.map((l) =>
+      open.has(l.id)
+        ? l
+        : { id: `locked-${++hidden}`, addressLine: '', postcode: '', price: null, propertyType: null, distance: null, soldOn: null, month: l.month, jobId: null, custom: false, lat: null, lng: null, locked: true }
+    )
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-paper text-ink">
       <LeaveGuardProvider>
@@ -51,10 +67,10 @@ export default async function DevHome({ searchParams }: { searchParams: Promise<
         <main className="flex-1">
           <HomeClient
             userId="dev"
-            leads={leads}
-            prefs={{ radius: savedRadius, min: count > 20 ? null : 40000000, max: count > 20 ? null : 250000000, types: ['D', 'S', 'T', 'F', 'O'] }}
+            leads={shown}
+            prefs={prefs}
             office={office}
-            subscribed
+            subscribed={subscribed}
             frontUrl={null}
             backUrl={null}
             used={1}
