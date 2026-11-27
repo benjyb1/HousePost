@@ -55,6 +55,10 @@
   font-weight: 500;
 }
 .navLinks a:not(.navBtn) {
+  /* a 40px-tall tap target; the bar centres it, so nothing moves */
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
   color: var(--color-ink);
   text-decoration: none;
 }
@@ -413,6 +417,14 @@
 .foot a {
   color: inherit;
   text-decoration: none;
+}
+/* Footer links: a 40px-tall tap target, with the extra height taken back by
+   negative margins so the footer keeps its spacing. */
+.foot nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  margin-block: -10px;
 }
 .foot a:hover {
   color: var(--color-ink);

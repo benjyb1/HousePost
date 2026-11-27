@@ -1,8 +1,16 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogCloseButton,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 interface Props {
   open: boolean
@@ -15,6 +23,7 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
   const [address, setAddress] = useState('')
   const [adding, setAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const addressRef = useRef<HTMLInputElement>(null)
 
   if (!open) return null
 
@@ -61,27 +70,32 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
 
   const canSubmit = address.trim() && postcode.trim()
 
+  // No closing (X, Escape, a click outside) while the address is being added.
+  const holdWhileAdding = (event: Event) => {
+    if (adding) event.preventDefault()
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="add-address-title"
-        className="w-full max-w-md rounded-lg border border-line bg-paper-hi text-ink shadow-[0_16px_36px_-18px_rgba(40,30,15,0.4)]"
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        if (!o && !adding) handleClose()
+      }}
+    >
+      <DialogContent
+        aria-describedby={undefined}
+        onEscapeKeyDown={holdWhileAdding}
+        onInteractOutside={holdWhileAdding}
+        onOpenAutoFocus={(event) => {
+          // Start in the address field rather than on the close button.
+          event.preventDefault()
+          addressRef.current?.focus()
+        }}
       >
-        <div className="flex items-center justify-between gap-4 border-b border-line py-3 pl-5 pr-3">
-          <h2 id="add-address-title" className="text-lg font-semibold leading-snug">
-            Add an address
-          </h2>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="grid size-10 shrink-0 place-items-center rounded-[3px] text-ink-2 transition-colors hover:bg-accent hover:text-ink focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-navy"
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
-        </div>
+        <DialogHeader>
+          <DialogTitle>Add an address</DialogTitle>
+          <DialogCloseButton disabled={adding} />
+        </DialogHeader>
 
         <div className="space-y-4 px-5 py-5">
           <div className="space-y-1.5">
@@ -89,13 +103,14 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
               Address
             </label>
             <input
+              ref={addressRef}
               id="add-address-line"
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               placeholder="e.g. 14 Croft Road, Godalming"
               autoComplete="off"
-              className="h-10 w-full rounded-md border border-line-2 bg-paper-hi px-3 text-[15px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2/70 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-solid focus-visible:outline-navy"
+              className="h-10 w-full rounded-md border border-line-2 bg-paper-hi px-3 text-base font-medium text-ink placeholder:font-normal placeholder:text-ink-2/70 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-solid focus-visible:outline-navy md:text-[15px]"
             />
           </div>
 
@@ -110,7 +125,7 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
               onChange={(e) => setPostcode(formatPostcode(e.target.value))}
               placeholder="e.g. GU7 1BE"
               autoComplete="off"
-              className="h-10 w-full rounded-md border border-line-2 bg-paper-hi px-3 text-[15px] font-medium text-ink placeholder:font-normal placeholder:text-ink-2/70 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-solid focus-visible:outline-navy sm:max-w-[200px]"
+              className="h-10 w-full rounded-md border border-line-2 bg-paper-hi px-3 text-base font-medium text-ink placeholder:font-normal placeholder:text-ink-2/70 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-solid focus-visible:outline-navy sm:max-w-[200px] md:text-[15px]"
             />
           </div>
 
@@ -121,16 +136,16 @@ export default function AddAddressModal({ open, onClose, onAdded }: Props) {
           )}
         </div>
 
-        <div className="flex flex-col-reverse gap-2 rounded-b-lg border-t border-line bg-paper px-5 py-4 sm:flex-row sm:justify-end">
-          <Button variant="ghost" onClick={handleClose}>
+        <DialogFooter>
+          <Button variant="ghost" onClick={handleClose} disabled={adding}>
             Cancel
           </Button>
           <Button onClick={handleAdd} disabled={!canSubmit || adding}>
             {adding && <Loader2 size={16} className="animate-spin" />}
             Add to your list
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

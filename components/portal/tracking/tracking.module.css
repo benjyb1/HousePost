@@ -82,7 +82,14 @@
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23535c57' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E")
     11px center / 16px no-repeat;
   color: var(--color-ink);
-  font: 500 15px/1 var(--font-sans);
+  /* 16px below 768px so iOS doesn't zoom into the field (as components/ui/input). */
+  font: 500 16px/1 var(--font-sans);
+}
+
+@media (min-width: 768px) {
+  .search {
+    font-size: 15px;
+  }
 }
 
 .search::placeholder {
@@ -430,8 +437,10 @@
   .row.noAct.noThumb .mini { grid-column: 1 / -1; }
   .row.noAct .act { display: none; }
 
+  /* A 40px tap target that still takes up only 32px of the row. */
   .row .action button {
-    min-height: 32px;
+    min-height: 40px;
+    margin-block: -4px;
   }
 
   .hold {

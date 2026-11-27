@@ -2,9 +2,17 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, X } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogCloseButton,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { ConfirmEmptyBackDialog } from '@/components/leads/ConfirmEmptyBackDialog'
 import { POSTCARD_COOL_OFF_MINUTES } from '@/types/profile'
 
@@ -89,7 +97,10 @@ export function useSendFlow({
   const [pendingLeadIds, setPendingLeadIds] = useState<string[]>([])
   const [order, setOrder] = useState<OrderResult | null>(null)
   const [sendError, setSendError] = useState<string | null>(null)
+  // The outcome of a cancel that went through. A cancel that failed goes in
+  // cancelError instead, so the Cancel order button stays up for another try.
   const [cancelInfo, setCancelInfo] = useState<string | null>(null)
+  const [cancelError, setCancelError] = useState<string | null>(null)
   // Whether the pending send re-targets already-sent leads ("Send again").
   const [pendingReactivate, setPendingReactivate] = useState(false)
   // Held send args while the "no back design" warning is up (null = not shown).
@@ -102,6 +113,7 @@ export function useSendFlow({
     setOrder(null)
     setSendError(null)
     setCancelInfo(null)
+    setCancelError(null)
     setPendingReactivate(false)
   }
 
@@ -122,6 +134,7 @@ export function useSendFlow({
     }
     setSendError(null)
     setCancelInfo(null)
+    setCancelError(null)
     setOrder(null)
     setPendingReactivate(reactivate)
     setSendState('previewing')
@@ -200,6 +213,7 @@ export function useSendFlow({
   // Cancel a held order inside its cool-off window and refund any paid cards.
   async function cancelOrder() {
     if (!order) return
+    setCancelError(null)
     setSendState('cancelling')
     try {
       const res = await fetch('/api/postcards/cancel', {
@@ -218,10 +232,10 @@ export function useSendFlow({
         )
         toast.success('Order cancelled')
       } else {
-        setCancelInfo(data.error ?? 'This order can no longer be cancelled.')
+        setCancelError(data.error ?? 'This order can no longer be cancelled.')
       }
     } catch {
-      setCancelInfo('Could not cancel the order. Please try again.')
+      setCancelError('Could not cancel the order. Please try again.')
     }
     setSendState('held')
   }
@@ -234,6 +248,7 @@ export function useSendFlow({
         order={order}
         error={sendError}
         cancelInfo={cancelInfo}
+        cancelError={cancelError}
         reactivate={pendingReactivate}
         onConfirm={confirmSend}
         onCancelOrder={cancelOrder}
@@ -265,6 +280,7 @@ function SendModal({
   order,
   error,
   cancelInfo,
+  cancelError,
   reactivate,
   onConfirm,
   onCancelOrder,
@@ -275,6 +291,7 @@ function SendModal({
   order: OrderResult | null
   error: string | null
   cancelInfo: string | null
+  cancelError: string | null
   reactivate: boolean
   onConfirm: () => void
   onCancelOrder: () => void
@@ -286,16 +303,23 @@ function SendModal({
   const canConfirm =
     !!preview && preview.quantity > 0 && preview.designsReady && !preview.wouldExceedCap
 
+  // While a preview, order or cancel is in flight the dialog can't be closed
+  // (X, Escape or a click outside). Closing it mid-request used to hide it,
+  // then the reply brought it back, after the order had already gone through.
+  const holdWhileBusy = (event: Event) => {
+    if (busy) event.preventDefault()
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="send-modal-title"
-        className="w-full max-w-md rounded-lg border border-line bg-paper-hi text-ink shadow-[0_16px_36px_-18px_rgba(40,30,15,0.4)]"
-      >
-        <div className="flex items-center justify-between gap-4 border-b border-line py-3 pl-5 pr-3">
-          <h2 id="send-modal-title" className="text-lg font-semibold leading-snug">
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !busy) onClose()
+      }}
+    >
+      <DialogContent aria-describedby={undefined} onEscapeKeyDown={holdWhileBusy} onInteractOutside={holdWhileBusy}>
+        <DialogHeader>
+          <DialogTitle>
             {state === 'held' || state === 'cancelling'
               ? cancelInfo
                 ? 'Your order'
@@ -303,16 +327,9 @@ function SendModal({
               : reactivate
                 ? 'Send again'
                 : 'Check your order'}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="grid size-10 shrink-0 place-items-center rounded-[3px] text-ink-2 transition-colors hover:bg-accent hover:text-ink focus-visible:outline-2 focus-visible:outline-solid focus-visible:outline-navy"
-            aria-label="Close"
-          >
-            <X size={20} />
-          </button>
-        </div>
+          </DialogTitle>
+          <DialogCloseButton disabled={busy} />
+        </DialogHeader>
 
         <div className="space-y-3 px-5 py-5 text-[15px] leading-normal">
           {/* Preparing preview */}
@@ -383,6 +400,11 @@ function SendModal({
                   {order.payable > 0 && (
                     <p className="text-[14px] text-ink-2">{order.costFormatted} charged to your saved card.</p>
                   )}
+                  {cancelError && (
+                    <p role="alert" className="text-[14px] text-[#8a3324]">
+                      {cancelError}
+                    </p>
+                  )}
                 </>
               ) : (
                 <p>{cancelInfo}</p>
@@ -391,7 +413,7 @@ function SendModal({
           )}
         </div>
 
-        <div className="flex flex-col-reverse gap-2 rounded-b-lg border-t border-line bg-paper px-5 py-4 sm:flex-row sm:justify-end">
+        <DialogFooter>
           {(state === 'confirm' || state === 'confirming') && (
             <>
               <Button variant="ghost" onClick={onClose} disabled={busy}>
@@ -412,11 +434,13 @@ function SendModal({
                   Cancel order
                 </Button>
               )}
-              <Button onClick={onClose}>Done</Button>
+              <Button onClick={onClose} disabled={busy}>
+                Done
+              </Button>
             </>
           )}
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

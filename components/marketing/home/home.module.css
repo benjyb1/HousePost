@@ -92,6 +92,10 @@
 .navLinks a:not(.btn) {
   color: var(--color-ink);
   text-decoration: none;
+  /* A 40px tap area without moving the text (the bar is centred). */
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
 }
 .navLinks a:not(.btn):hover {
   color: var(--color-navy);
@@ -440,12 +444,20 @@
 .foot nav {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 22px;
+  gap: 0 22px;
   justify-content: flex-end;
+  /* The links' 40px tap height is mostly air; pull it back so the footer
+     keeps its spacing. */
+  margin-block: -10px;
 }
 .foot a {
   color: inherit;
   text-decoration: none;
+  /* 40px tall to tap. Rows of links sit edge to edge (no row gap), so the
+     tap areas never overlap when they wrap on a phone. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
 }
 .foot a:hover {
   color: var(--color-ink);
