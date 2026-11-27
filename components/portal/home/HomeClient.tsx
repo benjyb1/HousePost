@@ -115,19 +115,28 @@ function dedupeByAddress(list: HomeLead[]) {
 
 const PAGE_ROWS = 50
 
+/** Made-up text shown blurred in place of a home you can't see yet. */
+const STAND_INS: [string, string, string][] = [
+  ['12 Hidden Road, Nearby', 'Semi-detached · 1.2 mi · Sold recently', '£000,000'],
+  ['3 Somewhere Close, Near you', 'Terraced · 0.8 mi · Sold recently', '£000,000'],
+  ['The Old House, Lane End', 'Detached · 2.4 mi · Sold recently', '£0,000,000'],
+  ['Flat 4, 27 High Street', 'Flat · 1.6 mi · Sold recently', '£000,000'],
+]
+
 /** One home in the list. Memoised, so hovering one row doesn't redraw the others. */
 const LeadRow = memo(function LeadRow({ lead: l, on, hot, locked, onToggle, onHot }: { lead: HomeLead; on: boolean; hot: boolean; locked: boolean; onToggle: (id: string) => void; onHot: (id: string | null) => void }) {
   if (l.locked) {
     // Stand-in text under the blur; the real home isn't on the page.
+    const v = STAND_INS[(Number(l.id.replace(/\D/g, '')) || 0) % STAND_INS.length]
     return (
       <li>
         <div className={`${s.row} ${s.locked}`} aria-label="A home you can see once you subscribe" role="group">
           <input className={s.cb} type="checkbox" checked={false} disabled readOnly aria-hidden="true" tabIndex={-1} />
           <span className={s.addr} aria-hidden="true">
-            <span className={s.street}>12 Hidden Road, Nearby</span>
-            <span className={s.meta}>Semi-detached · 1.2 mi · Sold recently</span>
+            <span className={s.street}>{v[0]}</span>
+            <span className={s.meta}>{v[1]}</span>
           </span>
-          <span className={s.price} aria-hidden="true">£000,000</span>
+          <span className={s.price} aria-hidden="true">{v[2]}</span>
         </div>
       </li>
     )

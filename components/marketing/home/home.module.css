@@ -92,10 +92,12 @@
 .navLinks a:not(.btn) {
   color: var(--color-ink);
   text-decoration: none;
-  /* A 40px tap area without moving the text (the bar is centred). */
-  display: inline-flex;
-  align-items: center;
-  min-height: 40px;
+  white-space: nowrap;
+  /* A 40px+ tap area without moving anything: the padding grows the link,
+     the negative margin gives the space back. (No display here, so .wide
+     can still hide links on phones.) */
+  padding-block: 10px;
+  margin-block: -10px;
 }
 .navLinks a:not(.btn):hover {
   color: var(--color-navy);
