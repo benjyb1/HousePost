@@ -7,16 +7,18 @@ import { sendAdminAlert } from '@/lib/email/resend'
 import {
   classifyDispatchError,
   describeCategory,
+  isUnconfirmedDispatch,
   retryDelayMinutes,
   MAX_RETRIES,
 } from '@/lib/postcards/failure'
 import { getPrintBalancePence, lowBalancePence } from '@/lib/postcards/stannp-account'
-import { shouldAlert, clearAlert } from '@/lib/ops/state'
+import { shouldAlert, markAlerted, clearAlert } from '@/lib/ops/state'
 import {
   notifyCustomersDelayed,
   notifyCustomersFailed,
   type AffectedCard,
 } from '@/lib/postcards/customer-notify'
+import { verifyCronRequest } from '@/lib/cron/auth'
 
 export const maxDuration = 60
 
@@ -24,6 +26,12 @@ export const maxDuration = 60
 // call takes a moment. Any backlog beyond this drains on the next run (the
 // schedule fires every 5 minutes).
 const MAX_ORDERS_PER_RUN = 100
+
+// Stop claiming new cards this far into a run. A Stannp call can take up to
+// STANNP_TIMEOUT_MS (20s), so the last card finishes inside maxDuration (60s)
+// instead of the function being killed mid-send, which would leave the card
+// in 'dispatching' with nobody knowing whether it printed.
+const CLAIM_DEADLINE_MS = 35_000
 
 // A row that has been in 'dispatching' longer than this almost certainly crashed
 // mid-send (between the atomic claim and the status write). We alert on these but
@@ -42,11 +50,6 @@ const STUCK_PENDING_MINUTES = 20
 // failures (address/design) and the first sight of a new problem always email.
 const DELAYED_ALERT_MINUTES = 60
 const LOW_BALANCE_ALERT_MINUTES = 24 * 60
-
-function verifyCronSecret(request: Request): boolean {
-  const auth = request.headers.get('authorization')
-  return auth === `Bearer ${process.env.CRON_SECRET}`
-}
 
 function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -77,10 +80,11 @@ function escapeHtml(value: string): string {
  *     design change during the cool-off cannot alter what actually goes out.
  */
 export async function POST(request: Request) {
-  if (!verifyCronSecret(request)) {
+  if (!verifyCronRequest(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const startedAt = Date.now()
   const supabase = createAdminClient()
   const nowIso = new Date().toISOString()
 
@@ -112,6 +116,7 @@ export async function POST(request: Request) {
             account for each before deciding whether to mark them dispatched or failed:</p>
            <pre>${ids.join('\n')}</pre>`
         )
+        await markAlerted(supabase, 'stuck-dispatching')
       } catch (alertErr) {
         console.error('Release cron: failed to send stuck-dispatching alert:', alertErr)
       }
@@ -145,6 +150,7 @@ export async function POST(request: Request) {
             ambiguous. Check Stripe for each batch before deciding whether to release, refund, or free
             the leads:</p><pre>${ids.join('\n')}</pre>`
         )
+        await markAlerted(supabase, 'stuck-pending')
       } catch (alertErr) {
         console.error('Release cron: failed to send stuck-pending alert:', alertErr)
       }
@@ -165,6 +171,7 @@ export async function POST(request: Request) {
     .limit(MAX_ORDERS_PER_RUN)
 
   if (dueErr) {
+    console.error('Release cron: could not read due orders:', dueErr)
     return NextResponse.json({ error: dueErr.message }, { status: 500 })
   }
 
@@ -176,9 +183,20 @@ export async function POST(request: Request) {
   const delayedCards: AffectedCard[] = []
   const failedCards: AffectedCard[] = []
   const rawErrors: { jobId: string; category: string; error: string; retry: number }[] = []
+  // Cards whose print request went out but whose outcome we couldn't confirm,
+  // and cards that printed but whose 'dispatched' write failed. Both stay in
+  // 'dispatching' (never retried) and go to the admin straight away.
+  const needsReview: { jobId: string; detail: string }[] = []
+  let deferred = 0
 
   for (const job of due ?? []) {
     const jobId = job.id as string
+
+    if (Date.now() - startedAt > CLAIM_DEADLINE_MS) {
+      // Out of time for this run; the rest stay 'held' and go on the next one.
+      deferred++
+      continue
+    }
 
     // Atomically claim the row so a concurrent cancel (or overlapping cron run)
     // can't also act on it. Only a row still 'held' is claimable.
@@ -219,14 +237,39 @@ export async function POST(request: Request) {
         .digest('hex')
         .slice(0, 40)
 
-      const { id: postcardId, status } = await sendPostcard({
-        to: recipient,
-        frontUrl,
-        backUrl,
-        tag: idempotencyKey,
-      })
+      let sent: { id: string; status: string }
+      try {
+        sent = await sendPostcard({
+          to: recipient,
+          frontUrl,
+          backUrl,
+          // Searchable in Stannp's reporting, so an unclear order can be found by job.
+          tags: [idempotencyKey, jobId],
+        })
+      } catch (sendErr) {
+        if (!isUnconfirmedDispatch(sendErr)) throw sendErr
+        // The request went out and we can't tell whether Stannp created the
+        // order. Leave the card in 'dispatching': it is never retried from
+        // there, and the ops page lists it under "Stuck".
+        const msg = sendErr instanceof Error ? sendErr.message : String(sendErr)
+        console.error(`Release dispatch outcome unknown for job ${jobId}:`, msg)
+        const { error: noteErr } = await supabase
+          .from('postcard_jobs')
+          .update({
+            last_error: `Outcome unknown, not retried: ${msg}`,
+            last_error_at: new Date().toISOString(),
+            failure_category: 'printer',
+          })
+          .eq('id', jobId)
+          .eq('status', 'dispatching')
+        if (noteErr) console.error(`Release cron: could not note unknown outcome for ${jobId}:`, noteErr)
+        needsReview.push({ jobId, detail: `print request sent, outcome unknown (Stannp tags ${idempotencyKey}, ${jobId}): ${msg}` })
+        reasons.push(`${jobId}: outcome unknown, left for review: ${msg}`)
+        continue
+      }
+      const { id: postcardId, status } = sent
 
-      await supabase
+      const { error: recordErr } = await supabase
         .from('postcard_jobs')
         .update({
           postgrid_letter_id: postcardId,
@@ -239,6 +282,15 @@ export async function POST(request: Request) {
           failure_category: null,
         })
         .eq('id', jobId)
+      if (recordErr) {
+        // Printed, but not recorded. The row stays 'dispatching', which is
+        // never retried, so it can't print twice; tell the admin the id.
+        console.error(`Release cron: job ${jobId} printed as ${postcardId} but the write failed:`, recordErr)
+        needsReview.push({ jobId, detail: `printed as Stannp order ${postcardId} (${status}), but marking it dispatched failed: ${recordErr.message}` })
+        reasons.push(`${jobId}: printed as ${postcardId}, record failed`)
+        dispatched++
+        continue
+      }
 
       dispatched++
     } catch (err) {
@@ -262,7 +314,7 @@ export async function POST(request: Request) {
         const releaseAt = new Date(
           Date.now() + retryDelayMinutes(nextRetry) * 60_000
         ).toISOString()
-        await supabase
+        const { error: heldErr } = await supabase
           .from('postcard_jobs')
           .update({
             status: 'held',
@@ -274,6 +326,11 @@ export async function POST(request: Request) {
             failure_category: outcome.category,
           })
           .eq('id', jobId)
+        if (heldErr) {
+          // Not sent, but stuck in 'dispatching' until someone puts it back.
+          console.error(`Release cron: could not put job ${jobId} back to held:`, heldErr)
+          needsReview.push({ jobId, detail: `NOT printed (${msg}); putting it back in the queue failed: ${heldErr.message}. Safe to set status back to held.` })
+        }
         delayed++
         reasons.push(`${jobId}: delayed (${outcome.category}, retry ${nextRetry}) ${msg}`)
         // Tell the customer once, on the first delay — not on every retry.
@@ -282,7 +339,7 @@ export async function POST(request: Request) {
       }
 
       // ── This card cannot go: fail it and make the customer whole ─────────
-      await supabase
+      const { error: failErr } = await supabase
         .from('postcard_jobs')
         .update({
           status: 'failed',
@@ -293,6 +350,14 @@ export async function POST(request: Request) {
           last_error_at: new Date().toISOString(),
         })
         .eq('id', jobId)
+      if (failErr) {
+        // Don't refund or free the lead for a row the database still shows as
+        // sending; a person finishes this one.
+        console.error(`Release cron: could not mark job ${jobId} failed:`, failErr)
+        needsReview.push({ jobId, detail: `NOT printed (${msg}); marking it failed didn't save (${failErr.message}), so no refund or unwind was done.` })
+        failed++
+        continue
+      }
 
       // The card was NOT sent, so refund any up-front charge on this row and free
       // the lead so it returns to New leads. Without this a failed paid card
@@ -352,6 +417,22 @@ export async function POST(request: Request) {
     }
   }
 
+  if (needsReview.length > 0) {
+    // Every one of these needs a person, so no rate limit.
+    try {
+      await sendAdminAlert(
+        `[Housepost] ${needsReview.length} postcard(s) need checking before anything else is done`,
+        `<p>These cards were handed to the printer but the result is unclear, or they printed and the
+          database write failed. They are left in <code>dispatching</code> and will <strong>not</strong> be
+          retried automatically, because sending again could print them twice. Search the print account's
+          reporting for the job id (it is sent as a tag), then mark each one dispatched or failed.</p>
+         <pre>${escapeHtml(needsReview.map((r) => `${r.jobId}: ${r.detail}`).join('\n'))}</pre>`
+      )
+    } catch (alertErr) {
+      console.error('Release cron: failed to send needs-review alert:', alertErr)
+    }
+  }
+
   // ── Tell people ─────────────────────────────────────────────────────────
   // Customers: one notification per batch, best-effort.
   try {
@@ -385,6 +466,7 @@ export async function POST(request: Request) {
              <tr><th>Job</th><th>Category</th><th>Retries so far</th><th>Raw error</th></tr>${rows}
            </table>`
         )
+        for (const c of categories) await markAlerted(supabase, `dispatch-${c}`)
       } catch (alertErr) {
         console.error('Release cron: failed to send dispatch alert:', alertErr)
       }
@@ -411,6 +493,7 @@ export async function POST(request: Request) {
             cannot cover them. Top up from <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.housepost.co.uk'}/admin/ops">/admin/ops</a>
             or switch on auto top-up in the print account.</p>`
         )
+        await markAlerted(supabase, 'low-balance')
       }
     } else if (balancePence !== null) {
       await clearAlert(supabase, 'low-balance')
@@ -426,6 +509,8 @@ export async function POST(request: Request) {
     delayed,
     failed,
     skipped,
+    deferred,
+    needsReview: needsReview.length,
     balancePence,
     ...(reasons.length > 0 ? { reasons } : {}),
   })

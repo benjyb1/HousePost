@@ -8,6 +8,8 @@ export interface AccountData {
   emailNotifications: boolean
   subscriptionStatus: string
   subscriptionPeriodEnd: string | null
+  /** A Stripe subscription exists and hasn't ended (overdue, unpaid and paused count). */
+  hasSubscription: boolean
 }
 
 /** Read the JSON body of a failed request without throwing on an empty one. */

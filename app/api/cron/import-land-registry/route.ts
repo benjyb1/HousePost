@@ -3,16 +3,12 @@ import { isWithinRunWindow, toMonthKey } from '@/lib/cron/schedule'
 import { runImport } from '@/lib/land-registry/importer'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendAdminImportFailureAlert } from '@/lib/email/resend'
+import { verifyCronRequest } from '@/lib/cron/auth'
 
 export const maxDuration = 60
 
-function verifyCronSecret(request: Request): boolean {
-  const auth = request.headers.get('authorization')
-  return auth === `Bearer ${process.env.CRON_SECRET}`
-}
-
 export async function POST(request: Request) {
-  if (!verifyCronSecret(request)) {
+  if (!verifyCronRequest(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

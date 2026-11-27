@@ -25,6 +25,19 @@ function escapeHtml(value: string): string {
 }
 
 /**
+ * Send through Resend and throw if it didn't go. Resend v6 reports failures
+ * in the returned `{ error }` rather than throwing, so without this a failed
+ * email looked like a sent one and every caller's try/catch was skipped.
+ */
+async function sendOrThrow(
+  client: Resend,
+  payload: Parameters<Resend['emails']['send']>[0]
+): Promise<void> {
+  const { error } = await client.emails.send(payload)
+  if (error) throw new Error(`Resend: ${error.name ?? 'error'}: ${error.message}`)
+}
+
+/**
  * Send the monthly "your leads are ready" notification email.
  */
 export async function sendLeadsReadyEmail(params: {
@@ -47,7 +60,7 @@ export async function sendLeadsReadyEmail(params: {
       </p>`
     : ''
 
-  await resend.emails.send({
+  await sendOrThrow(resend, {
     from: FROM,
     to,
     subject: `Your ${leadCount} new lead${leadCount === 1 ? '' : 's'} for ${monthLabel} ${leadCount === 1 ? 'is' : 'are'} ready`,
@@ -115,7 +128,7 @@ export async function sendNotificationEmail(params: {
     ? `<p>${escapeHtml(body)}</p>`
     : ''
 
-  await resend.emails.send({
+  await sendOrThrow(resend, {
     from: FROM,
     to,
     subject: title,
@@ -175,7 +188,7 @@ export async function sendAdminAlert(
   // must reach a human.
   const adminEmail = process.env.ADMIN_ALERT_EMAIL ?? 'info@housepost.co.uk'
 
-  await resend.emails.send({
+  await sendOrThrow(resend, {
     from: FROM,
     to: adminEmail,
     subject,

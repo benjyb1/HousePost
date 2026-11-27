@@ -7,6 +7,11 @@ import { INCLUDED_POSTCARDS_PER_MONTH, POSTCARD_OVERAGE_PENCE } from '@/types/pr
 /**
  * Get or create a Stripe Customer for the given user.
  * Stores the customer ID in the profiles table.
+ *
+ * Safe to call from two tabs at once: the create carries an idempotency key
+ * per user (and per name and email, which Stripe requires to match), so both
+ * calls get the same customer back, and the id is only written if the profile
+ * has none yet. Whatever the profile holds afterwards is what we use.
  */
 export async function getOrCreateStripeCustomer(
   userId: string,
@@ -16,24 +21,51 @@ export async function getOrCreateStripeCustomer(
   const supabase = createAdminClient()
   const stripe = getStripe()
 
-  const { data: profile } = await supabase
+  const { data: profile, error: readErr } = await supabase
     .from('profiles')
     .select('stripe_customer_id')
     .eq('id', userId)
     .single()
+  if (readErr) throw new Error(`Could not read profile ${userId}: ${readErr.message}`)
 
   if (profile?.stripe_customer_id) {
     return profile.stripe_customer_id as string
   }
 
-  const customer = await stripe.customers.create({ email, name })
+  const key = createHash('sha256').update(`${userId}:${email}:${name}`).digest('hex').slice(0, 32)
+  const customer = await stripe.customers.create(
+    { email, name, metadata: { userId } },
+    { idempotencyKey: `customer-create:${key}` }
+  )
 
-  await supabase
+  const { error: writeErr } = await supabase
     .from('profiles')
     .update({ stripe_customer_id: customer.id })
     .eq('id', userId)
+    .is('stripe_customer_id', null)
+  if (writeErr) throw new Error(`Could not save the Stripe customer for ${userId}: ${writeErr.message}`)
 
-  return customer.id
+  // Another request may have saved a different customer first (outside the
+  // idempotency window). Use whichever the profile holds.
+  const { data: after, error: rereadErr } = await supabase
+    .from('profiles')
+    .select('stripe_customer_id')
+    .eq('id', userId)
+    .single()
+  if (rereadErr) throw new Error(`Could not re-read profile ${userId}: ${rereadErr.message}`)
+  return (after?.stripe_customer_id as string | null) ?? customer.id
+}
+
+/** Stripe statuses where the subscription still exists and should be managed, not replaced. */
+const LIVE_SUBSCRIPTION_STATUSES = new Set(['active', 'trialing', 'past_due', 'unpaid', 'paused', 'incomplete'])
+
+/**
+ * The customer's current subscription, if they have one that hasn't ended.
+ * Used to stop a second subscription being started at checkout.
+ */
+export async function findLiveSubscription(customerId: string): Promise<Stripe.Subscription | null> {
+  const subs = await getStripe().subscriptions.list({ customer: customerId, status: 'all', limit: 20 })
+  return subs.data.find((sub) => LIVE_SUBSCRIPTION_STATUSES.has(sub.status)) ?? null
 }
 
 /**

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { verifyCronRequest } from '@/lib/cron/auth'
 
 export const maxDuration = 60
 
@@ -7,11 +8,6 @@ export const maxDuration = 60
 // obvious and easy to tune.
 const ARCHIVE_AFTER_MONTHS = 3 // unused leads are archived once this old
 const DELETE_AFTER_MONTHS = 3 // archived leads are deleted this long after archiving
-
-function verifyCronSecret(request: Request): boolean {
-  const auth = request.headers.get('authorization')
-  return auth === `Bearer ${process.env.CRON_SECRET}`
-}
 
 /** now minus `months` calendar months, as an ISO timestamp. */
 function monthsAgoIso(months: number): string {
@@ -40,7 +36,7 @@ function monthsAgoIso(months: number): string {
  * route never touches.
  */
 export async function POST(request: Request) {
-  if (!verifyCronSecret(request)) {
+  if (!verifyCronRequest(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

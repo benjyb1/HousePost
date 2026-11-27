@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { safeRedirectPath } from '@/lib/auth/safe-redirect'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -33,17 +34,13 @@ export default function LoginPage() {
     // loading stays true until this page unloads, so the spinner persists
     // through the redirect instead of flicking back to "Sign in".
     const requested = new URLSearchParams(window.location.search).get('redirectTo')
-    const dest =
-      requested && requested.startsWith('/') && !requested.startsWith('//')
-        ? requested
-        : '/dashboard'
-    window.location.assign(dest)
+    window.location.assign(safeRedirectPath(requested, '/dashboard', window.location.origin))
   }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-[22px] tracking-[-0.01em]">Sign in</CardTitle>
+        <CardTitle as="h1" className="text-[22px] tracking-[-0.01em]">Sign in</CardTitle>
       </CardHeader>
       <form onSubmit={handleLogin} className="flex flex-col gap-6">
         <CardContent className="space-y-4">

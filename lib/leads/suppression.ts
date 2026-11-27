@@ -27,6 +27,8 @@ export async function loadSuppressionKeys(
     const { data, error } = await supabase
       .from('suppression_list')
       .select('address_key, premises_key')
+      // A stable order, so no row is skipped or repeated between pages.
+      .order('id')
       .range(from, from + PAGE - 1)
 
     if (error) {

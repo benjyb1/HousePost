@@ -1,8 +1,14 @@
 export const dynamic = 'force-dynamic'
 
+import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { createClient, getSessionUser } from '@/lib/supabase/server'
 import { AccountView } from '@/components/portal/account/AccountView'
+
+export const metadata: Metadata = {
+  title: 'Account',
+  description: 'Your details, business, billing and password.',
+}
 
 // Account now holds what Settings used to (name, business, office postcode,
 // emails) as well as billing, password and account deletion. Lead preferences
@@ -13,7 +19,7 @@ export default async function AccountPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, company_name, office_postcode, email_notifications, subscription_status, subscription_period_end')
+    .select('full_name, company_name, office_postcode, email_notifications, subscription_status, subscription_period_end, stripe_subscription_id')
     .eq('id', user.id)
     .single()
 
@@ -28,6 +34,9 @@ export default async function AccountPage() {
         emailNotifications: profile?.email_notifications !== false,
         subscriptionStatus: (profile?.subscription_status as string | null) ?? 'incomplete',
         subscriptionPeriodEnd: (profile?.subscription_period_end as string | null) ?? null,
+        hasSubscription:
+          !!profile?.stripe_subscription_id &&
+          !['canceled', 'incomplete_expired'].includes((profile?.subscription_status as string | null) ?? ''),
       }}
     />
   )

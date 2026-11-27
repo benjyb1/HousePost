@@ -2,18 +2,22 @@ import { NextResponse } from 'next/server'
 import { isWithinRunWindow, toMonthKey } from '@/lib/cron/schedule'
 import { generateLeadsForAllUsers } from '@/lib/leads/generator'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { sendLeadsReadyEmail, sendAdminAlert } from '@/lib/email/resend'
-import { createNotification } from '@/lib/notifications'
+import { sendAdminAlert } from '@/lib/email/resend'
+import { sendLeadDropEmails } from '@/lib/leads/drop-emails'
+import { verifyCronRequest } from '@/lib/cron/auth'
 
 export const maxDuration = 60
 
-function verifyCronSecret(request: Request): boolean {
-  const auth = request.headers.get('authorization')
-  return auth === `Bearer ${process.env.CRON_SECRET}`
-}
+// Another run that started this recently is taken to be still going (the
+// GitHub script can take up to 30 minutes). An older 'started' row is a run
+// that died, and doesn't block a new one.
+const RUN_IN_PROGRESS_MINUTES = 120
+// Stop starting new email batches this far in, so the function isn't killed
+// mid-send. Anyone not reached is emailed by the next run.
+const EMAIL_DEADLINE_MS = 45_000
 
 export async function POST(request: Request) {
-  if (!verifyCronSecret(request)) {
+  if (!verifyCronRequest(request)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -30,18 +34,43 @@ export async function POST(request: Request) {
 
   const supabase = createAdminClient()
 
-  // Prevent double-execution
-  const { data: existingRun } = await supabase
+  // Prevent double-execution: a finished run this month, or one still going.
+  const { data: existingRun, error: existingErr } = await supabase
+    .from('pipeline_runs')
+    .select('id, status, started_at')
+    .eq('run_type', 'lead_generation')
+    .eq('import_month', leadMonth)
+    .in('status', ['completed', 'started'])
+    .order('started_at', { ascending: false })
+    .limit(5)
+  if (existingErr) {
+    console.error('Lead generation: could not check earlier runs:', existingErr)
+    return NextResponse.json({ error: 'Could not check earlier runs' }, { status: 500 })
+  }
+  if ((existingRun ?? []).some((r) => r.status === 'completed')) {
+    return NextResponse.json({ skipped: true, reason: 'Already run this month', leadMonth })
+  }
+  const busySince = Date.now() - RUN_IN_PROGRESS_MINUTES * 60_000
+  if ((existingRun ?? []).some((r) => r.status === 'started' && Date.parse(r.started_at as string) > busySince)) {
+    return NextResponse.json({ skipped: true, reason: 'Another run is in progress', leadMonth })
+  }
+
+  // The import must have finished first. Checked before the run is recorded,
+  // so waiting for it doesn't leave a 'started' row behind.
+  const { data: importRun } = await supabase
     .from('pipeline_runs')
     .select('id')
-    .eq('run_type', 'lead_generation')
+    .eq('run_type', 'land_registry_import')
     .eq('import_month', leadMonth)
     .eq('status', 'completed')
     .limit(1)
     .maybeSingle()
 
-  if (existingRun) {
-    return NextResponse.json({ skipped: true, reason: 'Already run this month', leadMonth })
+  if (!importRun) {
+    return NextResponse.json(
+      { error: 'Land Registry import has not completed for this month yet' },
+      { status: 409 }
+    )
   }
 
   const { data: runRow } = await supabase
@@ -58,66 +87,31 @@ export async function POST(request: Request) {
   const startedAt = Date.now()
 
   try {
-    // Check that the import ran first
-    const { data: importRun } = await supabase
-      .from('pipeline_runs')
-      .select('id')
-      .eq('run_type', 'land_registry_import')
-      .eq('import_month', leadMonth)
-      .eq('status', 'completed')
-      .limit(1)
-      .maybeSingle()
-
-    if (!importRun) {
-      return NextResponse.json(
-        { error: 'Land Registry import has not completed for this month yet' },
-        { status: 409 }
-      )
-    }
-
     const result = await generateLeadsForAllUsers(leadMonth)
 
-    // Send notification emails to each user
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, email, full_name')
-      .in('subscription_status', ['active', 'trialing'])
+    // "Your homes are ready" emails and notifications, once per user per month.
+    const emails = await sendLeadDropEmails(supabase, leadMonth, result.perUser, {
+      notify: true,
+      deadline: startedAt + EMAIL_DEADLINE_MS,
+    })
+    const emailsSent = emails.sent
 
-    let emailsSent = 0
-    for (const profile of profiles ?? []) {
-      const { count } = await supabase
-        .from('leads')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', profile.id)
-        .eq('lead_month', leadMonth)
-
-      if ((count ?? 0) === 0) continue
-
-      const userResult = result.perUser[profile.id as string]
-      try {
-        await sendLeadsReadyEmail({
-          to: profile.email as string,
-          name: profile.full_name as string,
-          leadCount: count ?? 0,
-          monthKey: leadMonth,
-          hitMaxRadius: userResult?.hitMaxRadius ?? false,
-          radiusUsed: userResult?.radiusUsed ?? 10,
+    if (emails.deferred > 0) {
+      // Out of time. Leave the run open to the next invocation, which skips
+      // everyone already emailed.
+      await supabase
+        .from('pipeline_runs')
+        .update({
+          status: 'failed',
+          completed_at: new Date().toISOString(),
+          duration_seconds: Math.round((Date.now() - startedAt) / 1000),
+          users_processed: result.usersProcessed,
+          leads_generated: result.totalLeads,
+          emails_sent: emailsSent,
+          error_message: `Stopped early: ${emails.deferred} subscriber(s) still to email. The next run carries on without re-emailing anyone.`,
         })
-        emailsSent++
-      } catch (e) {
-        console.error(`Failed to send email to ${profile.email}:`, e)
-      }
-
-      // Record an in-app notification for the drop. sendEmail:false because the
-      // dedicated leads-ready email above already covers the email side.
-      const leadCount = count ?? 0
-      await createNotification({
-        userId: profile.id as string,
-        type: 'leads_dropped',
-        title: `${leadCount} new lead${leadCount === 1 ? '' : 's'} just dropped`,
-        href: '/leads',
-        sendEmail: false,
-      })
+        .eq('id', runId)
+      return NextResponse.json({ success: false, partial: true, leadMonth, ...result, ...emails }, { status: 202 })
     }
 
     await supabase

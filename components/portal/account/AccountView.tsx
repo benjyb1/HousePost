@@ -28,7 +28,7 @@ export function AccountView({ data, note }: { data: AccountData; note?: string }
         </div>
 
         <div className={s.acc}>
-          <PlanPanel status={data.subscriptionStatus} periodEnd={data.subscriptionPeriodEnd} />
+          <PlanPanel status={data.subscriptionStatus} periodEnd={data.subscriptionPeriodEnd} hasSubscription={data.hasSubscription} />
 
           <BusinessPanel
             email={data.email}

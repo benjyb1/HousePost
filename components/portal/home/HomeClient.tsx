@@ -9,6 +9,7 @@ import { formatAddressLine, formatPostcode } from '@/lib/address/format'
 import { addressKey } from '@/lib/address/normalise'
 import { formatDayMonth } from '@/lib/utils/date'
 import { INCLUDED_POSTCARDS_PER_MONTH, POSTCARD_OVERAGE_PENCE } from '@/types/profile'
+import { matchesPrefs, PREVIEW_LIMIT } from '@/lib/leads/preview'
 import { useSendFlow } from '@/components/postcards/SendFlow'
 import AddAddressModal from '@/components/leads/AddAddressModal'
 import type { MapLead } from './LeadsMap'
@@ -34,6 +35,8 @@ export type HomeLead = {
   custom: boolean
   lat: number | null
   lng: number | null
+  /** Before subscribing: a blank stand-in for a home the server didn't send. */
+  locked?: boolean
 }
 export type Prefs = { radius: number; min: number | null; max: number | null; types: string[] }
 
@@ -57,7 +60,7 @@ const PRICES = (() => {
   return a.concat([300000, 325000, 350000, 375000, 400000, 425000, 450000, 475000, 500000, 550000, 600000, 650000, 700000, 800000, 900000,
     1000000, 1250000, 1500000, 1750000, 2000000, 2500000, 3000000, 4000000, 5000000, 7500000, 10000000, 15000000, 20000000])
 })()
-const UNSUBSCRIBED_LIMIT = 5
+const UNSUBSCRIBED_LIMIT = PREVIEW_LIMIT
 
 const pounds = (pence: number) => '£' + Math.round(pence / 100).toLocaleString('en-GB')
 const shortPrice = (pence: number) => {
@@ -76,14 +79,8 @@ function parsePrice(v: string): number | null {
   if (!m[2] && n < 1000) n *= 1000
   return n > 0 ? Math.round(n) * 100 : null
 }
-function matches(l: HomeLead, p: Prefs) {
-  if (l.custom) return true // homes you added yourself always show
-  if (l.distance != null && l.distance > p.radius) return false
-  if (p.min && (l.price ?? 0) < p.min) return false
-  if (p.max && (l.price ?? 0) > p.max) return false
-  if (p.types.length && l.propertyType && !p.types.includes(l.propertyType)) return false
-  return true
-}
+/** Homes you added yourself always show; so do the locked stand-ins, which carry nothing to filter on. */
+const matches = (l: HomeLead, p: Prefs) => !!l.locked || matchesPrefs(l, p)
 const samePrefs = (a: Prefs, b: Prefs) =>
   a.radius === b.radius && (a.min ?? 0) === (b.min ?? 0) && (a.max ?? 0) === (b.max ?? 0) && [...a.types].sort().join() === [...b.types].sort().join()
 /** Does `p` reach anywhere `env` didn't? Then this month's homes need fetching again. */
@@ -104,17 +101,37 @@ function widest(a: Prefs, b: Prefs): Prefs {
 /** The same home can turn up in more than one month; show it once (rows come newest month first). */
 function dedupeByAddress(list: HomeLead[]) {
   const byKey = new Map<string, HomeLead>()
+  const locked: HomeLead[] = []
   for (const l of list) {
+    if (l.locked) {
+      locked.push(l) // already one per address, and they have no address to compare
+      continue
+    }
     const k = addressKey(l.addressLine, l.postcode)
     if (!byKey.has(k)) byKey.set(k, l)
   }
-  return [...byKey.values()]
+  return [...byKey.values(), ...locked]
 }
 
 const PAGE_ROWS = 50
 
 /** One home in the list. Memoised, so hovering one row doesn't redraw the others. */
 const LeadRow = memo(function LeadRow({ lead: l, on, hot, locked, onToggle, onHot }: { lead: HomeLead; on: boolean; hot: boolean; locked: boolean; onToggle: (id: string) => void; onHot: (id: string | null) => void }) {
+  if (l.locked) {
+    // Stand-in text under the blur; the real home isn't on the page.
+    return (
+      <li>
+        <div className={`${s.row} ${s.locked}`} aria-label="A home you can see once you subscribe" role="group">
+          <input className={s.cb} type="checkbox" checked={false} disabled readOnly aria-hidden="true" tabIndex={-1} />
+          <span className={s.addr} aria-hidden="true">
+            <span className={s.street}>12 Hidden Road, Nearby</span>
+            <span className={s.meta}>Semi-detached · 1.2 mi · Sold recently</span>
+          </span>
+          <span className={s.price} aria-hidden="true">£000,000</span>
+        </div>
+      </li>
+    )
+  }
   const meta = [l.propertyType ? TYPE_NAME[l.propertyType] ?? 'Other' : null, l.distance != null ? `${l.distance.toFixed(1)} mi` : null, l.soldOn ? `Sold ${formatDayMonth(l.soldOn)}` : formatPostcode(l.postcode)]
     .filter(Boolean).join(' · ')
   const name = formatAddressLine(l.addressLine)
@@ -172,7 +189,7 @@ export function HomeClient(props: {
   const [hot, setHot] = useState<string | null>(null)
   const [sort, setSort] = useState<Sort>('distance')
   const [showAdd, setShowAdd] = useState(false)
-  const [archived, setArchived] = useState<{ open: boolean; list: Archived[] | null }>({ open: false, list: null })
+  const [archived, setArchived] = useState<{ open: boolean; list: Archived[] | null; failed?: boolean }>({ open: false, list: null })
   const previousJobLinks = useRef(new Map<string, string | null>())
 
   // a fresh server render (after a fetch, an added address or a restore) replaces the list
@@ -193,9 +210,13 @@ export function HomeClient(props: {
       })
       unpick(leadIds)
       setTrayOpen(false)
+      // Fetch this month's card count again, so the cost hint stays right.
+      // Picks live in this tab's memory, so they survive the refresh.
+      router.refresh()
     },
     onCancelled: ({ leadIds, reactivate }) => {
       setLeads((prev) => prev.map((l) => (leadIds.includes(l.id) ? { ...l, jobId: reactivate ? previousJobLinks.current.get(l.id) ?? null : null } : l)))
+      router.refresh()
     },
   })
 
@@ -205,6 +226,7 @@ export function HomeClient(props: {
   const visible = useMemo(() => active.filter((l) => matches(l, applied)), [active, applied])
   const [newList, earlierList] = useMemo(() => {
     const sorter = (a: HomeLead, b: HomeLead) => {
+      if (!!a.locked !== !!b.locked) return a.locked ? 1 : -1 // stand-ins always last
       if (sort === 'price-desc') return (b.price ?? 0) - (a.price ?? 0)
       if (sort === 'price-asc') return (a.price ?? 0) - (b.price ?? 0)
       if (sort === 'newest') return Date.parse(b.soldOn ?? '0') - Date.parse(a.soldOn ?? '0')
@@ -215,12 +237,12 @@ export function HomeClient(props: {
   // Long lists show 50 at a time per group.
   const [shown, setShown] = useState<Record<string, number>>({})
 
-  // Before subscribing you can see and pick five homes; the rest are shown blurred.
+  // Before subscribing you can see and pick five homes; the server sends the
+  // rest as blank stand-ins, shown blurred.
   const lockedIds = useMemo(() => {
     if (subscribed) return new Set<string>()
-    const open = new Set([...newList, ...earlierList].slice(0, UNSUBSCRIBED_LIMIT).map((l) => l.id))
-    return new Set(visible.filter((l) => !open.has(l.id)).map((l) => l.id))
-  }, [subscribed, newList, earlierList, visible])
+    return new Set(visible.filter((l) => l.locked).map((l) => l.id))
+  }, [subscribed, visible])
   // What you've picked is only ever what you can see: a home the filters hide
   // is dropped from the picks (see changePrefs), so nothing is sent unseen.
   const picked = useMemo(() => visible.filter((l) => picks.has(l.id) && !lockedIds.has(l.id)), [visible, picks, lockedIds])
@@ -313,7 +335,8 @@ export function HomeClient(props: {
       setSaved(applied)
       setFiltersOpen(false)
       // Wider than anything fetched this month? Fetch the extra homes now.
-      if (reachesBeyond(applied, env)) {
+      // (Subscribers only: before subscribing you see five homes either way.)
+      if (subscribed && reachesBeyond(applied, env)) {
         setFinding(true)
         const r = await fetch('/api/leads/refresh', { method: 'POST' })
         if (r.ok) {
@@ -336,24 +359,40 @@ export function HomeClient(props: {
   async function archivePicked() {
     const ids = picked.map((l) => l.id)
     if (!ids.length) return
-    const res = await fetch('/api/leads/archive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) })
-    if (!res.ok) return void toast.error('Could not archive those homes. Please try again.')
+    try {
+      const res = await fetch('/api/leads/archive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) })
+      if (!res.ok) throw new Error(String(res.status))
+    } catch {
+      return void toast.error('Could not archive those homes. Please try again.')
+    }
     setLeads((prev) => prev.filter((l) => !ids.includes(l.id)))
     unpick(ids)
     setArchived((a) => ({ ...a, list: null }))
     toast.success(`${ids.length} ${ids.length === 1 ? 'home' : 'homes'} archived`)
   }
+  async function loadArchived() {
+    setArchived({ open: true, list: null, failed: false })
+    try {
+      const res = await fetch('/api/leads?archived=true')
+      if (!res.ok) throw new Error(String(res.status))
+      const data = await res.json()
+      setArchived({ open: true, list: (data.leads ?? []) as Archived[], failed: false })
+    } catch {
+      setArchived({ open: true, list: null, failed: true })
+    }
+  }
   async function toggleArchived() {
     if (archived.open) return setArchived((a) => ({ ...a, open: false }))
-    setArchived((a) => ({ ...a, open: true }))
-    if (archived.list) return
-    const res = await fetch('/api/leads?archived=true')
-    const data = res.ok ? await res.json() : { leads: [] }
-    setArchived({ open: true, list: (data.leads ?? []) as Archived[] })
+    if (archived.list) return setArchived((a) => ({ ...a, open: true }))
+    await loadArchived()
   }
   async function restore(id: string) {
-    const res = await fetch('/api/leads/unarchive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [id] }) })
-    if (!res.ok) return void toast.error('Could not restore that home. Please try again.')
+    try {
+      const res = await fetch('/api/leads/unarchive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [id] }) })
+      if (!res.ok) throw new Error(String(res.status))
+    } catch {
+      return void toast.error('Could not restore that home. Please try again.')
+    }
     setArchived((a) => ({ ...a, list: (a.list ?? []).filter((l) => l.id !== id) }))
     router.refresh()
   }
@@ -565,7 +604,12 @@ export function HomeClient(props: {
         </div>
         {archived.open && (
           <ul className={`${s.rows} ${s.archived}`}>
-            {archived.list == null && <li className={s.empty}>Loading…</li>}
+            {archived.list == null && !archived.failed && <li className={s.empty}>Loading…</li>}
+            {archived.failed && (
+              <li className={s.empty} role="alert">
+                Could not load your archived homes. <button type="button" className={s.textBtn} onClick={loadArchived}>Try again</button>
+              </li>
+            )}
             {archived.list?.length === 0 && <li className={s.empty}>Nothing archived.</li>}
             {archived.list?.map((a) => (
               <li key={a.id}>

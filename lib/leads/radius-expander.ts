@@ -43,6 +43,8 @@ export async function expandRadius(
 ): Promise<ExpansionResult> {
   const supabase = createAdminClient()
   let radius = initialRadiusMiles
+  const PAGE = 1000
+  const MAX_ROWS = 20_000
 
   // Only include sales from the last 6 months
   const sixMonthsAgo = new Date()
@@ -52,33 +54,55 @@ export async function expandRadius(
   while (true) {
     const box = boundingBox(officeLat, officeLng, radius)
 
-    let query = supabase
-      .from('property_transactions')
-      .select('id, address_line, postcode, price, property_type, is_new_build, tenure, date_of_transfer, lat, lng')
-      .eq('import_month', importMonth)
-      .gte('date_of_transfer', cutoffDate)
-      .not('lat', 'is', null)
-      .not('lng', 'is', null)
-      .gte('lat', box.minLat)
-      .lte('lat', box.maxLat)
-      .gte('lng', box.minLng)
-      .lte('lng', box.maxLng)
+    const page = (from: number, withCount: boolean) => {
+      let query = supabase
+        .from('property_transactions')
+        .select(
+          'id, address_line, postcode, price, property_type, is_new_build, tenure, date_of_transfer, lat, lng',
+          withCount ? { count: 'exact' } : undefined
+        )
+        .eq('import_month', importMonth)
+        .gte('date_of_transfer', cutoffDate)
+        .not('lat', 'is', null)
+        .not('lng', 'is', null)
+        .gte('lat', box.minLat)
+        .lte('lat', box.maxLat)
+        .gte('lng', box.minLng)
+        .lte('lng', box.maxLng)
 
-    if (filters.propertyTypes && filters.propertyTypes.length > 0) {
-      query = query.in('property_type', filters.propertyTypes)
-    }
-    if (filters.minPrice != null) {
-      query = query.gte('price', filters.minPrice)
-    }
-    if (filters.maxPrice != null) {
-      query = query.lte('price', filters.maxPrice)
+      if (filters.propertyTypes && filters.propertyTypes.length > 0) {
+        query = query.in('property_type', filters.propertyTypes)
+      }
+      if (filters.minPrice != null) {
+        query = query.gte('price', filters.minPrice)
+      }
+      if (filters.maxPrice != null) {
+        query = query.lte('price', filters.maxPrice)
+      }
+      // A stable order so pages don't overlap or skip rows.
+      return query.order('id').range(from, from + PAGE - 1)
     }
 
-    const { data, error } = await query.limit(5000)
-    if (error) throw new Error(`Lead query failed: ${error.message}`)
+    // PostgREST returns at most 1,000 rows a request, so a busy box (central
+    // London, a wide radius) used to come back as an arbitrary 1,000 rather
+    // than every sale in it, and the nearest homes could be missing. Read every
+    // page, up to MAX_ROWS, then sort by real distance below.
+    const first = await page(0, true)
+    if (first.error) throw new Error(`Lead query failed: ${first.error.message}`)
+    const data = [...(first.data ?? [])]
+    const total = Math.min(first.count ?? data.length, MAX_ROWS)
+    if (total > PAGE) {
+      const starts: number[] = []
+      for (let from = PAGE; from < total; from += PAGE) starts.push(from)
+      const rest = await Promise.all(starts.map((from) => page(from, false)))
+      for (const r of rest) {
+        if (r.error) throw new Error(`Lead query failed: ${r.error.message}`)
+        data.push(...(r.data ?? []))
+      }
+    }
 
     // Apply exact Haversine filter on the bounding-box result set
-    const matched: MatchedTransaction[] = (data ?? [])
+    const matched: MatchedTransaction[] = data
       .map((row) => ({
         ...row,
         distanceMiles: haversineDistanceMiles(

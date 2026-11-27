@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { designGroupKey, isDesignInUse } from '@/lib/utils/design-files'
+import { isOwnDesignUrl } from '@/lib/validation/settings'
 
 /**
  * The saved postcard-design LIBRARY (see migration 20260920000002).
@@ -32,7 +33,10 @@ export async function GET() {
     .select('id, label, source, front_url, back_url, created_at')
     .order('created_at', { ascending: false })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[postcards/designs]', error)
+    return NextResponse.json({ error: 'Something went wrong with your designs just now. Please try again.' }, { status: 500 })
+  }
 
   // Newest first, so the first row seen for each file pair is the one to keep.
   const seen = new Set<string>()
@@ -78,6 +82,10 @@ export async function POST(request: Request) {
   if (!frontUrl) {
     return NextResponse.json({ error: 'A front design is required' }, { status: 400 })
   }
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+  if (!isOwnDesignUrl(frontUrl, user.id, supabaseUrl) || (backUrl && !isOwnDesignUrl(backUrl, user.id, supabaseUrl))) {
+    return NextResponse.json({ error: 'That design file isn’t one of yours. Save the design again and retry.' }, { status: 400 })
+  }
 
   const admin = createAdminClient()
 
@@ -112,7 +120,10 @@ export async function POST(request: Request) {
     .select('id, label, source, front_url, back_url, created_at')
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[postcards/designs]', error)
+    return NextResponse.json({ error: 'Something went wrong with your designs just now. Please try again.' }, { status: 500 })
+  }
   return NextResponse.json({ design: data }, { status: 201 })
 }
 
@@ -133,7 +144,10 @@ export async function DELETE(request: Request) {
     .select('id, front_url, back_url')
     .eq('id', id)
     .maybeSingle()
-  if (findError) return NextResponse.json({ error: findError.message }, { status: 500 })
+  if (findError) {
+    console.error('[postcards/designs] find:', findError)
+    return NextResponse.json({ error: 'Could not delete that design just now. Please try again.' }, { status: 500 })
+  }
   if (!target) return NextResponse.json({ error: 'That design is no longer in your library' }, { status: 404 })
 
   // The design being sent can't be deleted. The library hides the button for
@@ -165,7 +179,10 @@ export async function DELETE(request: Request) {
     .from('postcard_designs')
     .select('id, front_url, back_url')
     .eq('user_id', user.id)
-  if (listError) return NextResponse.json({ error: listError.message }, { status: 500 })
+  if (listError) {
+    console.error('[postcards/designs] list:', listError)
+    return NextResponse.json({ error: 'Could not delete that design just now. Please try again.' }, { status: 500 })
+  }
 
   const key = designGroupKey(target)
   const ids = (rows ?? []).filter((row) => designGroupKey(row) === key).map((row) => row.id as string)
@@ -179,7 +196,10 @@ export async function DELETE(request: Request) {
     .eq('user_id', user.id)
     .in('id', ids)
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[postcards/designs]', error)
+    return NextResponse.json({ error: 'Something went wrong with your designs just now. Please try again.' }, { status: 500 })
+  }
   return NextResponse.json({ success: true, removed: ids.length })
 }
 

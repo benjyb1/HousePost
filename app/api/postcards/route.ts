@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { randomUUID } from 'crypto'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -9,7 +9,7 @@ import { sendAdminAlert } from '@/lib/email/resend'
 import { loadSuppressionKeys, isSuppressed } from '@/lib/leads/suppression'
 import { resolveBackUrl } from '@/lib/postcards/defaults'
 import { checkPrintCapacity } from '@/lib/postcards/stannp-account'
-import { shouldAlert } from '@/lib/ops/state'
+import { markAlerted, shouldAlert } from '@/lib/ops/state'
 import {
   INCLUDED_POSTCARDS_PER_MONTH,
   POSTCARD_OVERAGE_PENCE,
@@ -33,7 +33,10 @@ export async function GET(request: Request) {
     .eq('lead_month', month)
     .order('created_at', { ascending: false })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    console.error('[GET /api/postcards]', error)
+    return NextResponse.json({ error: 'Could not load your postcards just now. Please try again.' }, { status: 500 })
+  }
   return NextResponse.json({ jobs: data })
 }
 
@@ -135,7 +138,8 @@ export async function POST(request: Request) {
     .single()
 
   if (profileError || !profile) {
-    return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+    if (profileError) console.error('Send: profile read failed:', profileError)
+    return NextResponse.json({ error: 'We couldn’t load your account just now. Please try again.' }, { status: 404 })
   }
 
   if (!['active', 'trialing'].includes(profile.subscription_status as string)) {
@@ -160,7 +164,8 @@ export async function POST(request: Request) {
     .in('id', leadIds)
 
   if (leadsError) {
-    return NextResponse.json({ error: leadsError.message }, { status: 500 })
+    console.error('Send: leads read failed:', leadsError)
+    return NextResponse.json({ error: 'We couldn’t load those homes just now. Please try again.' }, { status: 500 })
   }
 
   const linkedJobIds = (leadRows ?? [])
@@ -173,7 +178,8 @@ export async function POST(request: Request) {
       .select('id, status')
       .in('id', linkedJobIds)
     if (jobsError) {
-      return NextResponse.json({ error: jobsError.message }, { status: 500 })
+      console.error('Send: jobs read failed:', jobsError)
+      return NextResponse.json({ error: 'We couldn’t load those homes just now. Please try again.' }, { status: 500 })
     }
     for (const j of jobs ?? []) jobStatus.set(j.id as string, j.status as string)
   }
@@ -291,6 +297,7 @@ export async function POST(request: Request) {
             £${(capacity.neededPence / 100).toFixed(2)} needed. Nothing was charged. Top up from
             <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://www.housepost.co.uk'}/admin/ops">/admin/ops</a>.</p>`
         )
+        await markAlerted(adminSupabase, 'send-refused-balance')
       } catch (alertErr) {
         console.error('Failed to send balance-refusal alert:', alertErr)
       }
@@ -310,62 +317,91 @@ export async function POST(request: Request) {
   //    only become live 'held' orders after the card charge succeeds. Leads that
   //    lose the claim race are skipped so we never charge for a card we can't
   //    send.
+  //
+  //    All the job rows go in one insert. Each claim is a conditional update of
+  //    its own lead (a different job id and starting state per lead), so those
+  //    run in parallel, a few at a time, rather than one after another. The
+  //    claimed list keeps the order the leads came in, which decides which
+  //    cards are the included ones.
   type Claimed = { jobId: string; leadId: string; lead: Record<string, unknown> }
   const claimed: Claimed[] = []
   let lostClaimRace = 0
 
-  for (const lead of eligible) {
-    let jobId: string | null = null
-    try {
-      const { data: jobRow, error: jobErr } = await adminSupabase
-        .from('postcard_jobs')
-        .insert({
-          user_id: user.id,
-          lead_id: lead.id,
-          lead_month: lead.lead_month,
-          recipient_address_line: lead.address_line,
-          recipient_postcode: lead.postcode,
-          batch_id: batchId,
-          was_included_in_subscription: true,
-          charge_amount_pence: 0,
-          status: 'pending',
-        })
-        .select('id')
-        .single()
-      if (jobErr || !jobRow) throw new Error(jobErr?.message ?? 'Could not create postcard job')
-      jobId = jobRow.id as string
+  const { data: jobRows, error: jobErr } = await adminSupabase
+    .from('postcard_jobs')
+    .insert(
+      eligible.map((lead) => ({
+        user_id: user.id,
+        lead_id: lead.id,
+        lead_month: lead.lead_month,
+        recipient_address_line: lead.address_line,
+        recipient_postcode: lead.postcode,
+        batch_id: batchId,
+        was_included_in_subscription: true,
+        charge_amount_pence: 0,
+        status: 'pending',
+      }))
+    )
+    .select('id, lead_id')
+  if (jobErr || !jobRows || jobRows.length !== eligible.length) {
+    console.error(`Send: could not create postcard jobs for batch ${batchId}:`, jobErr ?? `${jobRows?.length ?? 0} of ${eligible.length} rows`)
+    if (jobRows?.length) {
+      await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).in('id', jobRows.map((r) => r.id as string))
+    }
+    return NextResponse.json({ error: 'We couldn’t place your order just now. Nothing has been charged. Please try again.' }, { status: 500 })
+  }
+  const jobIdByLead = new Map(jobRows.map((r) => [r.lead_id as string, r.id as string]))
 
-      // Claim the lead from exactly the state we evaluated it in: unlinked, or
-      // (for a re-send) still linked to the finished job we saw. A concurrent
-      // order that got in first changes that link, so its claim wins and ours
-      // fails cleanly.
-      const previousJobId = lead.postcard_job_id as string | null
-      let claimQuery = adminSupabase
-        .from('leads')
-        .update({ postcard_job_id: jobId, selected_for_dispatch: true })
-        .eq('id', lead.id)
-      claimQuery = previousJobId
-        ? claimQuery.eq('postcard_job_id', previousJobId)
-        : claimQuery.is('postcard_job_id', null)
-      const { data: claimRows, error: claimErr } = await claimQuery.select('id')
-      if (claimErr) throw new Error(claimErr.message)
-      if (!claimRows || claimRows.length === 0) {
-        // Lost the race — cancel our pending row, send/charge nothing for it.
-        await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).eq('id', jobId)
-        lostClaimRace++
-        continue
-      }
+  type ClaimResult = 'claimed' | 'lost' | 'error'
+  const claimOne = async (lead: Record<string, unknown>, jobId: string): Promise<ClaimResult> => {
+    // Claim the lead from exactly the state we evaluated it in: unlinked, or
+    // (for a re-send) still linked to the finished job we saw. A concurrent
+    // order that got in first changes that link, so its claim wins and ours
+    // fails cleanly.
+    const previousJobId = lead.postcard_job_id as string | null
+    let claimQuery = adminSupabase
+      .from('leads')
+      .update({ postcard_job_id: jobId, selected_for_dispatch: true })
+      .eq('id', lead.id as string)
+    claimQuery = previousJobId
+      ? claimQuery.eq('postcard_job_id', previousJobId)
+      : claimQuery.is('postcard_job_id', null)
+    const { data: claimRows, error: claimErr } = await claimQuery.select('id')
+    if (claimErr) {
+      console.error(`Failed to claim lead ${lead.id} for job ${jobId}:`, claimErr)
+      return 'error'
+    }
+    return claimRows && claimRows.length > 0 ? 'claimed' : 'lost'
+  }
 
+  const results: ClaimResult[] = new Array(eligible.length)
+  const CLAIM_CONCURRENCY = 10
+  for (let i = 0; i < eligible.length; i += CLAIM_CONCURRENCY) {
+    const slice = eligible.slice(i, i + CLAIM_CONCURRENCY)
+    const out = await Promise.all(slice.map((lead) => claimOne(lead, jobIdByLead.get(lead.id as string)!)))
+    out.forEach((r, j) => { results[i + j] = r })
+  }
+
+  const notClaimedJobIds: string[] = []
+  const erroredLeads: { leadId: string; jobId: string }[] = []
+  eligible.forEach((lead, i) => {
+    const jobId = jobIdByLead.get(lead.id as string)!
+    if (results[i] === 'claimed') {
       claimed.push({ jobId, leadId: lead.id as string, lead })
-    } catch (err) {
-      console.error(`Failed to reserve postcard job for lead ${lead.id}:`, err)
-      if (jobId) {
-        await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).eq('id', jobId)
-        // Scope the unclaim to OUR job so a concurrent request that successfully
-        // claimed the same lead isn't accidentally unlinked; a re-sent lead goes
-        // back to its previous finished job.
-        await adminSupabase.rpc('relink_lead_after_unwind', { p_lead_id: lead.id, p_job_id: jobId })
-      }
+      return
+    }
+    notClaimedJobIds.push(jobId)
+    if (results[i] === 'lost') lostClaimRace++
+    else erroredLeads.push({ leadId: lead.id as string, jobId })
+  })
+  if (notClaimedJobIds.length > 0) {
+    // Send and charge nothing for these.
+    await adminSupabase.from('postcard_jobs').update({ status: 'cancelled' }).in('id', notClaimedJobIds)
+    // A claim that errored may still have landed: unlink it, scoped to OUR job
+    // so a concurrent request that claimed the same lead isn't touched; a
+    // re-sent lead goes back to its previous finished job.
+    for (const e of erroredLeads) {
+      await adminSupabase.rpc('relink_lead_after_unwind', { p_lead_id: e.leadId, p_job_id: e.jobId })
     }
   }
 
@@ -535,49 +571,106 @@ export async function POST(request: Request) {
   // The included cards are always the first `includedCount` of the batch.
   const paidJobIds = claimed.slice(includedCount).map((c) => c.jobId)
 
-  // Promote every held row in ONE update, defaulting to included (free) and
-  // snapshotting the designs AS THEY ARE NOW. The release cron prints from these
-  // snapshot columns, so a design change or removal during the cool-off can't
-  // alter or break what actually goes out versus what the user previewed.
-  await adminSupabase
-    .from('postcard_jobs')
-    .update({
-      status: 'held',
-      release_at: releaseAt,
-      was_included_in_subscription: true,
-      charge_amount_pence: 0,
-      stripe_payment_intent_id: null,
-      held_design_front_url: frontUrl,
-      held_design_back_url: backUrl,
-    })
-    .in('id', heldJobIds)
+  // Tag the paid cards with the overage charge and the shared PaymentIntent
+  // FIRST, while every row is still 'pending' (which the cron never posts), so
+  // no card can go live without what cancel needs to refund it. Then promote
+  // every row to 'held' in one update, snapshotting the designs AS THEY ARE
+  // NOW: the release cron prints from these snapshot columns, so a design change
+  // or removal during the cool-off can't alter what actually goes out. The
+  // included rows already carry their defaults from the insert above.
+  // Each write is checked, and tried twice before giving up.
+  const writeTwice = async (label: string, write: () => PromiseLike<{ error: { message: string } | null }>) => {
+    const first = await write()
+    if (!first.error) return null
+    console.error(`Send ${batchId}: ${label} failed, trying once more:`, first.error)
+    return (await write()).error
+  }
 
-  // Then flip only the paid rows to carry the overage charge and the shared
-  // PaymentIntent (so cancel can refund them). Two bulk updates in total, never
-  // one round-trip per row.
+  let writeError: { message: string } | null = null
+  let failedStep = ''
   if (paidJobIds.length > 0) {
-    await adminSupabase
-      .from('postcard_jobs')
-      .update({
-        was_included_in_subscription: false,
-        charge_amount_pence: POSTCARD_OVERAGE_PENCE,
-        stripe_payment_intent_id: paymentIntentId,
-      })
-      .in('id', paidJobIds)
+    writeError = await writeTwice('tag paid cards', () =>
+      adminSupabase
+        .from('postcard_jobs')
+        .update({
+          was_included_in_subscription: false,
+          charge_amount_pence: POSTCARD_OVERAGE_PENCE,
+          stripe_payment_intent_id: paymentIntentId,
+        })
+        .in('id', paidJobIds)
+    )
+    if (writeError) failedStep = 'recording the charge on the paid cards'
+  }
+  if (!writeError) {
+    writeError = await writeTwice('promote to held', () =>
+      adminSupabase
+        .from('postcard_jobs')
+        .update({
+          status: 'held',
+          release_at: releaseAt,
+          held_design_front_url: frontUrl,
+          held_design_back_url: backUrl,
+        })
+        .in('id', heldJobIds)
+        .eq('status', 'pending')
+    )
+    if (writeError) failedStep = 'moving the cards into the send queue'
+  }
+
+  if (writeError) {
+    if (payableCount === 0) {
+      // Nothing was charged, so hand everything back and say so.
+      await adminSupabase.rpc('decrement_postcards_used', { p_user_id: user.id, p_amount: q })
+      await releaseReservation()
+      return NextResponse.json(
+        { error: 'We couldn’t place your order just now. Nothing has been charged. Please try again.' },
+        { status: 500 }
+      )
+    }
+    // The card WAS charged. The rows are still 'pending', so nothing prints
+    // and the stuck-pending check will flag them too. Don't unwind: a person
+    // reconciles against Stripe, as for an unclear charge.
+    console.error(`Send ${batchId}: paid ${formatPounds(costPence)} (${paymentIntentId}) but ${failedStep} failed:`, writeError)
+    try {
+      await sendAdminAlert(
+        `[Housepost] Paid order not queued – batch ${batchId}`,
+        `<p>User <strong>${user.id}</strong> was charged <strong>${formatPounds(costPence)}</strong>
+          (PaymentIntent <strong>${paymentIntentId}</strong>) for ${q} card(s) in batch <strong>${batchId}</strong>,
+          but ${failedStep} failed, so the cards are still <code>pending</code> and will not print. Either
+          finish the order (paid rows need <code>stripe_payment_intent_id</code>, all rows <code>held</code>
+          with a <code>release_at</code> and the design snapshots) or refund it and free the leads.</p>
+         <pre>${writeError.message}</pre>`
+      )
+    } catch (alertErr) {
+      console.error(`Failed to send paid-not-queued alert for batch ${batchId}:`, alertErr)
+    }
+    return NextResponse.json(
+      {
+        error: `Your payment of ${formatPounds(costPence)} went through, but we couldn’t finish setting up the order, so nothing will be posted yet. Our team has been told and will either send the cards or refund you. Please don’t send these homes again in the meantime.`,
+      },
+      { status: 500 }
+    )
   }
 
   // Record the purchase as an in-app notification (and email, per the user's
-  // preference). Best-effort — never block the send response on it.
-  await createNotification({
-    userId: user.id,
-    type: 'leads_purchased',
-    title: `${q} postcard${q === 1 ? '' : 's'} on the way`,
-    body:
-      payableCount > 0
-        ? `${includedCount} included and ${payableCount} paid (${formatPounds(costPence)}). You can cancel within ${POSTCARD_COOL_OFF_MINUTES} minutes.`
-        : // Never "All 2 from your allowance": it reads as if the allowance is 2.
-          `${q} postcard${q === 1 ? '' : 's'} from your allowance. You can cancel within ${POSTCARD_COOL_OFF_MINUTES} minutes.`,
-    href: '/postcards',
+  // preference). Best-effort, and sent after the response so the send isn't
+  // kept waiting on it.
+  after(async () => {
+    try {
+      await createNotification({
+        userId: user.id,
+        type: 'leads_purchased',
+        title: `${q} postcard${q === 1 ? '' : 's'} on the way`,
+        body:
+          payableCount > 0
+            ? `${includedCount} included and ${payableCount} paid (${formatPounds(costPence)}). You can cancel within ${POSTCARD_COOL_OFF_MINUTES} minutes.`
+            : // Never "All 2 from your allowance": it reads as if the allowance is 2.
+              `${q} postcard${q === 1 ? '' : 's'} from your allowance. You can cancel within ${POSTCARD_COOL_OFF_MINUTES} minutes.`,
+        href: '/postcards',
+      })
+    } catch (err) {
+      console.error(`Send ${batchId}: notification failed:`, err)
+    }
   })
 
   return NextResponse.json(

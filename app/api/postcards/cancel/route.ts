@@ -1,10 +1,11 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { refundPostcardCharge } from '@/lib/stripe/billing'
 import { sendAdminAlert } from '@/lib/email/resend'
 import { createNotification } from '@/lib/notifications'
 import { POSTCARD_OVERAGE_PENCE } from '@/types/profile'
+import { cancelRefundKey } from '@/lib/postcards/refund-key'
 
 /**
  * POST /api/postcards/cancel — cancel a held order inside its cool-off window
@@ -53,7 +54,8 @@ export async function POST(request: Request) {
     .select('id, lead_id, was_included_in_subscription, stripe_payment_intent_id')
 
   if (cancelErr) {
-    return NextResponse.json({ error: cancelErr.message }, { status: 500 })
+    console.error(`Cancel: could not claim order ${orderId}:`, cancelErr)
+    return NextResponse.json({ error: 'We couldn’t cancel the order just now. Please try again.' }, { status: 500 })
   }
 
   if (!cancelledRows || cancelledRows.length === 0) {
@@ -70,30 +72,52 @@ export async function POST(request: Request) {
   // 1. Free the leads so they can be selected and sent again. A lead that was
   //    being RE-sent goes back to its previous finished job (so it stays in
   //    "Send again" with its history intact) rather than being orphaned.
+  const unwindProblems: string[] = []
   for (const r of cancelledRows) {
     if (!r.lead_id) continue
-    await adminSupabase.rpc('relink_lead_after_unwind', {
+    const { error } = await adminSupabase.rpc('relink_lead_after_unwind', {
       p_lead_id: r.lead_id as string,
       p_job_id: r.id as string,
     })
+    if (error) unwindProblems.push(`relink lead ${r.lead_id} (job ${r.id}): ${error.message}`)
   }
 
   // 2. Hand back the reserved usage. Guarded/clamped at the DB level, and safe
   //    against a double-click because the atomic claim above only ever returns
   //    each row once.
-  await adminSupabase.rpc('decrement_postcards_used', {
+  const { error: decErr } = await adminSupabase.rpc('decrement_postcards_used', {
     p_user_id: user.id,
     p_amount: cancelledCount,
   })
+  if (decErr) unwindProblems.push(`hand back ${cancelledCount} card(s) of allowance: ${decErr.message}`)
+  if (unwindProblems.length > 0) {
+    // The cards are cancelled and won't print; this is tidying the user can't
+    // see straight away (a home not back in the list, the count one too high).
+    console.error(`Cancel ${orderId}: unwind problems:`, unwindProblems)
+    after(async () => {
+      try {
+        await sendAdminAlert(
+          `[Housepost] Cancel of order ${orderId} left some tidying undone`,
+          `<p>The cards were cancelled and will not print, but these steps failed for user <strong>${user.id}</strong>:</p><pre>${unwindProblems.join('\n')}</pre>`
+        )
+      } catch (alertErr) {
+        console.error(`Cancel ${orderId}: alert failed:`, alertErr)
+      }
+    })
+  }
 
   // 3. Refund the up-front charge for the PAID cards we just cancelled. Every
   //    paid card in a batch shares one PaymentIntent, so we refund the sum of
-  //    the cancelled paid cards against it. The batch-scoped idempotency key
-  //    makes a retried cancel return the same refund instead of issuing another.
+  //    the cancelled paid cards against it. The key is built from the job ids
+  //    this call cancelled, so a retried request returns the same refund while
+  //    a second, partial cancel of the same order gets a refund of its own.
   const paymentIntentId = cancelledRows.find(
     (r) => r.stripe_payment_intent_id
   )?.stripe_payment_intent_id as string | undefined
-  const paidCancelled = cancelledRows.filter((r) => r.was_included_in_subscription === false).length
+  const paidCancelledIds = cancelledRows
+    .filter((r) => r.was_included_in_subscription === false)
+    .map((r) => r.id as string)
+  const paidCancelled = paidCancelledIds.length
   const refundPence = paidCancelled * POSTCARD_OVERAGE_PENCE
 
   let refundedPence = 0
@@ -102,7 +126,7 @@ export async function POST(request: Request) {
       await refundPostcardCharge({
         paymentIntentId,
         amountPence: refundPence,
-        idempotencyKey: `postcard-refund:${orderId}`,
+        idempotencyKey: cancelRefundKey(orderId, paidCancelledIds),
       })
       refundedPence = refundPence
     } catch (err) {
@@ -118,14 +142,12 @@ export async function POST(request: Request) {
         msg
       )
 
-      const paidRowIds = cancelledRows
-        .filter((r) => r.was_included_in_subscription === false)
-        .map((r) => r.id as string)
-      if (paidRowIds.length > 0) {
-        await adminSupabase
+      if (paidCancelledIds.length > 0) {
+        const { error: markErr } = await adminSupabase
           .from('postcard_jobs')
           .update({ postgrid_status: 'refund_failed' })
-          .in('id', paidRowIds)
+          .in('id', paidCancelledIds)
+        if (markErr) console.error(`Cancel ${orderId}: could not mark refund_failed:`, markErr)
       }
 
       try {
@@ -161,17 +183,23 @@ export async function POST(request: Request) {
   }
 
   // Record the cancellation as an in-app notification (and email, per the user's
-  // preference), mirroring the "on the way" one the send creates. Best-effort —
-  // never block the cancel response on it.
-  await createNotification({
-    userId: user.id,
-    type: 'order_cancelled',
-    title: `Order cancelled: ${cancelledCount} postcard${cancelledCount === 1 ? '' : 's'} held back`,
-    body:
-      refundedPence > 0
-        ? `£${(refundedPence / 100).toFixed(2)} has been refunded to your card.`
-        : 'No charge was taken, so there is nothing to refund.',
-    href: '/postcards',
+  // preference), mirroring the "on the way" one the send creates. Best-effort,
+  // and sent after the response so the person isn't kept waiting for it.
+  after(async () => {
+    try {
+      await createNotification({
+        userId: user.id,
+        type: 'order_cancelled',
+        title: `Order cancelled: ${cancelledCount} postcard${cancelledCount === 1 ? '' : 's'} held back`,
+        body:
+          refundedPence > 0
+            ? `£${(refundedPence / 100).toFixed(2)} has been refunded to your card.`
+            : 'No charge was taken, so there is nothing to refund.',
+        href: '/postcards',
+      })
+    } catch (err) {
+      console.error(`Cancel ${orderId}: notification failed:`, err)
+    }
   })
 
   return NextResponse.json({

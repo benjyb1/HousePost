@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { safeRedirectPath } from '@/lib/auth/safe-redirect'
 
 /**
  * Supabase email confirmation callback.
@@ -10,7 +11,7 @@ import { createClient } from '@/lib/supabase/server'
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const redirectTo = searchParams.get('redirect_to') ?? '/billing'
+  const redirectTo = safeRedirectPath(searchParams.get('redirect_to'), '/billing', origin)
 
   if (code) {
     const supabase = await createClient()
