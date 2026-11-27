@@ -68,7 +68,7 @@ baseline 86 px above the bottom edge, 30 px Helvetica, colour `#666666`.
 | OPT-1 | Open each of the 16 templates, switch to Back | `housepost.co.uk/opt-out` visible at the bottom-centre of the right (white) half on every one |
 | OPT-2 | Zoom in on the preview | Text is mid-grey, not black, not the accent colour; nothing from the left-half design overlaps it |
 | OPT-3 | Pick the template with the darkest/busiest bottom band (Studio, Foundry) | The line still sits on white; the design's bottom band stops at the fold and does not run under it |
-| OPT-4 | Click "Use this design", open the saved back PNG (from "View file", swap `design.png` → `design-back.png`) | Line present in the exported 1819×1311 PNG, crisp, same position |
+| OPT-4 | Click "Use this design", open the saved back PNG (from "View file", swap `-front.png` → `-back.png` at the end of the URL) | Line present in the exported 1819×1311 PNG, crisp, same position |
 | OPT-5 | Print that back PNG at 100% on A6 (or measure: baseline should be ~7.3 mm from the bottom edge) | Inside the safe area; above the 3 mm bleed + 3 mm safe margin |
 | OPT-6 | Upload your own back PDF via "Upload custom design" | No opt-out line is added to uploaded backs (this feature is templates only). Confirm that's what we want; if uploaded backs also need it, that's a new task |
 | OPT-7 | Order a proof from Stannp in test mode (see `docs/OPERATIONS.md`) | On the proof PDF the line does not touch the address block, indicia or barcode. Stannp's A6 template keeps the address clear zone above 9.19 cm from the top; our line is at ~10.2 cm |

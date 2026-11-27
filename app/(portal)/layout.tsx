@@ -1,7 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getSessionUser } from '@/lib/supabase/server'
 import { SubscriptionBanner } from '@/components/layout/SubscriptionBanner'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import { IdleLogout } from '@/components/portal/IdleLogout'
@@ -16,8 +16,7 @@ function initialsFrom(name: string | null | undefined, email: string | null | un
 }
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const [supabase, user] = await Promise.all([createClient(), getSessionUser()])
 
   if (!user) redirect('/login')
 

@@ -1,15 +1,14 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getSessionUser } from '@/lib/supabase/server'
 import { AccountView } from '@/components/portal/account/AccountView'
 
 // Account now holds what Settings used to (name, business, office postcode,
 // emails) as well as billing, password and account deletion. Lead preferences
 // moved to the Home filter bar.
 export default async function AccountPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const [supabase, user] = await Promise.all([createClient(), getSessionUser()])
   if (!user) redirect('/login')
 
   const { data: profile } = await supabase

@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
+import { preconnect } from 'react-dom'
+import { createClient, getSessionUser } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { geocodeWithCache } from '@/lib/geocoding/postcodes-io'
 import { FailedPostcardsNotice } from '@/components/dashboard/FailedPostcardsNotice'
@@ -15,8 +16,9 @@ import { HomeClient, type HomeLead } from '@/components/portal/home/HomeClient'
   this user's own leads).
 */
 export default async function HomePage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  // Open the connection to the map tiles while the data loads.
+  preconnect('https://tiles.openfreemap.org', { crossOrigin: 'anonymous' })
+  const [supabase, user] = await Promise.all([createClient(), getSessionUser()])
   if (!user) return null
 
   const PAGE = 1000
@@ -24,9 +26,10 @@ export default async function HomePage() {
   // Unsent homes only (sent ones live in Tracking), each with its map position
   // from property_transactions in the same query. RLS denies users that table,
   // so this one read uses the admin client, scoped to this user's own leads.
+  // Which homes are picked is not read: picks live in the browser tab only.
   const admin = createAdminClient()
   const LEAD_COLUMNS =
-    'id, address_line, postcode, price, property_type, distance_miles, date_of_transfer, lead_month, selected_for_dispatch, postcard_job_id, is_custom, transaction_id, property_transactions(lat, lng)'
+    'id, address_line, postcode, price, property_type, distance_miles, date_of_transfer, lead_month, postcard_job_id, is_custom, transaction_id, property_transactions(lat, lng)'
   const leadsQuery = (from: number, withCount = false) =>
     admin
       .from('leads')
@@ -36,11 +39,15 @@ export default async function HomePage() {
       .is('postcard_job_id', null)
       .order('lead_month', { ascending: false })
       .order('distance_miles', { ascending: true })
+      .order('id') // a unique last key, so no home is skipped or repeated between pages
       .range(from, from + PAGE - 1)
 
   const thirtyDaysAgoIso = new Date(new Date().getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
-  const [firstPage, { data: profile }, { data: recentFailures }] = await Promise.all([
+  // The second page is asked for at the same time as the first (it comes back
+  // empty for smaller accounts), so up to 2,000 homes cost one round trip.
+  const [firstPage, secondPage, { data: profile }, { data: recentFailures }] = await Promise.all([
     leadsQuery(0, true),
+    leadsQuery(PAGE),
     supabase
       .from('profiles')
       .select('subscription_status, postcard_design_url, postcard_design_back_url, postcards_used_this_period, search_radius_miles, min_price, max_price, property_types, office_lat, office_lng, failed_notice_dismissed_at')
@@ -52,15 +59,15 @@ export default async function HomePage() {
   // Past PostgREST's 1000-row cap: fetch the remaining pages in parallel.
   type Row = {
     id: string; address_line: string; postcode: string | null; price: number | null; property_type: string | null
-    distance_miles: number | null; date_of_transfer: string | null; lead_month: string; selected_for_dispatch: boolean | null
+    distance_miles: number | null; date_of_transfer: string | null; lead_month: string
     postcard_job_id: string | null; is_custom: boolean | null; transaction_id: string | null
     property_transactions: { lat: number | null; lng: number | null } | { lat: number | null; lng: number | null }[] | null
   }
-  const rows: Row[] = [...((firstPage.data ?? []) as unknown as Row[])]
+  const rows: Row[] = [...((firstPage.data ?? []) as unknown as Row[]), ...((secondPage.data ?? []) as unknown as Row[])]
   const total = Math.min(firstPage.count ?? rows.length, MAX)
-  if (total > PAGE) {
+  if (total > 2 * PAGE) {
     const starts: number[] = []
-    for (let from = PAGE; from < total; from += PAGE) starts.push(from)
+    for (let from = 2 * PAGE; from < total; from += PAGE) starts.push(from)
     const pages = await Promise.all(starts.map((from) => leadsQuery(from)))
     for (const { data } of pages) rows.push(...((data ?? []) as unknown as Row[]))
   }
@@ -95,7 +102,6 @@ export default async function HomePage() {
       distance: r.distance_miles ?? null,
       soldOn: r.date_of_transfer ?? null,
       month: r.lead_month,
-      selected: !!r.selected_for_dispatch,
       jobId: r.postcard_job_id ?? null,
       custom: !!r.is_custom,
       lat: pos?.lat ?? null,

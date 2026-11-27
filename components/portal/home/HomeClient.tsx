@@ -12,9 +12,14 @@ import { INCLUDED_POSTCARDS_PER_MONTH, POSTCARD_OVERAGE_PENCE } from '@/types/pr
 import { useSendFlow } from '@/components/postcards/SendFlow'
 import AddAddressModal from '@/components/leads/AddAddressModal'
 import type { MapLead } from './LeadsMap'
+import { Picker } from './Picker'
 import s from './home.module.css'
 
-const LeadsMap = dynamic(() => import('./LeadsMap'), { ssr: false })
+// Start fetching the map code as soon as this file loads, not after the page
+// has hydrated, so the map is ready sooner after sign-in and on coming back.
+const loadMap = () => import('./LeadsMap')
+if (typeof window !== 'undefined') void loadMap()
+const LeadsMap = dynamic(loadMap, { ssr: false, loading: () => <div className={s.mapWait}>Loading map…</div> })
 
 export type HomeLead = {
   id: string
@@ -25,7 +30,6 @@ export type HomeLead = {
   distance: number | null
   soldOn: string | null
   month: string
-  selected: boolean
   jobId: string | null
   custom: boolean
   lat: number | null
@@ -33,9 +37,19 @@ export type HomeLead = {
 }
 export type Prefs = { radius: number; min: number | null; max: number | null; types: string[] }
 
+/*
+  Picked homes live in this browser tab's memory only. They are not saved to
+  the server, so there are no per-home requests to fail half way through a
+  "Select all", and they can't come back in a later session. They do survive
+  moving between Home, Designs and Tracking; a reload or signing in again
+  starts with nothing picked.
+*/
+const pickMemory: { userId: string | null; ids: Set<string> } = { userId: null, ids: new Set() }
+
 const TYPES: [string, string][] = [['D', 'Detached'], ['S', 'Semi-detached'], ['T', 'Terraced'], ['F', 'Flat'], ['O', 'Other']]
 const TYPE_NAME = Object.fromEntries(TYPES)
-const DISTANCES = [1, 2, 3, 5, 7, 10, 15, 20, 25, 30, 40, 50]
+export const MAX_RADIUS = 10
+const DISTANCES = [1, 2, 3, 5, 7, 10]
 // Rightmove-style price steps, in pounds.
 const PRICES = (() => {
   const a: number[] = []
@@ -53,19 +67,14 @@ const shortPrice = (pence: number) => {
 }
 const distLabel = (d: number) => `${d} ${d === 1 ? 'mile' : 'miles'}`
 const priceText = (pence: number | null, isMax: boolean) => (pence ? '£' + Math.round(pence / 100).toLocaleString('en-GB') : isMax ? 'No max' : 'No min')
-function parseDist(v: string): number | null {
-  const n = Number(String(v).toLowerCase().replace(/miles?|mi\b/g, '').trim())
-  return Number.isInteger(n) && n >= 1 && n <= 50 ? n : null
-}
-/** "450k", "£450,000", "1.2m" or "No min" → pence (0 means no limit), or null if unreadable. */
+/** "450k", "£450,000" or "1.2m" → pence, or null if unreadable. */
 function parsePrice(v: string): number | null {
   const t = String(v).toLowerCase().replace(/[£,\s]/g, '')
-  if (!t || t === 'nomin' || t === 'nomax' || t === 'any') return 0
   const m = t.match(/^(\d+(?:\.\d+)?)(k|m)?$/)
   if (!m) return null
   let n = parseFloat(m[1]) * (m[2] === 'm' ? 1e6 : m[2] === 'k' ? 1e3 : 1)
   if (!m[2] && n < 1000) n *= 1000
-  return Math.round(n) * 100
+  return n > 0 ? Math.round(n) * 100 : null
 }
 function matches(l: HomeLead, p: Prefs) {
   if (l.custom) return true // homes you added yourself always show
@@ -92,12 +101,12 @@ function widest(a: Prefs, b: Prefs): Prefs {
     types: [...new Set([...a.types, ...b.types])],
   }
 }
+/** The same home can turn up in more than one month; show it once (rows come newest month first). */
 function dedupeByAddress(list: HomeLead[]) {
   const byKey = new Map<string, HomeLead>()
   for (const l of list) {
     const k = addressKey(l.addressLine, l.postcode)
-    const e = byKey.get(k)
-    if (!e || (!e.selected && l.selected)) byKey.set(k, l)
+    if (!byKey.has(k)) byKey.set(k, l)
   }
   return [...byKey.values()]
 }
@@ -105,19 +114,19 @@ function dedupeByAddress(list: HomeLead[]) {
 const PAGE_ROWS = 50
 
 /** One home in the list. Memoised, so hovering one row doesn't redraw the others. */
-const LeadRow = memo(function LeadRow({ lead: l, hot, locked, onToggle, onHot }: { lead: HomeLead; hot: boolean; locked: boolean; onToggle: (id: string) => void; onHot: (id: string | null) => void }) {
+const LeadRow = memo(function LeadRow({ lead: l, on, hot, locked, onToggle, onHot }: { lead: HomeLead; on: boolean; hot: boolean; locked: boolean; onToggle: (id: string) => void; onHot: (id: string | null) => void }) {
   const meta = [l.propertyType ? TYPE_NAME[l.propertyType] ?? 'Other' : null, l.distance != null ? `${l.distance.toFixed(1)} mi` : null, l.soldOn ? `Sold ${formatDayMonth(l.soldOn)}` : formatPostcode(l.postcode)]
     .filter(Boolean).join(' · ')
   const name = formatAddressLine(l.addressLine)
   return (
     <li>
       <label
-        className={`${s.row} ${l.selected ? s.on : ''} ${hot ? s.hot : ''} ${locked ? s.locked : ''}`}
+        className={`${s.row} ${on ? s.on : ''} ${hot ? s.hot : ''} ${locked ? s.locked : ''}`}
         onMouseEnter={() => onHot(l.id)}
         onMouseLeave={() => onHot(null)}
         aria-disabled={locked || undefined}
       >
-        <input className={s.cb} type="checkbox" checked={l.selected} disabled={locked} onChange={() => onToggle(l.id)} aria-label={`${name}${l.price ? ', ' + pounds(l.price) : ''}`} />
+        <input className={s.cb} type="checkbox" checked={on} disabled={locked} onChange={() => onToggle(l.id)} aria-label={`${name}${l.price ? ', ' + pounds(l.price) : ''}`} />
         <span className={s.addr}>
           <span className={s.street}>{name}</span>
           <span className={s.meta}>{meta}</span>
@@ -129,6 +138,12 @@ const LeadRow = memo(function LeadRow({ lead: l, hot, locked, onToggle, onHot }:
 })
 
 type Sort = 'distance' | 'price-desc' | 'price-asc' | 'newest'
+const SORTS: { value: Sort; label: string }[] = [
+  { value: 'distance', label: 'Nearest first' },
+  { value: 'newest', label: 'Most recent sale' },
+  { value: 'price-desc', label: 'Highest price' },
+  { value: 'price-asc', label: 'Lowest price' },
+]
 type Archived = { id: string; address_line: string; postcode: string; price: number | null }
 
 export function HomeClient(props: {
@@ -145,8 +160,9 @@ export function HomeClient(props: {
   const router = useRouter()
   const [leads, setLeads] = useState(props.leads)
   const [saved, setSaved] = useState<Prefs>(props.prefs)
-  const [applied, setApplied] = useState<Prefs>(props.prefs)
-  const [fields, setFields] = useState(() => ({ dist: distLabel(props.prefs.radius), min: priceText(props.prefs.min, false), max: priceText(props.prefs.max, true) }))
+  // Distance now stops at 10 miles; an older, wider saved search opens at 10.
+  const [applied, setApplied] = useState<Prefs>(() => ({ ...props.prefs, radius: Math.min(props.prefs.radius, MAX_RADIUS) }))
+  const [picks, setPicks] = useState<Set<string>>(() => (typeof window !== 'undefined' && pickMemory.userId === userId ? pickMemory.ids : new Set()))
   const [fieldErr, setFieldErr] = useState<{ field: string; msg: string } | null>(null)
   const [saving, setSaving] = useState(false)
   const [finding, setFinding] = useState(false)
@@ -161,6 +177,11 @@ export function HomeClient(props: {
 
   // a fresh server render (after a fetch, an added address or a restore) replaces the list
   useEffect(() => { setLeads(props.leads) }, [props.leads])
+  // keep this tab's picks while moving between pages
+  useEffect(() => {
+    pickMemory.userId = userId
+    pickMemory.ids = picks
+  }, [userId, picks])
 
   // Review order → confirm → cool-off/cancel, shared with Tracking (unchanged).
   const sendFlow = useSendFlow({
@@ -168,12 +189,13 @@ export function HomeClient(props: {
     onHeld: ({ orderId, leadIds }) => {
       setLeads((prev) => {
         previousJobLinks.current = new Map(prev.filter((l) => leadIds.includes(l.id)).map((l) => [l.id, l.jobId]))
-        return prev.map((l) => (leadIds.includes(l.id) ? { ...l, jobId: orderId, selected: false } : l))
+        return prev.map((l) => (leadIds.includes(l.id) ? { ...l, jobId: orderId } : l))
       })
+      unpick(leadIds)
       setTrayOpen(false)
     },
     onCancelled: ({ leadIds, reactivate }) => {
-      setLeads((prev) => prev.map((l) => (leadIds.includes(l.id) ? { ...l, jobId: reactivate ? previousJobLinks.current.get(l.id) ?? null : null, selected: false } : l)))
+      setLeads((prev) => prev.map((l) => (leadIds.includes(l.id) ? { ...l, jobId: reactivate ? previousJobLinks.current.get(l.id) ?? null : null } : l)))
     },
   })
 
@@ -190,8 +212,6 @@ export function HomeClient(props: {
     }
     return [visible.filter((l) => l.month === latestMonth).sort(sorter), visible.filter((l) => l.month !== latestMonth).sort(sorter)]
   }, [visible, latestMonth, sort])
-  const allSelected = useMemo(() => active.filter((l) => l.selected), [active])
-  const picked = useMemo(() => visible.filter((l) => l.selected), [visible])
   // Long lists show 50 at a time per group.
   const [shown, setShown] = useState<Record<string, number>>({})
 
@@ -201,34 +221,41 @@ export function HomeClient(props: {
     const open = new Set([...newList, ...earlierList].slice(0, UNSUBSCRIBED_LIMIT).map((l) => l.id))
     return new Set(visible.filter((l) => !open.has(l.id)).map((l) => l.id))
   }, [subscribed, newList, earlierList, visible])
+  // What you've picked is only ever what you can see: a home the filters hide
+  // is dropped from the picks (see changePrefs), so nothing is sent unseen.
+  const picked = useMemo(() => visible.filter((l) => picks.has(l.id) && !lockedIds.has(l.id)), [visible, picks, lockedIds])
+  const pickable = useMemo(() => visible.filter((l) => !lockedIds.has(l.id)), [visible, lockedIds])
 
-  /* ---------- picking ---------- */
-  async function setSelected(ids: string[], on: boolean) {
-    if (!ids.length) return
-    setLeads((prev) => prev.map((l) => (ids.includes(l.id) ? { ...l, selected: on } : l)))
-    const results = await Promise.all(
-      ids.map((id) =>
-        fetch(`/api/leads/${id}/select`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ selected: on }) })
-          .then((r) => r.ok)
-          .catch(() => false)
-      )
-    )
-    const failed = ids.filter((_, i) => !results[i])
-    if (failed.length) {
-      setLeads((prev) => prev.map((l) => (failed.includes(l.id) ? { ...l, selected: !on } : l)))
-      toast.error(failed.length === 1 ? 'Could not update that home. Please try again.' : 'Some homes could not be updated. Please try again.')
-    }
-  }
-  function toggle(id: string) {
-    if (lockedIds.has(id)) return
-    const lead = active.find((l) => l.id === id)
-    if (!lead) return
-    if (!lead.selected && !subscribed && allSelected.length >= UNSUBSCRIBED_LIMIT) {
-      toast.message(`You can pick ${UNSUBSCRIBED_LIMIT} homes before subscribing.`)
+  /* ---------- picking (all in memory, so it is instant and can't half-fail) ---------- */
+  function pick(list: HomeLead[]) {
+    const room = subscribed ? Infinity : Math.max(0, UNSUBSCRIBED_LIMIT - picked.length)
+    const add = list.filter((l) => !lockedIds.has(l.id) && !picks.has(l.id)).slice(0, room)
+    if (!add.length) {
+      if (!subscribed && room === 0) toast.message(`You can pick ${UNSUBSCRIBED_LIMIT} homes before subscribing.`)
       return
     }
-    if (!lead.selected && picked.length === 0) setFace('back')
-    void setSelected([id], !lead.selected)
+    if (picked.length === 0) setFace('back')
+    setPicks((prev) => {
+      const next = new Set(prev)
+      for (const l of add) next.add(l.id)
+      return next
+    })
+  }
+  function unpick(ids: string[]) {
+    setPicks((prev) => {
+      if (!ids.some((id) => prev.has(id))) return prev
+      const next = new Set(prev)
+      for (const id of ids) next.delete(id)
+      return next
+    })
+  }
+  const clearAll = () => setPicks(new Set())
+  function toggle(id: string) {
+    if (lockedIds.has(id)) return
+    const lead = visible.find((l) => l.id === id)
+    if (!lead) return
+    if (picks.has(id)) unpick([id])
+    else pick([lead])
   }
   const toggleRef = useRef(toggle)
   useEffect(() => {
@@ -236,16 +263,6 @@ export function HomeClient(props: {
   })
   const onToggle = useCallback((id: string) => toggleRef.current(id), [])
   const onHot = useCallback((id: string | null) => setHot(id), [])
-
-  function selectAll(list: HomeLead[]) {
-    const open = list.filter((l) => !lockedIds.has(l.id))
-    const allOn = open.length > 0 && open.every((l) => l.selected)
-    if (allOn) return void setSelected(open.map((l) => l.id), false)
-    let toPick = open.filter((l) => !l.selected)
-    if (!subscribed) toPick = toPick.slice(0, Math.max(0, UNSUBSCRIBED_LIMIT - allSelected.length))
-    if (picked.length === 0 && toPick.length) setFace('back')
-    void setSelected(toPick.map((l) => l.id), true)
-  }
 
   /* ---------- filters ---------- */
   const envKey = `hp-fetched:${userId}:${latestMonth}`
@@ -256,38 +273,30 @@ export function HomeClient(props: {
     } catch {}
     return saved // what the monthly fetch used
   }
-  function applyField(field: 'dist' | 'min' | 'max', value: string) {
-    if (field === 'dist') {
-      const d = parseDist(value)
-      if (d == null) return setFieldErr({ field, msg: 'Type a distance in whole miles, from 1 to 50.' })
-      setApplied((p) => ({ ...p, radius: d }))
-      setFields((f) => ({ ...f, dist: distLabel(d) }))
-    } else {
-      const v = parsePrice(value)
-      if (v == null) return setFieldErr({ field, msg: 'Type a price like £450,000, 450k or 1.2m.' })
-      const isMax = field === 'max'
-      const lo = isMax ? applied.min : v
-      const hi = isMax ? v : applied.max
-      if (lo && hi && lo >= hi) return setFieldErr({ field, msg: 'The lowest price needs to be under the highest.' })
-      setApplied((p) => ({ ...p, [isMax ? 'max' : 'min']: v || null }))
-      setFields((f) => ({ ...f, [field]: priceText(v, isMax) }))
-    }
+  /** New filters; picked homes they now hide are let go, so widening again never brings picks back. */
+  function changePrefs(next: Prefs) {
+    setApplied(next)
     setFieldErr(null)
+    setPicks((prev) => {
+      if (!prev.size) return prev
+      const keep = new Set<string>()
+      for (const l of active) if (prev.has(l.id) && matches(l, next)) keep.add(l.id)
+      return keep.size === prev.size ? prev : keep
+    })
   }
-  function onFieldInput(field: 'dist' | 'min' | 'max', value: string, options: string[]) {
-    setFields((f) => ({ ...f, [field]: value }))
-    if (options.includes(value)) applyField(field, value) // picked from the list
+  function setPrice(isMax: boolean, v: number) {
+    const lo = isMax ? applied.min : v
+    const hi = isMax ? v : applied.max
+    if (lo && hi && lo >= hi) return setFieldErr({ field: isMax ? 'max' : 'min', msg: 'The lowest price needs to be under the highest.' })
+    changePrefs({ ...applied, [isMax ? 'max' : 'min']: v || null })
   }
   function toggleType(code: string, on: boolean) {
     const next = on ? [...applied.types, code] : applied.types.filter((t) => t !== code)
     if (!next.length) return setFieldErr({ field: 'types', msg: 'Pick at least one property type.' })
-    setFieldErr(null)
-    setApplied((p) => ({ ...p, types: next }))
+    changePrefs({ ...applied, types: next })
   }
   function undo() {
-    setApplied(saved)
-    setFields({ dist: distLabel(saved.radius), min: priceText(saved.min, false), max: priceText(saved.max, true) })
-    setFieldErr(null)
+    changePrefs({ ...saved, radius: Math.min(saved.radius, MAX_RADIUS) })
   }
   async function save(e: React.FormEvent) {
     e.preventDefault()
@@ -330,6 +339,7 @@ export function HomeClient(props: {
     const res = await fetch('/api/leads/archive', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) })
     if (!res.ok) return void toast.error('Could not archive those homes. Please try again.')
     setLeads((prev) => prev.filter((l) => !ids.includes(l.id)))
+    unpick(ids)
     setArchived((a) => ({ ...a, list: null }))
     toast.success(`${ids.length} ${ids.length === 1 ? 'home' : 'homes'} archived`)
   }
@@ -373,19 +383,31 @@ export function HomeClient(props: {
 
   function renderGroup(key: string, title: string, list: HomeLead[], sub?: string) {
     const open = list.filter((l) => !lockedIds.has(l.id))
-    const allOn = open.length > 0 && open.every((l) => l.selected)
+    const onCount = open.filter((l) => picks.has(l.id)).length
+    const allOn = open.length > 0 && onCount === open.length
     const limit = shown[key] ?? PAGE_ROWS
     const rest = list.length - limit
     return (
       <div className={s.group}>
         <div className={s.gHead}>
-          <div><h2>{title}</h2><p className={s.gSub}>{list.length === 1 ? '1 home' : `${list.length.toLocaleString('en-GB')} homes`}{sub ? ` · ${sub}` : ''}</p></div>
-          {open.length > 0 && <button type="button" className={s.textBtn} onClick={() => selectAll(list)}>{allOn ? 'Clear' : 'Select all'}</button>}
+          <div>
+            <h2>{title}</h2>
+            <p className={s.gSub}>
+              {list.length === 1 ? '1 home' : `${list.length.toLocaleString('en-GB')} homes`}
+              {onCount > 0 ? ` · ${onCount.toLocaleString('en-GB')} picked` : sub ? ` · ${sub}` : ''}
+            </p>
+          </div>
+          {open.length > 0 && (
+            <div className={s.gActs}>
+              {!allOn && <button type="button" className={s.textBtn} onClick={() => pick(list)}>Select all</button>}
+              {onCount > 0 && <button type="button" className={s.textBtn} onClick={() => unpick(list.map((l) => l.id))}>Clear</button>}
+            </div>
+          )}
         </div>
         <ul className={s.rows}>
           {list.length
             ? list.slice(0, limit).map((l) => (
-                <LeadRow key={l.id} lead={l} hot={hot === l.id} locked={lockedIds.has(l.id)} onToggle={onToggle} onHot={onHot} />
+                <LeadRow key={l.id} lead={l} on={picks.has(l.id)} hot={hot === l.id} locked={lockedIds.has(l.id)} onToggle={onToggle} onHot={onHot} />
               ))
             : <li className={s.empty}>No homes here match your filters. A wider distance or price range will bring more in.</li>}
         </ul>
@@ -460,27 +482,37 @@ export function HomeClient(props: {
       <form id="home-filters" className={`${s.filters} ${filtersOpen ? '' : s.filtersClosed}`} onSubmit={save} noValidate aria-label="Filters">
         <div className={s.fbar}>
           <div className={s.fld}>
-            <label htmlFor="f-dist">Within</label>
-            <input id="f-dist" className={`${s.inp} ${s.inpD} ${fieldErr?.field === 'dist' ? s.bad : ''}`} list="dl-dist" autoComplete="off" value={fields.dist}
-              onChange={(e) => onFieldInput('dist', e.target.value, DISTANCES.map(distLabel))}
-              onBlur={(e) => applyField('dist', e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyField('dist', (e.target as HTMLInputElement).value) } }}
-              onFocus={(e) => e.target.select()} />
+            <span>Within</span>
+            <Picker
+              label="Distance"
+              display={distLabel(applied.radius)}
+              value={applied.radius}
+              options={DISTANCES.map((d) => ({ value: d, label: distLabel(d) }))}
+              onChange={(d) => changePrefs({ ...applied, radius: d })}
+            />
           </div>
           <div className={s.fld}>
-            <span id="f-price">Price</span>
+            <span>Price</span>
             <div className={s.range}>
-              <input className={`${s.inp} ${fieldErr?.field === 'min' ? s.bad : ''}`} list="dl-min" autoComplete="off" aria-label="Lowest price" value={fields.min}
-                onChange={(e) => onFieldInput('min', e.target.value, ['No min', ...PRICES.map((p) => priceText(p * 100, false))])}
-                onBlur={(e) => applyField('min', e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyField('min', (e.target as HTMLInputElement).value) } }}
-                onFocus={(e) => e.target.select()} />
+              <Picker
+                label="Lowest price"
+                display={priceText(applied.min, false)}
+                value={applied.min ?? 0}
+                options={[{ value: 0, label: 'No min' }, ...PRICES.map((p) => ({ value: p * 100, label: priceText(p * 100, false), disabled: !!applied.max && p * 100 >= applied.max }))]}
+                onChange={(v) => setPrice(false, v)}
+                custom={{ placeholder: 'Or type one, e.g. 450k', parse: parsePrice, error: 'Try a price like 450k, £450,000 or 1.2m.' }}
+                wide
+              />
               <span>to</span>
-              <input className={`${s.inp} ${fieldErr?.field === 'max' ? s.bad : ''}`} list="dl-max" autoComplete="off" aria-label="Highest price" value={fields.max}
-                onChange={(e) => onFieldInput('max', e.target.value, ['No max', ...PRICES.map((p) => priceText(p * 100, true))])}
-                onBlur={(e) => applyField('max', e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyField('max', (e.target as HTMLInputElement).value) } }}
-                onFocus={(e) => e.target.select()} />
+              <Picker
+                label="Highest price"
+                display={priceText(applied.max, true)}
+                value={applied.max ?? 0}
+                options={[{ value: 0, label: 'No max' }, ...PRICES.map((p) => ({ value: p * 100, label: priceText(p * 100, true), disabled: !!applied.min && p * 100 <= applied.min }))]}
+                onChange={(v) => setPrice(true, v)}
+                custom={{ placeholder: 'Or type one, e.g. 450k', parse: parsePrice, error: 'Try a price like 450k, £450,000 or 1.2m.' }}
+                wide
+              />
             </div>
           </div>
           <div className={s.fld}>
@@ -499,21 +531,27 @@ export function HomeClient(props: {
             <button type="submit" className={`${s.btn} ${s.btnSm}`} disabled={!dirty || saving || !!fieldErr}>{saving ? 'Saving…' : 'Save'}</button>
           </div>
           {fieldErr && <p className={s.fErr} role="alert">{fieldErr.msg}</p>}
+          {saved.radius > MAX_RADIUS && !fieldErr && (
+            <p className={s.fNote}>Searches now go up to {MAX_RADIUS} miles. Save to change yours from {saved.radius} miles.</p>
+          )}
         </div>
-        <datalist id="dl-dist">{DISTANCES.map((d) => <option key={d} value={distLabel(d)} />)}</datalist>
-        <datalist id="dl-min"><option value="No min" />{PRICES.map((p) => <option key={p} value={priceText(p * 100, false)} />)}</datalist>
-        <datalist id="dl-max"><option value="No max" />{PRICES.map((p) => <option key={p} value={priceText(p * 100, true)} />)}</datalist>
       </form>
 
       <section className={s.list} aria-label="Homes to choose">
         <div className={s.listTools}>
-          <label htmlFor="home-sort">Sort by</label>
-          <select id="home-sort" className={s.sort} value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
-            <option value="distance">Nearest first</option>
-            <option value="newest">Most recent sale</option>
-            <option value="price-desc">Highest price</option>
-            <option value="price-asc">Lowest price</option>
-          </select>
+          <div className={s.pickBar} aria-live="polite">
+            <b>{picked.length ? `${picked.length.toLocaleString('en-GB')} picked` : 'None picked'}</b>
+            {pickable.length > 0 && picked.length < pickable.length && (
+              <button type="button" className={s.textBtn} onClick={() => pick(pickable)}>
+                Select all {pickable.length.toLocaleString('en-GB')}
+              </button>
+            )}
+            {picked.length > 0 && <button type="button" className={s.textBtn} onClick={clearAll}>Clear all</button>}
+          </div>
+          <div className={s.sortBy}>
+            <span>Sort by</span>
+            <Picker label="Sort by" display={SORTS.find((o) => o.value === sort)?.label ?? ''} value={sort} options={SORTS} onChange={setSort} small />
+          </div>
         </div>
         {renderGroup('new', 'New this month', newList)}
         {earlierList.length > 0 && renderGroup('earlier', 'Earlier homes', earlierList, 'not sent yet')}

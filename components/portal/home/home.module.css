@@ -35,6 +35,9 @@
 .filters {
   grid-area: filters;
   margin-top: 18px;
+  /* the dropdowns open over the list and the map */
+  position: relative;
+  z-index: 20;
 }
 .list {
   grid-area: list;
@@ -143,25 +146,160 @@
   font-size: 12.5px;
   color: var(--color-ink-2);
 }
-.inp {
+/* our dropdown (Picker.tsx), in place of the browser's suggestion list */
+.pick {
+  position: relative;
+  width: 120px;
+}
+.pickWide {
+  width: 136px;
+}
+.pickBtn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
   min-height: 42px;
-  width: 128px;
-  padding: 0 12px;
+  padding: 0 11px 0 12px;
   border: 1px solid var(--color-line-2);
   border-radius: 6px;
   background: var(--color-paper-hi);
   font: 500 15px/1 var(--font-sans);
   color: var(--color-ink);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
 }
-.inp:focus {
+.pickBtn:hover {
+  border-color: #b9ad97;
+}
+.pickBtn[aria-expanded='true'] {
+  border-color: var(--color-navy);
+  box-shadow: 0 0 0 1px var(--color-navy);
+}
+.pickBtn svg {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  color: var(--color-ink-2);
+}
+.pickBtn[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+.pickSmall {
+  width: auto;
+}
+.pickSmall .pickBtn {
+  min-height: 34px;
+  padding: 0 9px 0 10px;
+  font-size: 13.5px;
+}
+.pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 60;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 32px));
+  background: var(--color-paper-hi);
+  border: 1px solid var(--color-line-2);
+  border-radius: 8px;
+  box-shadow: 0 14px 32px -16px rgba(40, 30, 15, 0.45);
+  overflow: hidden;
+}
+.pickSmall .pop {
+  left: auto;
+  right: 0;
+}
+.pop ul {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.pop li button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  font: 500 14.5px/1 var(--font-sans);
+  color: var(--color-ink);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.pop li button:hover,
+.pop li button:focus-visible {
+  background: #f2ece2;
+  outline: none;
+}
+.pop li button[aria-selected='true'] {
+  font-weight: 600;
+  color: var(--color-navy-ink);
+}
+.pop li button svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+}
+.pop li button[disabled] {
+  color: #b3ab9d;
+  cursor: default;
+  background: none;
+}
+.popType {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid var(--color-line);
+}
+.popType input {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--color-line-2);
+  border-radius: 5px;
+  background: #fff;
+  font: 500 14.5px/1 var(--font-sans);
+  color: var(--color-ink);
+}
+.popType input:focus {
   outline: 2px solid var(--color-navy);
-  outline-offset: 1px;
+  outline-offset: 0;
 }
-.inp.bad {
-  border-color: #b4472f;
+.popType button {
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 5px;
+  background: var(--color-navy);
+  color: var(--color-paper);
+  font: 600 13.5px/1 var(--font-sans);
+  cursor: pointer;
 }
-.inpD {
-  width: 104px;
+.popType button[disabled] {
+  background: #e4ded2;
+  color: #5f655f;
+  cursor: default;
+}
+.popType p {
+  flex-basis: 100%;
+  margin: 2px 2px 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #8a3324;
 }
 .range {
   display: flex;
@@ -231,21 +369,53 @@
 /* lists */
 .listTools {
   display: flex;
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 8px 16px;
+  margin-bottom: 14px;
   font-size: 13px;
   color: var(--color-ink-2);
 }
-.sort {
+.pickBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 16px;
   min-height: 34px;
-  padding: 0 8px;
-  border: 1px solid var(--color-line-2);
-  border-radius: 6px;
-  background: var(--color-paper-hi);
-  font: 500 13.5px/1 var(--font-sans);
+}
+.pickBar b {
+  font-size: 14px;
+  font-weight: 600;
   color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+.pickBar .textBtn {
+  padding: 8px 0;
+}
+.sortBy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+/* placeholders while Home loads (app/(portal)/dashboard/loading.tsx) */
+.skel {
+  display: block;
+  height: 14px;
+  border-radius: 3px;
+  background: #ece5d9;
+}
+.skelBar {
+  min-height: 72px;
+}
+.mapWait {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  color: var(--color-ink-2);
 }
 .group + .group {
   margin-top: 40px;
@@ -643,8 +813,9 @@
   display: none;
 }
 .pin {
+  display: block;
   width: 36px;
-  height: 44px;
+  height: 54px;
 }
 
 /* middle widths: the map sits above the list */
@@ -690,11 +861,10 @@
     gap: 14px;
     padding: 14px;
   }
-  .inp,
-  .inpD {
+  .fbar .pick {
     width: 100%;
   }
-  .range .inp {
+  .range .pick {
     flex: 1 1 0;
     min-width: 0;
   }

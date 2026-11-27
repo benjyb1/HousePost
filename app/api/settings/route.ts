@@ -39,7 +39,15 @@ export async function PATCH(request: Request) {
   const updates: Record<string, unknown> = {}
 
   if (full_name !== undefined) updates.full_name = full_name
-  if (search_radius_miles !== undefined) updates.search_radius_miles = search_radius_miles
+  if (search_radius_miles !== undefined) {
+    // Whole miles, 1 to 10. Home only offers those; this stops anything wider
+    // (e.g. 400 miles typed into an older page) being saved.
+    const r = Number(search_radius_miles)
+    if (!Number.isInteger(r) || r < 1 || r > 10) {
+      return NextResponse.json({ error: 'Distance must be a whole number of miles from 1 to 10.' }, { status: 400 })
+    }
+    updates.search_radius_miles = r
+  }
   if (min_price !== undefined) updates.min_price = min_price
   if (max_price !== undefined) updates.max_price = max_price
   if (property_types !== undefined) updates.property_types = property_types

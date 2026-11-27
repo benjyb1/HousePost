@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { adminToken, safeEqualHex } from '@/lib/admin/token'
 
-const PORTAL_PATHS = ['/dashboard', '/leads', '/postcards', '/billing', '/settings']
+const PORTAL_PATHS = ['/dashboard', '/leads', '/postcards', '/billing', '/settings', '/account', '/notifications']
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -45,10 +45,12 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // getUser() verifies the JWT with Supabase servers — required for security
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // getClaims() refreshes an expiring session (writing the new cookies above)
+  // and checks the token's signature against the project's published ES256
+  // key, cached per server instance. getUser() asked Supabase Auth over the
+  // network on every page load, and the layout and page then asked again.
+  const { data } = await supabase.auth.getClaims()
+  const user = data?.claims?.sub ? data.claims : null
 
   if (!user) {
     const loginUrl = new URL('/login', request.url)
@@ -66,6 +68,8 @@ export const config = {
     '/postcards/:path*',
     '/billing/:path*',
     '/settings/:path*',
+    '/account/:path*',
+    '/notifications/:path*',
     '/admin/:path*',
   ],
 }
