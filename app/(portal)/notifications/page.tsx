@@ -1,15 +1,14 @@
 export const dynamic = 'force-dynamic'
 
 import { revalidatePath } from 'next/cache'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getSessionUser } from '@/lib/supabase/server'
 import { listNotifications, markAllNotificationsRead } from '@/lib/notifications'
 import { NotificationItem } from '@/components/portal/notifications/NotificationItem'
 import chrome from '@/components/portal/page-chrome.module.css'
 import s from '@/components/portal/notifications/notifications.module.css'
 
 export default async function NotificationsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return null
 
   const notifications = await listNotifications(user.id, 100)

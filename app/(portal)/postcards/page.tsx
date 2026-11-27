@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, getSessionUser } from '@/lib/supabase/server'
 import { TrackingSendProvider } from '@/components/postcards/TrackingSend'
 import { TrackingBatches } from '@/components/portal/tracking/TrackingBatches'
 import { fromJob, type PostcardJobRow } from '@/components/portal/tracking/model'
@@ -10,8 +10,7 @@ function serverNow(): string {
 }
 
 export default async function PostcardsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const [supabase, user] = await Promise.all([createClient(), getSessionUser()])
   if (!user) return null
 
   const [{ data: jobsData }, { data: profile }] = await Promise.all([
