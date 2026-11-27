@@ -8,6 +8,10 @@ import { MonthMap } from '@/components/marketing/home/MonthMap'
 import { DemoLoop } from '@/components/marketing/home/DemoLoop'
 import { TryIt } from '@/components/marketing/home/TryIt'
 import styles from '@/components/marketing/home/home.module.css'
+// Static imports give the photos hashed URLs, so browsers and the CDN can
+// cache them for good.
+import aerialTerraces from '@/public/home/aerial-terraces.jpg'
+import letterbox from '@/public/home/letterbox.jpg'
 
 // Trade terms live in the title/description so queries like
 // "leads for builders" / "leads for plumbers" have something to match.
@@ -44,10 +48,11 @@ export default function HomePage() {
         <section className={styles.hero} aria-labelledby="strap">
           <Image
             className={styles.heroPhoto}
-            src="/home/aerial-terraces.jpg"
+            src={aerialTerraces}
             alt=""
             fill
             priority
+            quality={65}
             sizes="100vw"
           />
           <div className={styles.heroScrim} />
@@ -74,7 +79,7 @@ export default function HomePage() {
         {/* 3. pricing */}
         <section className={styles.pricing} id="pricing" aria-labelledby="price-h">
           <div className={styles.pricingPhoto}>
-            <Image src="/home/letterbox.jpg" alt="Post pushed through the letterbox of a painted front door" fill sizes="(max-width: 899px) 100vw, 42vw" />
+            <Image src={letterbox} alt="Post pushed through the letterbox of a painted front door" fill sizes="(max-width: 899px) 100vw, 42vw" />
           </div>
           <div className={`${styles.pricingBody} ${styles.onDark}`}>
             <h2 className={styles.price} id="price-h">£15 a month</h2>

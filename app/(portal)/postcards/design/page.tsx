@@ -1,17 +1,44 @@
 'use client'
 
 import { useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import dynamic from 'next/dynamic'
+import { ArrowLeft, Loader2 } from 'lucide-react'
 import { DesignOptionChooser, type DesignOption } from '@/components/postcards/DesignOptionChooser'
-import { SvgTemplateEditor } from '@/components/postcards/SvgTemplateEditor'
-import { UploadCustomDesign } from '@/components/postcards/UploadCustomDesign'
-import { CustomDesignBrief } from '@/components/postcards/CustomDesignBrief'
 import { DesignLibrary } from '@/components/postcards/DesignLibrary'
 import { useLeaveGuard } from '@/components/layout/LeaveGuardProvider'
 import { parseSidecar, type TemplateSidecar } from '@/components/postcards/template-sidecar'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import chrome from '@/components/portal/page-chrome.module.css'
+
+/** Shown for the moment it takes to fetch a design tool's code. */
+function ToolLoading() {
+  return (
+    <div
+      role="status"
+      className="flex min-h-[240px] items-center justify-center gap-2 rounded-lg border border-line bg-paper-hi text-sm text-ink-2"
+    >
+      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      Loading…
+    </div>
+  )
+}
+
+// The three design tools are heavy (the template set, the PDF cropper, the
+// brief form) and only one is ever used per visit, so each is fetched when
+// its option is chosen rather than with the page. All three are browser-only.
+const SvgTemplateEditor = dynamic(
+  () => import('@/components/postcards/SvgTemplateEditor').then((m) => m.SvgTemplateEditor),
+  { ssr: false, loading: () => <ToolLoading /> }
+)
+const UploadCustomDesign = dynamic(
+  () => import('@/components/postcards/UploadCustomDesign').then((m) => m.UploadCustomDesign),
+  { ssr: false, loading: () => <ToolLoading /> }
+)
+const CustomDesignBrief = dynamic(
+  () => import('@/components/postcards/CustomDesignBrief').then((m) => m.CustomDesignBrief),
+  { ssr: false, loading: () => <ToolLoading /> }
+)
 
 const HEADINGS: Record<DesignOption, { title: string; subtitle: string }> = {
   template: {
@@ -33,8 +60,9 @@ export default function PostcardDesignPage() {
   // Which side the uploader opens on. "Add a back design" from the template
   // editor lands straight on the Back tab instead of the Front one.
   const [uploadSide, setUploadSide] = useState<'front' | 'back'>('front')
-  // The template editor reports unsaved edits straight to the portal-wide guard,
-  // which asks before we leave them behind (page back, sidebar, browser Back, Sign-out).
+  // The template editor and the uploader report unsaved work straight to the
+  // portal-wide guard, which asks before we leave it behind (page back, sidebar,
+  // browser Back, Sign-out).
   const { setDirty, guard } = useLeaveGuard()
   // A saved template being reopened for editing (the library's "Edit"). Cleared
   // whenever we leave the editor or start a template fresh, so a later fresh
@@ -128,7 +156,11 @@ export default function PostcardDesignPage() {
               />
             )}
             {option === 'upload' && (
-              <UploadCustomDesign initialSide={uploadSide} onBackToOptions={() => setOption(null)} />
+              <UploadCustomDesign
+                initialSide={uploadSide}
+                onBackToOptions={() => guard(() => setOption(null))}
+                onDirtyChange={setDirty}
+              />
             )}
             {option === 'request' && <CustomDesignBrief />}
           </>

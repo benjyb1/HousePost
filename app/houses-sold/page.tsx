@@ -16,9 +16,12 @@ import {
 } from '@/app/api/houses-sold/route'
 
 export const metadata: Metadata = {
-  title: 'Houses Sold Near You: Recent UK Sales by Postcode | Housepost',
+  title: 'Houses Sold Near You: Recent UK Sales by Postcode',
   description:
     'See how many homes recently sold near any UK postcode and the average price paid, straight from official government data. Enter a postcode and radius to find out.',
+  // One canonical for every search, so postcode results aren't indexed as
+  // separate thin pages.
+  alternates: { canonical: '/houses-sold' },
 }
 
 // Reads live data via the service-role client — always render on request.
