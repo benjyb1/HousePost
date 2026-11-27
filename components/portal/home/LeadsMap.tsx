@@ -100,11 +100,14 @@ export default function LeadsMap({ leads, selected, locked, hot, office, radius,
   useEffect(() => {
     if (!boxRef.current) return
     const center: [number, number] = office ? [office.lng, office.lat] : leads[0] ? [leads[0].lng, leads[0].lat] : [-1.5, 52.5]
+    // Open straight onto your patch, so the first tiles fetched are the ones you see
+    // (opening at a fixed zoom and then refitting fetched two sets of tiles).
     const map = new maplibregl.Map({
       container: boxRef.current,
       style: STYLE,
-      center,
-      zoom: office ? 11 : 6,
+      ...(office
+        ? { bounds: circleBounds(office.lat, office.lng, radius), fitBoundsOptions: { padding: 28 } }
+        : { center, zoom: 6 }),
       attributionControl: { compact: true },
       dragRotate: false,
       pitchWithRotate: false,
@@ -114,13 +117,16 @@ export default function LeadsMap({ leads, selected, locked, hot, office, radius,
     mapRef.current = map
 
     if (office) {
+      // The pin's round head reaches 52 units above its point, so the box starts
+      // at -53 (it started at -44 and cut the top off). The point sits 4 units
+      // above the box's bottom edge, hence the 4px offset.
       const pin = document.createElement('div')
       pin.setAttribute('aria-hidden', 'true')
       pin.innerHTML =
-        `<svg class="${styles.pin}" viewBox="-19 -44 38 46"><ellipse cx="0" cy="0" rx="11" ry="3.5" fill="#1b2333" opacity=".18"/>` +
+        `<svg class="${styles.pin}" viewBox="-19 -53 38 57"><ellipse cx="0" cy="0" rx="11" ry="3.5" fill="#1b2333" opacity=".18"/>` +
         `<path d="M0 0 C-4 -9 -18 -20 -18 -34 A18 18 0 0 1 18 -34 C18 -20 4 -9 0 0 Z" fill="${NAVY}"/>` +
         `<text x="0" y="-29.5" text-anchor="middle" fill="#fff" font-size="12" font-weight="700" font-family="var(--font-sans)">You</text></svg>`
-      new maplibregl.Marker({ element: pin, anchor: 'bottom' }).setLngLat([office.lng, office.lat]).addTo(map)
+      new maplibregl.Marker({ element: pin, anchor: 'bottom', offset: [0, 4] }).setLngLat([office.lng, office.lat]).addTo(map)
     }
 
     // the one tag that follows the hovered home
