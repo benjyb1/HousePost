@@ -125,7 +125,7 @@ export default function ResetPasswordPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-[22px] tracking-[-0.01em]">Checking your link</CardTitle>
+          <CardTitle as="h1" className="text-[22px] tracking-[-0.01em]">Checking your link</CardTitle>
           <CardDescription>This takes a second or two.</CardDescription>
         </CardHeader>
       </Card>
@@ -136,7 +136,7 @@ export default function ResetPasswordPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-[22px] tracking-[-0.01em]">Link expired</CardTitle>
+          <CardTitle as="h1" className="text-[22px] tracking-[-0.01em]">Link expired</CardTitle>
           <CardDescription>
             This reset link has expired or has already been used. Each link works once, so ask for a new one.
           </CardDescription>
@@ -155,7 +155,7 @@ export default function ResetPasswordPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-[22px] tracking-[-0.01em]">Set a new password</CardTitle>
+        <CardTitle as="h1" className="text-[22px] tracking-[-0.01em]">Set a new password</CardTitle>
         <CardDescription>At least 8 characters.</CardDescription>
       </CardHeader>
       <form onSubmit={handleUpdate} className="flex flex-col gap-6">

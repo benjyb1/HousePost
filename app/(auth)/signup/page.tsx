@@ -80,7 +80,7 @@ export default function SignupPage() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-[22px] tracking-[-0.01em]">Check your email</CardTitle>
+          <CardTitle as="h1" className="text-[22px] tracking-[-0.01em]">Check your email</CardTitle>
           <CardDescription>
             We&apos;ve sent a link to <strong className="font-semibold text-ink">{email}</strong>. Open it to
             confirm your account.
@@ -105,7 +105,7 @@ export default function SignupPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-[22px] tracking-[-0.01em]">Create your account</CardTitle>
+        <CardTitle as="h1" className="text-[22px] tracking-[-0.01em]">Create your account</CardTitle>
         <CardDescription>£15 a month, cancel anytime</CardDescription>
       </CardHeader>
       <form onSubmit={handleSignup} className="flex flex-col gap-6">

@@ -5,9 +5,10 @@ import styles from '@/components/layout/public.module.css'
 import { OptOutForm } from './OptOutForm'
 
 export const metadata: Metadata = {
-  title: 'Opt out of postal marketing | Housepost',
+  title: 'Opt out of postal marketing',
   description:
     'Tell us your address and we will add it to our do-not-contact list, so you get no more postcards from Housepost customers.',
+  alternates: { canonical: '/opt-out' },
 }
 
 // Public page: no authentication required. The form (and its call to

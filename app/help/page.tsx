@@ -11,9 +11,10 @@ import {
 } from '@/types/profile'
 
 export const metadata: Metadata = {
-  title: 'Help | Housepost',
+  title: 'Help',
   description:
     'How Housepost works, what each postcard status means, what happens when a card is delayed or fails, pricing, and how to get in touch.',
+  alternates: { canonical: '/help' },
 }
 
 const SUPPORT_EMAIL = 'info@housepost.co.uk'
